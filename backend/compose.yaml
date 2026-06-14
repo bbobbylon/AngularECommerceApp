@@ -1,0 +1,10 @@
+services:
+  mysql:
+    image: 'mysql:8.4'
+    environment:
+      - 'MYSQL_DATABASE=full-stack-ecommerce'
+      - 'MYSQL_USER=ecommerceapp'
+      - 'MYSQL_PASSWORD=ecommerceapp'
+      - 'MYSQL_ROOT_PASSWORD=verysecret'
+    ports:
+      - '3306:3306'

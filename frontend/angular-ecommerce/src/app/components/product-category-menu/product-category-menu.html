@@ -1,0 +1,10 @@
+<div class="list-group">
+  <h5 class="mb-3">Product Categories</h5>
+  @for (category of productCategories; track category.id) {
+    <a
+      [routerLink]="['/category', category.id]"
+      class="list-group-item list-group-item-action">
+      {{ category.categoryName }}
+    </a>
+  }
+</div>
