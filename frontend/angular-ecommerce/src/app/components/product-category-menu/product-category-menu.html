@@ -1,0 +1,15 @@
+<h5 class="text-uppercase text-muted small fw-bold mb-3">Categories</h5>
+<ul class="list-group">
+  <li class="list-group-item border-0 px-0 py-1">
+    <a routerLink="/products" class="text-decoration-none">All products</a>
+  </li>
+  @for (category of productCategories; track category.id) {
+    <li class="list-group-item border-0 px-0 py-1">
+      <a [routerLink]="['/category', category.id]"
+         routerLinkActive="fw-bold text-primary"
+         class="text-decoration-none text-dark">
+        {{ category.categoryName }}
+      </a>
+    </li>
+  }
+</ul>

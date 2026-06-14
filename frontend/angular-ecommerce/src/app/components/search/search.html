@@ -1,0 +1,15 @@
+<div class="input-group">
+  <span class="input-group-text bg-white border-end-0">
+    <i class="fa-solid fa-magnifying-glass text-muted"></i>
+  </span>
+  <input
+    #searchInput
+    type="text"
+    class="form-control border-start-0"
+    placeholder="Search products..."
+    (keyup.enter)="doSearch(searchInput.value)" />
+  <button type="button" class="btn btn-outline-primary"
+          (click)="doSearch(searchInput.value)">
+    Search
+  </button>
+</div>
