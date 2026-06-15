@@ -1,0 +1,11 @@
+@if (isAuthenticated$ | async) {
+  <a routerLink="/members/orders" class="btn btn-outline-light btn-sm me-2">
+    <i class="fa-solid fa-receipt me-1"></i> My orders
+  </a>
+  <span class="text-light small me-2 d-none d-lg-inline">{{ userFullName$ | async }}</span>
+  <button type="button" class="btn btn-outline-light btn-sm" (click)="logout()">Logout</button>
+} @else {
+  <button type="button" class="btn btn-outline-light btn-sm" (click)="login()">
+    <i class="fa-solid fa-right-to-bracket me-1"></i> Login
+  </button>
+}

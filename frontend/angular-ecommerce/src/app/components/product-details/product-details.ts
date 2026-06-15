@@ -2,7 +2,9 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
+import { CartItem } from '../../common/cart-item';
 import { Product } from '../../common/product';
+import { CartService } from '../../services/cart.service';
 import { ProductService } from '../../services/product.service';
 
 @Component({
@@ -16,8 +18,15 @@ export class ProductDetails implements OnInit {
 
   constructor(
     private productService: ProductService,
+    private cartService: CartService,
     private route: ActivatedRoute,
   ) {}
+
+  addToCart(): void {
+    if (this.product) {
+      this.cartService.addToCart(new CartItem(this.product));
+    }
+  }
 
   ngOnInit(): void {
     this.route.paramMap.subscribe(() => this.handleProductDetails());

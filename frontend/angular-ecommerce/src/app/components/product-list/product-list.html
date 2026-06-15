@@ -18,7 +18,13 @@
   </div>
 </div>
 
-@if (products.length === 0) {
+@if (isLoading) {
+  <div class="text-center py-5">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+  </div>
+} @else if (products.length === 0) {
   <div class="alert alert-warning" role="alert">
     No products found. Try a different category or search term.
   </div>
@@ -37,7 +43,7 @@
                  class="text-decoration-none text-dark">{{ product.name }}</a>
             </h5>
             <p class="card-text fw-bold mt-auto">{{ product.unitPrice | currency:'USD' }}</p>
-            <button type="button" class="btn btn-primary btn-sm">
+            <button type="button" class="btn btn-primary btn-sm" (click)="addToCart(product)">
               <i class="fa-solid fa-cart-shopping me-1"></i> Add to cart
             </button>
           </div>

@@ -2,7 +2,10 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
+import { provideOktaAuth, withOktaConfig } from '@okta/okta-angular';
+import { OktaAuth } from '@okta/okta-auth-js';
 import { App } from './app';
+import { oktaConfig } from './auth/okta-config';
 
 describe('App', () => {
   beforeEach(async () => {
@@ -12,6 +15,7 @@ describe('App', () => {
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
+        provideOktaAuth(withOktaConfig({ oktaAuth: new OktaAuth(oktaConfig) })),
       ],
     }).compileComponents();
   });

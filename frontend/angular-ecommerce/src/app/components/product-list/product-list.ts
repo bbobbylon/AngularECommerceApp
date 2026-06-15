@@ -3,7 +3,9 @@ import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NgbPaginationModule } from '@ng-bootstrap/ng-bootstrap';
 
+import { CartItem } from '../../common/cart-item';
 import { Product } from '../../common/product';
+import { CartService } from '../../services/cart.service';
 import { GetResponseProducts, ProductService } from '../../services/product.service';
 
 @Component({
@@ -14,6 +16,7 @@ import { GetResponseProducts, ProductService } from '../../services/product.serv
 export class ProductList implements OnInit {
 
   products: Product[] = [];
+  isLoading = false;
 
   currentCategoryId = 1;
   previousCategoryId = 1;
@@ -29,14 +32,20 @@ export class ProductList implements OnInit {
 
   constructor(
     private productService: ProductService,
+    private cartService: CartService,
     private route: ActivatedRoute,
   ) {}
+
+  addToCart(product: Product): void {
+    this.cartService.addToCart(new CartItem(product));
+  }
 
   ngOnInit(): void {
     this.route.paramMap.subscribe(() => this.listProducts());
   }
 
   listProducts(): void {
+    this.isLoading = true;
     this.searchMode = this.route.snapshot.paramMap.has('keyword');
     if (this.searchMode) {
       this.handleSearchProducts();
@@ -59,7 +68,13 @@ export class ProductList implements OnInit {
 
     this.productService
       .getProductListPaginate(this.pageNumber - 1, this.pageSize, this.currentCategoryId)
-      .subscribe(data => this.processResult(data));
+      .subscribe({
+        next: data => this.processResult(data),
+        error: () => {
+          this.products = [];
+          this.isLoading = false;
+        },
+      });
   }
 
   private handleSearchProducts(): void {
@@ -73,7 +88,13 @@ export class ProductList implements OnInit {
 
     this.productService
       .searchProductsPaginate(this.pageNumber - 1, this.pageSize, keyword)
-      .subscribe(data => this.processResult(data));
+      .subscribe({
+        next: data => this.processResult(data),
+        error: () => {
+          this.products = [];
+          this.isLoading = false;
+        },
+      });
   }
 
   private processResult(data: GetResponseProducts): void {
@@ -81,6 +102,7 @@ export class ProductList implements OnInit {
     this.pageNumber = data.page.number + 1;
     this.pageSize = data.page.size;
     this.totalElements = data.page.totalElements;
+    this.isLoading = false;
   }
 
   updatePageSize(value: string): void {

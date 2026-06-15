@@ -1,0 +1,16 @@
+<div class="text-center py-5">
+  <div class="mb-3">
+    <i class="fa-solid fa-circle-check text-success" style="font-size: 4rem;"></i>
+  </div>
+  <h2 class="mb-2">Thank you for your order!</h2>
+  <p class="text-muted">Your order has been received and is being processed.</p>
+
+  @if (trackingNumber) {
+    <p class="mb-1">Order tracking number</p>
+    <p class="fs-5 fw-bold font-monospace">{{ trackingNumber }}</p>
+  }
+
+  <a routerLink="/products" class="btn btn-primary mt-3">
+    <i class="fa-solid fa-arrow-left me-1"></i> Continue shopping
+  </a>
+</div>

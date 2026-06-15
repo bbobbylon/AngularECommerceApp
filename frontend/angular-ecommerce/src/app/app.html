@@ -8,13 +8,10 @@
       <app-search></app-search>
     </div>
 
-    <button type="button" class="btn btn-outline-light position-relative">
-      <i class="fa-solid fa-cart-shopping"></i>
-      <span class="ms-1">Cart</span>
-      <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary">
-        0
-      </span>
-    </button>
+    <div class="d-flex align-items-center gap-2">
+      <app-login-status></app-login-status>
+      <app-cart-status></app-cart-status>
+    </div>
   </div>
 </header>
 
@@ -28,3 +25,7 @@
     </main>
   </div>
 </div>
+
+<footer class="bg-dark text-light text-center py-3 mt-5">
+  <small>&copy; 2026 Luv2Shop &middot; Full-stack Angular &amp; Spring Boot demo</small>
+</footer>

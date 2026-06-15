@@ -1,0 +1,34 @@
+<h2 class="mb-4">Order History</h2>
+
+@if (orderHistoryList.length === 0) {
+  @if (loaded) {
+    <div class="alert alert-info">You have no orders yet.</div>
+  } @else {
+    <div class="text-muted">Loading your orders...</div>
+  }
+} @else {
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead>
+        <tr>
+          <th scope="col">Tracking #</th>
+          <th scope="col">Date</th>
+          <th scope="col">Status</th>
+          <th scope="col" class="text-center">Qty</th>
+          <th scope="col" class="text-end">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (order of orderHistoryList; track order.id) {
+          <tr>
+            <td class="font-monospace small">{{ order.orderTrackingNumber }}</td>
+            <td>{{ order.dateCreated | date:'medium' }}</td>
+            <td>{{ order.status || 'Received' }}</td>
+            <td class="text-center">{{ order.totalQuantity }}</td>
+            <td class="text-end">{{ order.totalPrice | currency:'USD' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

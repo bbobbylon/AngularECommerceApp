@@ -1,0 +1,7 @@
+<a routerLink="/cart-details" class="btn btn-outline-light position-relative">
+  <i class="fa-solid fa-cart-shopping"></i>
+  <span class="ms-1">{{ totalPrice | currency:'USD' }}</span>
+  <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary">
+    {{ totalQuantity }}
+  </span>
+</a>
