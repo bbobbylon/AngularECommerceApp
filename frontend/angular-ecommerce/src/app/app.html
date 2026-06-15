@@ -15,6 +15,14 @@
           <i class="fa-solid fa-moon"></i>
         }
       </button>
+      <a routerLink="/favorites" class="btn btn-outline-light position-relative" aria-label="Favorites">
+        <i class="fa-solid fa-heart"></i>
+        @if (favorites.count() > 0) {
+          <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary">
+            {{ favorites.count() }}
+          </span>
+        }
+      </a>
       <app-login-status></app-login-status>
       <app-cart-status></app-cart-status>
     </div>

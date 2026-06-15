@@ -7,6 +7,7 @@ import { LoginStatus } from './components/login-status/login-status';
 import { ProductCategoryMenu } from './components/product-category-menu/product-category-menu';
 import { Search } from './components/search/search';
 import { Toast } from './components/toast/toast';
+import { FavoritesService } from './services/favorites.service';
 import { ThemeService } from './services/theme.service';
 
 @Component({
@@ -17,5 +18,6 @@ import { ThemeService } from './services/theme.service';
 })
 export class App {
   protected readonly themeService = inject(ThemeService);
+  protected readonly favorites = inject(FavoritesService);
   title = 'angular-ecommerce';
 }

@@ -52,6 +52,14 @@
                 [disabled]="product.unitsInStock === 0" (click)="addToCart()">
           <i class="fa-solid fa-cart-plus me-1"></i> Add to cart
         </button>
+        <button type="button" class="btn btn-lg"
+                [class.btn-danger]="favorites.isFavorite(product.id)"
+                [class.btn-outline-danger]="!favorites.isFavorite(product.id)"
+                (click)="favorites.toggle(product.id)"
+                [attr.aria-pressed]="favorites.isFavorite(product.id)"
+                [attr.aria-label]="favorites.isFavorite(product.id) ? 'Remove from favorites' : 'Add to favorites'">
+          <i class="fa-solid fa-heart"></i>
+        </button>
         <a routerLink="/products" class="btn btn-outline-secondary btn-lg">
           <i class="fa-solid fa-arrow-left me-1"></i> Back
         </a>
@@ -86,9 +94,18 @@
     </section>
   }
 } @else {
-  <div class="text-center text-muted py-5">
-    <div class="spinner-border text-primary" role="status">
-      <span class="visually-hidden">Loading...</span>
+  <div class="row g-4" aria-hidden="true">
+    <div class="col-md-5">
+      <div class="skeleton" style="height: 360px; border-radius: 14px;"></div>
+    </div>
+    <div class="col-md-7">
+      <div class="skeleton skeleton-line" style="width: 55%; height: 2rem;"></div>
+      <div class="skeleton skeleton-line" style="width: 30%;"></div>
+      <div class="skeleton skeleton-line mt-4" style="width: 25%; height: 2rem;"></div>
+      <div class="skeleton skeleton-line mt-4" style="width: 100%;"></div>
+      <div class="skeleton skeleton-line" style="width: 92%;"></div>
+      <div class="skeleton skeleton-line" style="width: 80%;"></div>
+      <div class="skeleton skeleton-btn mt-4" style="width: 200px;"></div>
     </div>
   </div>
 }

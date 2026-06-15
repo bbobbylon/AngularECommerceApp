@@ -6,6 +6,7 @@ import { NgbPaginationModule } from '@ng-bootstrap/ng-bootstrap';
 import { CartItem } from '../../common/cart-item';
 import { Product } from '../../common/product';
 import { CartService } from '../../services/cart.service';
+import { FavoritesService } from '../../services/favorites.service';
 import { GetResponseProducts, ProductService } from '../../services/product.service';
 import { ToastService } from '../../services/toast.service';
 
@@ -31,6 +32,15 @@ export class ProductList implements OnInit {
 
   readonly pageSizeOptions = [6, 12, 24, 48];
 
+  sortBy = '';
+  readonly sortOptions = [
+    { label: 'Featured', value: '' },
+    { label: 'Price: Low to High', value: 'unitPrice,asc' },
+    { label: 'Price: High to Low', value: 'unitPrice,desc' },
+    { label: 'Name: A–Z', value: 'name,asc' },
+  ];
+
+  protected favorites = inject(FavoritesService);
   private toast = inject(ToastService);
 
   constructor(
@@ -42,6 +52,10 @@ export class ProductList implements OnInit {
   addToCart(product: Product): void {
     this.cartService.addToCart(new CartItem(product));
     this.toast.success(`${product.name} added to cart`);
+  }
+
+  toggleFavorite(product: Product): void {
+    this.favorites.toggle(product.id);
   }
 
   ngOnInit(): void {
@@ -71,7 +85,7 @@ export class ProductList implements OnInit {
     this.previousCategoryId = this.currentCategoryId;
 
     this.productService
-      .getProductListPaginate(this.pageNumber - 1, this.pageSize, this.currentCategoryId)
+      .getProductListPaginate(this.pageNumber - 1, this.pageSize, this.currentCategoryId, this.sortBy)
       .subscribe({
         next: data => this.processResult(data),
         error: () => {
@@ -91,7 +105,7 @@ export class ProductList implements OnInit {
     this.previousKeyword = keyword;
 
     this.productService
-      .searchProductsPaginate(this.pageNumber - 1, this.pageSize, keyword)
+      .searchProductsPaginate(this.pageNumber - 1, this.pageSize, keyword, this.sortBy)
       .subscribe({
         next: data => this.processResult(data),
         error: () => {
@@ -111,6 +125,12 @@ export class ProductList implements OnInit {
 
   updatePageSize(value: string): void {
     this.pageSize = Number(value);
+    this.pageNumber = 1;
+    this.listProducts();
+  }
+
+  updateSort(value: string): void {
+    this.sortBy = value;
     this.pageNumber = 1;
     this.listProducts();
   }

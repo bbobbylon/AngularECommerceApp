@@ -12,7 +12,7 @@
   </div>
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <div>
     <h2 class="mb-0">
       @if (searchMode) {
@@ -26,14 +26,25 @@
     }
   </div>
 
-  <div class="d-flex align-items-center gap-2">
-    <label for="pageSize" class="text-muted small mb-0">Page size</label>
-    <select id="pageSize" class="form-select form-select-sm" style="width:auto"
-            [value]="pageSize" (change)="updatePageSize($any($event.target).value)">
-      @for (size of pageSizeOptions; track size) {
-        <option [value]="size">{{ size }}</option>
-      }
-    </select>
+  <div class="d-flex align-items-center gap-3 flex-wrap">
+    <div class="d-flex align-items-center gap-2">
+      <label for="sortBy" class="text-muted small mb-0">Sort</label>
+      <select id="sortBy" class="form-select form-select-sm" style="width:auto"
+              [value]="sortBy" (change)="updateSort($any($event.target).value)">
+        @for (opt of sortOptions; track opt.value) {
+          <option [value]="opt.value">{{ opt.label }}</option>
+        }
+      </select>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <label for="pageSize" class="text-muted small mb-0">Page size</label>
+      <select id="pageSize" class="form-select form-select-sm" style="width:auto"
+              [value]="pageSize" (change)="updatePageSize($any($event.target).value)">
+        @for (size of pageSizeOptions; track size) {
+          <option [value]="size">{{ size }}</option>
+        }
+      </select>
+    </div>
   </div>
 </div>
 
@@ -61,7 +72,13 @@
   <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 g-4">
     @for (product of products; track product.id) {
       <div class="col reveal">
-        <div class="card product-card h-100 shadow-sm">
+        <div class="card product-card h-100 shadow-sm position-relative">
+          <button type="button" class="fav-btn" [class.is-fav]="favorites.isFavorite(product.id)"
+                  (click)="toggleFavorite(product)"
+                  [attr.aria-pressed]="favorites.isFavorite(product.id)"
+                  [attr.aria-label]="favorites.isFavorite(product.id) ? 'Remove from favorites' : 'Add to favorites'">
+            <i class="fa-solid fa-heart"></i>
+          </button>
           <a [routerLink]="['/products', product.id]">
             <img [src]="product.imageUrl" [alt]="product.name"
                  class="card-img-top" loading="lazy" />

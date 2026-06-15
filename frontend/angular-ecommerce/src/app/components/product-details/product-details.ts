@@ -5,6 +5,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CartItem } from '../../common/cart-item';
 import { Product } from '../../common/product';
 import { CartService } from '../../services/cart.service';
+import { FavoritesService } from '../../services/favorites.service';
 import { ProductService } from '../../services/product.service';
 import { ToastService } from '../../services/toast.service';
 
@@ -19,6 +20,7 @@ export class ProductDetails implements OnInit {
   quantity = 1;
   relatedProducts: Product[] = [];
 
+  protected favorites = inject(FavoritesService);
   private toast = inject(ToastService);
 
   constructor(

@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable, map, switchMap } from 'rxjs';
+import { Observable, catchError, forkJoin, map, of, switchMap } from 'rxjs';
 
 import { environment } from '../../environments/environment';
 import { Product } from '../common/product';
@@ -13,22 +13,34 @@ export class ProductService {
 
   constructor(private httpClient: HttpClient) {}
 
-  getProductListPaginate(page: number, pageSize: number, categoryId: number): Observable<GetResponseProducts> {
+  getProductListPaginate(page: number, pageSize: number, categoryId: number, sort = ''): Observable<GetResponseProducts> {
+    const sortParam = sort ? `&sort=${sort}` : '';
     const url =
       `${this.baseUrl}/products/search/findByCategoryId` +
-      `?id=${categoryId}&page=${page}&size=${pageSize}`;
+      `?id=${categoryId}&page=${page}&size=${pageSize}${sortParam}`;
     return this.httpClient.get<GetResponseProducts>(url);
   }
 
-  searchProductsPaginate(page: number, pageSize: number, keyword: string): Observable<GetResponseProducts> {
+  searchProductsPaginate(page: number, pageSize: number, keyword: string, sort = ''): Observable<GetResponseProducts> {
+    const sortParam = sort ? `&sort=${sort}` : '';
     const url =
       `${this.baseUrl}/products/search/findByNameContaining` +
-      `?name=${encodeURIComponent(keyword)}&page=${page}&size=${pageSize}`;
+      `?name=${encodeURIComponent(keyword)}&page=${page}&size=${pageSize}${sortParam}`;
     return this.httpClient.get<GetResponseProducts>(url);
   }
 
   getProduct(productId: number): Observable<Product> {
     return this.httpClient.get<Product>(`${this.baseUrl}/products/${productId}`);
+  }
+
+  /** Fetches several products by id (for the wishlist); skips any that fail to load. */
+  getProductsByIds(ids: number[]): Observable<Product[]> {
+    if (ids.length === 0) {
+      return of([]);
+    }
+    return forkJoin(
+      ids.map(id => this.getProduct(id).pipe(catchError(() => of(null)))),
+    ).pipe(map(list => list.filter((p): p is Product => p !== null)));
   }
 
   /**
