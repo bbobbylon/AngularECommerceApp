@@ -41,26 +41,26 @@ Where it lives in the code:
   (the Stripe call), `dto/PaymentInfo.java`.
 - Frontend: `components/checkout/checkout.ts` (Elements + confirm), `services/checkout.service.ts`.
 
-## Enable Stripe (about 5 minutes)
-1. **Create a free account:** https://dashboard.stripe.com/register (no business details needed for test mode).
-2. Make sure the dashboard is in **Test mode** (toggle, top-right).
-3. Open **Developers → API keys** (https://dashboard.stripe.com/test/apikeys) and copy:
-   - **Publishable key** `pk_test_...`
-   - **Secret key** `sk_test_...` (click *Reveal*).
-4. **Frontend** — paste the publishable key into
-   `frontend/angular-ecommerce/src/environments/environment.ts`:
-   ```ts
-   stripePublishableKey: 'pk_test_yourKeyHere',
-   ```
-5. **Backend** — provide the secret key as an environment variable (preferred — keeps it out of git).
-   In the same Git Bash window before running the app:
+## Enable Stripe (a few clicks)
+The integration is **fully wired already** — you just supply two test keys in **one `.env` file**.
+No source edits, no rebuild.
+
+1. **Create a free account** at https://dashboard.stripe.com/register and toggle **Test mode** (top-right).
+2. Open **Developers → API keys** (https://dashboard.stripe.com/test/apikeys) and copy the
+   **Publishable key** (`pk_test_…`) and the **Secret key** (`sk_test_…`, click *Reveal*).
+3. In the repo root, create your `.env` from the template and paste the two keys:
    ```bash
-   export STRIPE_SECRET_KEY=sk_test_yourKeyHere
-   ./run.sh
+   cp .env.example .env
+   # edit .env:
+   #   STRIPE_PUBLISHABLE_KEY=pk_test_yourKeyHere
+   #   STRIPE_SECRET_KEY=sk_test_yourKeyHere
    ```
-   (Or set `stripe.key.secret=sk_test_yourKeyHere` in `backend/src/main/resources/application.properties`,
-   but **don't commit a real key**.)
-6. Restart. The checkout now shows the card field instead of the "demo checkout" notice.
+4. **`./run.sh`** — done. The script hands the publishable key to the frontend (via a generated
+   `config.json`, loaded at startup) and the secret key to the backend (env var). Checkout now shows
+   the real card field instead of the demo notice.
+
+`.env` is gitignored, so your keys never get committed. Without it, checkout stays in safe **demo mode**
+(orders save, payment step skipped).
 
 ## Test cards (test mode only)
 Use any **future** expiry date, any 3-digit CVC, and any ZIP.

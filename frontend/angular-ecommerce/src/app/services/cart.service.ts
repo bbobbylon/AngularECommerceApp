@@ -21,11 +21,12 @@ export class CartService {
     }
   }
 
-  addToCart(theCartItem: CartItem): void {
+  addToCart(theCartItem: CartItem, quantity = 1): void {
     const existing = this.cartItems.find(item => item.id === theCartItem.id);
     if (existing) {
-      existing.quantity++;
+      existing.quantity += quantity;
     } else {
+      theCartItem.quantity = quantity;
       this.cartItems.push(theCartItem);
     }
     this.computeCartTotals();

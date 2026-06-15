@@ -6,11 +6,16 @@
 </div>
 
 @if (cartItems.length === 0) {
-  <div class="alert alert-info">
-    Your cart is empty. <a routerLink="/products">Browse products</a>.
+  <div class="empty-state text-center py-5">
+    <i class="fa-solid fa-cart-shopping empty-state-icon"></i>
+    <h4 class="mt-3 mb-1">Your cart is empty</h4>
+    <p class="text-muted mb-4">Looks like you haven't added anything yet.</p>
+    <a routerLink="/products" class="btn btn-primary">
+      <i class="fa-solid fa-bag-shopping me-1"></i> Browse products
+    </a>
   </div>
 } @else {
-  <div class="table-responsive">
+  <div class="table-responsive d-none d-md-block">
     <table class="table align-middle">
       <thead>
         <tr>
@@ -55,6 +60,42 @@
         }
       </tbody>
     </table>
+  </div>
+
+  <!-- Mobile: one tidy card per item -->
+  <div class="d-md-none vstack gap-3 mb-4">
+    @for (item of cartItems; track item.id) {
+      <div class="card cart-mini shadow-sm reveal">
+        <div class="card-body d-flex gap-3">
+          <img [src]="item.imageUrl" [alt]="item.name" width="64" height="64"
+               class="rounded border flex-shrink-0" style="object-fit: contain;" />
+          <div class="flex-grow-1" style="min-width:0;">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <span class="fw-semibold">{{ item.name }}</span>
+              <button type="button" class="btn btn-link btn-sm text-danger p-0 flex-shrink-0"
+                      (click)="remove(item)" aria-label="Remove item">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+            <div class="text-muted small">{{ item.unitPrice | currency:'USD' }} each</div>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+              <div class="btn-group" role="group" aria-label="Quantity">
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        (click)="decrementQuantity(item)" aria-label="Decrease quantity">
+                  <i class="fa-solid fa-minus"></i>
+                </button>
+                <span class="btn btn-outline-secondary btn-sm disabled">{{ item.quantity }}</span>
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        (click)="incrementQuantity(item)" aria-label="Increase quantity">
+                  <i class="fa-solid fa-plus"></i>
+                </button>
+              </div>
+              <span class="fw-bold text-primary">{{ item.unitPrice * item.quantity | currency:'USD' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
   </div>
 
   <div class="row justify-content-end">

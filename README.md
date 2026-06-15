@@ -54,6 +54,7 @@ Full diagrams (backend layers, frontend, ER model, request + checkout flows) liv
 | [Architecture](docs/ARCHITECTURE.md) | context, layers, data model, sequence flows (diagrams) |
 | [API reference](docs/API.md) | endpoints, examples, pagination envelope |
 | [Development guide](docs/DEVELOPMENT.md) | build, run, test, ports, conventions, DoD |
+| [Deployment / CI-CD](docs/DEPLOYMENT.md) | CI + GCP/AWS/Azure deploy templates, topology diagrams |
 | [Stripe guide](docs/STRIPE.md) | payments setup (beginner-friendly) |
 | [Build plan](docs/BUILD_PLAN.md) | milestones M0–M5 + decisions |
 

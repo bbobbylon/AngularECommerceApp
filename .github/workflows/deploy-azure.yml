@@ -1,0 +1,49 @@
+# =====================================================================
+#  MANUAL deploy template · Azure (ACR + Container Apps)
+#  Local `./run.sh` is the primary dev path — this is opt-in (workflow_dispatch).
+#
+#  One-time setup in Azure:
+#    - a resource group + an Azure Container Registry (ACR)
+#    - a Container Apps Environment with two apps: luv2shop-backend (port 8585),
+#      luv2shop-frontend (port 80)
+#    - an Azure Database for MySQL + `full-stack-ecommerce` database
+#    - set the backend's DB env vars (SPRING_DATASOURCE_*) on its container app
+#    - a service principal with AcrPush + Container Apps Contributor
+#  Add these GitHub secrets:  AZURE_CREDENTIALS (sp JSON)
+#  Add this GitHub variable:   BACKEND_URL  (the backend container app URL)
+# =====================================================================
+name: Deploy · Azure (Container Apps)
+
+on:
+  workflow_dispatch:
+
+env:
+  ACR_NAME: youracr                     # <-- EDIT (without .azurecr.io)
+  RESOURCE_GROUP: luv2shop-rg           # <-- EDIT
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Build & push to ACR
+        run: |
+          az acr login --name ${{ env.ACR_NAME }}
+          REG="${{ env.ACR_NAME }}.azurecr.io"
+          docker build -t "$REG/luv2shop-backend:${{ github.sha }}" ./backend
+          docker push "$REG/luv2shop-backend:${{ github.sha }}"
+          docker build --build-arg API_URL="${{ vars.BACKEND_URL }}/api" \
+            -t "$REG/luv2shop-frontend:${{ github.sha }}" ./frontend/angular-ecommerce
+          docker push "$REG/luv2shop-frontend:${{ github.sha }}"
+
+      - name: Update Container Apps
+        run: |
+          REG="${{ env.ACR_NAME }}.azurecr.io"
+          az containerapp update -n luv2shop-backend -g ${{ env.RESOURCE_GROUP }} \
+            --image "$REG/luv2shop-backend:${{ github.sha }}"
+          az containerapp update -n luv2shop-frontend -g ${{ env.RESOURCE_GROUP }} \
+            --image "$REG/luv2shop-frontend:${{ github.sha }}"

@@ -1,15 +1,12 @@
+<a class="skip-link" href="#main-content">Skip to content</a>
 <header class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
-  <div class="container-fluid px-3 px-lg-4">
-    <a class="navbar-brand fw-bold d-flex align-items-center" routerLink="/products">
+  <div class="container-fluid px-3 px-lg-4 flex-wrap gap-2">
+    <a class="navbar-brand fw-bold d-flex align-items-center order-0 me-2" routerLink="/products">
       <i class="fa-solid fa-bag-shopping me-2 text-primary"></i>
       <span>Luv2<span class="text-primary">Shop</span></span>
     </a>
 
-    <div class="flex-grow-1 mx-lg-4 my-2 my-lg-0" style="max-width: 560px;">
-      <app-search></app-search>
-    </div>
-
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center gap-2 order-1 order-lg-2 ms-auto ms-lg-0">
       <button type="button" class="theme-toggle" (click)="themeService.toggle()"
               [attr.aria-label]="themeService.theme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
         @if (themeService.theme() === 'dark') {
@@ -21,6 +18,10 @@
       <app-login-status></app-login-status>
       <app-cart-status></app-cart-status>
     </div>
+
+    <div class="nav-search order-2 order-lg-1 mx-lg-3">
+      <app-search></app-search>
+    </div>
   </div>
 </header>
 
@@ -29,7 +30,7 @@
     <aside class="col-12 col-md-3 col-lg-2 mb-4">
       <app-product-category-menu></app-product-category-menu>
     </aside>
-    <main class="col-12 col-md-9 col-lg-10">
+    <main id="main-content" tabindex="-1" class="col-12 col-md-9 col-lg-10">
       <router-outlet></router-outlet>
     </main>
   </div>

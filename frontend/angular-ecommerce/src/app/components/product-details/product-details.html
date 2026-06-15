@@ -30,7 +30,24 @@
       <p class="display-6 fw-bold text-primary mb-3">{{ product.unitPrice | currency:'USD' }}</p>
       <p class="text-secondary">{{ product.description }}</p>
 
-      <div class="mt-4 d-flex gap-2">
+      @if (product.unitsInStock > 0) {
+        <div class="d-flex align-items-center gap-3 mt-4">
+          <span class="fw-semibold">Quantity</span>
+          <div class="btn-group" role="group" aria-label="Quantity selector">
+            <button type="button" class="btn btn-outline-secondary" (click)="decreaseQuantity()"
+                    [disabled]="quantity <= 1" aria-label="Decrease quantity">
+              <i class="fa-solid fa-minus"></i>
+            </button>
+            <span class="btn btn-outline-secondary disabled text-center" style="min-width: 3.25rem;">{{ quantity }}</span>
+            <button type="button" class="btn btn-outline-secondary" (click)="increaseQuantity()"
+                    [disabled]="quantity >= product.unitsInStock" aria-label="Increase quantity">
+              <i class="fa-solid fa-plus"></i>
+            </button>
+          </div>
+        </div>
+      }
+
+      <div class="mt-3 d-flex gap-2">
         <button type="button" class="btn btn-primary btn-lg"
                 [disabled]="product.unitsInStock === 0" (click)="addToCart()">
           <i class="fa-solid fa-cart-plus me-1"></i> Add to cart
@@ -41,6 +58,33 @@
       </div>
     </div>
   </div>
+
+  @if (relatedProducts.length > 0) {
+    <section class="mt-5">
+      <h4 class="mb-3">You might also like</h4>
+      <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
+        @for (rp of relatedProducts; track rp.id) {
+          <div class="col reveal">
+            <div class="card product-card h-100 shadow-sm">
+              <a [routerLink]="['/products', rp.id]" [title]="rp.name">
+                <img [src]="rp.imageUrl" [alt]="rp.name" class="card-img-top" loading="lazy" />
+              </a>
+              <div class="card-body d-flex flex-column">
+                <h6 class="product-name mb-2">
+                  <a [routerLink]="['/products', rp.id]">{{ rp.name }}</a>
+                </h6>
+                <span class="fs-6 fw-bold text-primary mt-auto mb-2">{{ rp.unitPrice | currency:'USD' }}</span>
+                <button type="button" class="btn btn-outline-primary btn-sm w-100"
+                        [disabled]="rp.unitsInStock === 0" (click)="addProductToCart(rp)">
+                  <i class="fa-solid fa-cart-plus me-1"></i> Add
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    </section>
+  }
 } @else {
   <div class="text-center text-muted py-5">
     <div class="spinner-border text-primary" role="status">

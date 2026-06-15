@@ -16,6 +16,8 @@ import { ToastService } from '../../services/toast.service';
 export class ProductDetails implements OnInit {
 
   product?: Product;
+  quantity = 1;
+  relatedProducts: Product[] = [];
 
   private toast = inject(ToastService);
 
@@ -27,8 +29,26 @@ export class ProductDetails implements OnInit {
 
   addToCart(): void {
     if (this.product) {
-      this.cartService.addToCart(new CartItem(this.product));
-      this.toast.success(`${this.product.name} added to cart`);
+      this.cartService.addToCart(new CartItem(this.product), this.quantity);
+      this.toast.success(`${this.quantity} × ${this.product.name} added to cart`);
+      this.quantity = 1;
+    }
+  }
+
+  addProductToCart(product: Product): void {
+    this.cartService.addToCart(new CartItem(product));
+    this.toast.success(`${product.name} added to cart`);
+  }
+
+  increaseQuantity(): void {
+    if (this.product && this.quantity < this.product.unitsInStock) {
+      this.quantity++;
+    }
+  }
+
+  decreaseQuantity(): void {
+    if (this.quantity > 1) {
+      this.quantity--;
     }
   }
 
@@ -38,6 +58,13 @@ export class ProductDetails implements OnInit {
 
   private handleProductDetails(): void {
     const productId = Number(this.route.snapshot.paramMap.get('id'));
+    this.quantity = 1;
     this.productService.getProduct(productId).subscribe(data => (this.product = data));
+
+    this.relatedProducts = [];
+    this.productService.getRelatedProducts(productId).subscribe({
+      next: data => (this.relatedProducts = data),
+      error: () => (this.relatedProducts = []),
+    });
   }
 }

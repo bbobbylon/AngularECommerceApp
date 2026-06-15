@@ -17,6 +17,15 @@ APP_URL="http://localhost:4250"
 API_URL="http://localhost:8585/api"
 BACKEND_PID=""
 
+# Load optional secrets (Stripe) from .env so they stay out of source + git.
+if [ -f "$ROOT/.env" ]; then
+  set -a; . "$ROOT/.env"; set +a
+fi
+# Hand the publishable key to the frontend via a runtime config (no rebuild); the backend reads
+# STRIPE_SECRET_KEY straight from the environment (application.properties: stripe.key.secret).
+echo "{ \"stripePublishableKey\": \"${STRIPE_PUBLISHABLE_KEY:-}\" }" \
+  > "$ROOT/frontend/angular-ecommerce/public/config.json"
+
 # Ctrl+C (or exit) stops the backend too, so one terminal controls the whole app.
 cleanup() {
   trap - INT TERM EXIT

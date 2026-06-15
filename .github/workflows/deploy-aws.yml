@@ -1,0 +1,41 @@
+# =====================================================================
+#  MANUAL deploy template · AWS (ECR + App Runner)
+#  Local `./run.sh` is the primary dev path — this is opt-in (workflow_dispatch).
+#
+#  One-time setup in AWS:
+#    - two ECR repos: luv2shop-backend, luv2shop-frontend
+#    - two App Runner services pointing at those repos (auto-deploy ON, port 8585 / 80)
+#    - an RDS MySQL 8 instance + `full-stack-ecommerce` database
+#    - set the backend's DB env vars (SPRING_DATASOURCE_*) on its App Runner service
+#  Add these GitHub secrets:  AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ACCOUNT_ID
+#  Add this GitHub variable:   BACKEND_URL  (the App Runner backend URL)
+# =====================================================================
+name: Deploy · AWS (App Runner)
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1                  # <-- EDIT
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - name: Build & push (App Runner auto-deploys :latest)
+        run: |
+          REG="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+          docker build -t "$REG/luv2shop-backend:latest" ./backend
+          docker push "$REG/luv2shop-backend:latest"
+          docker build --build-arg API_URL="${{ vars.BACKEND_URL }}/api" \
+            -t "$REG/luv2shop-frontend:latest" ./frontend/angular-ecommerce
+          docker push "$REG/luv2shop-frontend:latest"

@@ -1,0 +1,55 @@
+# =====================================================================
+#  MANUAL deploy template · Google Cloud (Cloud Run + Artifact Registry)
+#  Local `./run.sh` is the primary dev path — this is opt-in. Run it from the
+#  GitHub "Actions" tab (workflow_dispatch).
+#
+#  One-time setup in GCP:
+#    - a project + an Artifact Registry "docker" repo
+#    - a Cloud SQL (MySQL 8) instance + `full-stack-ecommerce` database
+#    - a service account with roles: run.admin, artifactregistry.writer, iam.serviceAccountUser
+#  Add these GitHub secrets:  GCP_SA_KEY (the SA JSON), DB_URL, DB_USER, DB_PASS
+#  Add this GitHub variable:   BACKEND_URL  (the Cloud Run backend URL — set after the 1st deploy)
+# =====================================================================
+name: Deploy · GCP (Cloud Run)
+
+on:
+  workflow_dispatch:
+
+env:
+  GCP_PROJECT: your-project-id          # <-- EDIT
+  GCP_REGION: us-central1               # <-- EDIT
+  AR_REPO: luv2shop                     # <-- EDIT (Artifact Registry repo)
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build & push images
+        run: |
+          REG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}"
+          docker build -t "$REG/backend:${{ github.sha }}" ./backend
+          docker push "$REG/backend:${{ github.sha }}"
+          docker build --build-arg API_URL="${{ vars.BACKEND_URL }}/api" \
+            -t "$REG/frontend:${{ github.sha }}" ./frontend/angular-ecommerce
+          docker push "$REG/frontend:${{ github.sha }}"
+
+      - name: Deploy backend
+        run: |
+          gcloud run deploy luv2shop-backend \
+            --image "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}/backend:${{ github.sha }}" \
+            --region ${{ env.GCP_REGION }} --platform managed --port 8585 --allow-unauthenticated \
+            --set-env-vars "SPRING_DOCKER_COMPOSE_ENABLED=false,SPRING_DATASOURCE_URL=${{ secrets.DB_URL }},SPRING_DATASOURCE_USERNAME=${{ secrets.DB_USER }},SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASS }}"
+
+      - name: Deploy frontend
+        run: |
+          gcloud run deploy luv2shop-frontend \
+            --image "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}/frontend:${{ github.sha }}" \
+            --region ${{ env.GCP_REGION }} --platform managed --port 80 --allow-unauthenticated

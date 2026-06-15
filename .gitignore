@@ -18,3 +18,7 @@ backend.log
 # visual diagnostic scratch (puppeteer)
 diag.cjs
 diag-*.png
+
+# secrets + generated runtime config (never commit your keys)
+.env
+frontend/angular-ecommerce/public/config.json

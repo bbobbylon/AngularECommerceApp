@@ -10,7 +10,14 @@
 
 @if (orderHistoryList.length === 0) {
   @if (loaded) {
-    <div class="alert alert-info">You have no orders yet.</div>
+    <div class="empty-state text-center py-5">
+      <i class="fa-solid fa-receipt empty-state-icon"></i>
+      <h4 class="mt-3 mb-1">No orders yet</h4>
+      <p class="text-muted mb-4">When you place an order, it'll show up here.</p>
+      <a routerLink="/products" class="btn btn-primary">
+        <i class="fa-solid fa-bag-shopping me-1"></i> Start shopping
+      </a>
+    </div>
   } @else {
     <div class="text-muted">Loading your orders...</div>
   }

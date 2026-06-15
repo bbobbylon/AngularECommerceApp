@@ -1,10 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { AfterViewInit, Component, OnInit } from '@angular/core';
+import { AfterViewInit, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Stripe, StripeCardElement, loadStripe } from '@stripe/stripe-js';
 
-import { environment } from '../../../environments/environment';
+import { ConfigService } from '../../services/config.service';
 import { Country } from '../../common/country';
 import { Order } from '../../common/order';
 import { OrderItem } from '../../common/order-item';
@@ -35,12 +35,16 @@ export class Checkout implements OnInit, AfterViewInit {
   billingAddressStates: State[] = [];
 
   // Stripe (Milestone 5)
+  private config = inject(ConfigService);
   private stripe: Stripe | null = null;
   private cardElement?: StripeCardElement;
   cardError = '';
-  // True only when a real Stripe publishable key is set (not the shipped placeholder).
-  stripeConfigured = !environment.stripePublishableKey.includes('REPLACE');
   private paymentInfo = new PaymentInfo();
+
+  /** True only when a real Stripe publishable key is configured (runtime config.json or environment). */
+  get stripeConfigured(): boolean {
+    return this.config.stripeConfigured;
+  }
 
   constructor(
     private formBuilder: FormBuilder,
@@ -70,7 +74,7 @@ export class Checkout implements OnInit, AfterViewInit {
     if (!this.stripeConfigured) {
       return; // demo mode: no card element to mount
     }
-    this.stripe = await loadStripe(environment.stripePublishableKey);
+    this.stripe = await loadStripe(this.config.stripePublishableKey);
     if (!this.stripe) {
       return;
     }

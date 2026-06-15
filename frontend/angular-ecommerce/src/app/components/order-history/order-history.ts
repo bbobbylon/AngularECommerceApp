@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { OKTA_AUTH } from '@okta/okta-angular';
 
 import { OrderHistory as OrderHistoryModel } from '../../common/order-history';
@@ -7,7 +8,7 @@ import { OrderHistoryService } from '../../services/order-history.service';
 
 @Component({
   selector: 'app-order-history',
-  imports: [CommonModule],
+  imports: [CommonModule, RouterLink],
   templateUrl: './order-history.html',
 })
 export class OrderHistory implements OnInit {

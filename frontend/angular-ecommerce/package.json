@@ -36,6 +36,7 @@
     "prettier": "^3.8.1",
     "puppeteer-core": "^25.1.0",
     "typescript": "~5.9.2",
-    "vitest": "^4.0.8"
+    "vitest": "^4.0.8",
+    "yaml": "^2.9.0"
   }
 }
