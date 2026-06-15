@@ -48,6 +48,18 @@ echo "=== Starting backend in the background (logs -> backend.log) ==="
 ( cd "$ROOT/backend" && ./mvnw spring-boot:run > "$ROOT/backend.log" 2>&1 ) &
 BACKEND_PID=$!
 
+# Wait for the backend to actually serve data BEFORE opening the browser, so the first
+# page load isn't an empty "no products found" (the API call would otherwise beat the backend).
+echo ""
+echo "Waiting for the backend API on :8585 (first run ~40s while MySQL starts)..."
+for i in $(seq 1 120); do
+  if curl -sf -o /dev/null "$API_URL/products" 2>/dev/null; then
+    echo "Backend is UP and serving data."
+    break
+  fi
+  sleep 2
+done
+
 cat <<EOF
 
   ===================================================

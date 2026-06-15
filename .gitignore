@@ -14,3 +14,7 @@ Thumbs.db
 
 # run.sh background server log
 backend.log
+
+# visual diagnostic scratch (puppeteer)
+diag.cjs
+diag-*.png

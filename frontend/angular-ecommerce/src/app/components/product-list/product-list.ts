@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NgbPaginationModule } from '@ng-bootstrap/ng-bootstrap';
 
@@ -7,6 +7,7 @@ import { CartItem } from '../../common/cart-item';
 import { Product } from '../../common/product';
 import { CartService } from '../../services/cart.service';
 import { GetResponseProducts, ProductService } from '../../services/product.service';
+import { ToastService } from '../../services/toast.service';
 
 @Component({
   selector: 'app-product-list',
@@ -30,6 +31,8 @@ export class ProductList implements OnInit {
 
   readonly pageSizeOptions = [6, 12, 24, 48];
 
+  private toast = inject(ToastService);
+
   constructor(
     private productService: ProductService,
     private cartService: CartService,
@@ -38,6 +41,7 @@ export class ProductList implements OnInit {
 
   addToCart(product: Product): void {
     this.cartService.addToCart(new CartItem(product));
+    this.toast.success(`${product.name} added to cart`);
   }
 
   ngOnInit(): void {
