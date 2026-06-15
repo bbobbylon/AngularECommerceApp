@@ -12,7 +12,7 @@ project, on a current stack: **Spring Boot 4.1 / Java 21** and **Angular 21 (sta
 ## Layout
 - `backend/` — Spring Boot API (package `com.bob.ecommerceangularapp`).
 - `frontend/angular-ecommerce/` — Angular app.
-- `docs/BUILD_PLAN.md` — milestone plan + how to enable Okta / Stripe / HTTPS.
+- `docs/` — architecture, API reference, dev guide, Stripe, build plan ([docs index](docs/README.md)).
 - `CLAUDE.md` — onboarding guide and conventions.
 
 ## Features
@@ -26,6 +26,36 @@ project, on a current stack: **Spring Boot 4.1 / Java 21** and **Angular 21 (sta
 
 Okta and Stripe degrade gracefully — the app builds and runs (catalog → cart → checkout)
 with placeholder config, and lights up the moment real keys are supplied.
+
+## Architecture
+
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'fontFamily':'DM Sans, system-ui, sans-serif','lineColor':'#9aa3b8'}}}%%
+flowchart LR
+  user([🛍️ Shopper]):::user --> spa["Angular 21 SPA<br/>:4250"]:::fe
+  spa -->|"REST / JSON · CORS"| api["Spring Boot 4.1 API<br/>:8585"]:::be
+  api -->|"JPA / JDBC"| db[("MySQL 8<br/>:3307")]:::db
+  spa -.->|optional| okta{{"Okta · Stripe"}}:::ext
+  api -.->|optional| okta
+  classDef user fill:#1e2435,stroke:#1e2435,color:#fff;
+  classDef fe fill:#ffe3ea,stroke:#ff5470,color:#1e2435;
+  classDef be fill:#d3f3ef,stroke:#10b6a6,color:#1e2435;
+  classDef db fill:#fff4e0,stroke:#f5b400,color:#1e2435;
+  classDef ext fill:#eef2fb,stroke:#9aa3b8,color:#1e2435;
+```
+
+Full diagrams (backend layers, frontend, ER model, request + checkout flows) live in
+**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+
+## Documentation
+
+| Doc | Contents |
+|---|---|
+| [Architecture](docs/ARCHITECTURE.md) | context, layers, data model, sequence flows (diagrams) |
+| [API reference](docs/API.md) | endpoints, examples, pagination envelope |
+| [Development guide](docs/DEVELOPMENT.md) | build, run, test, ports, conventions, DoD |
+| [Stripe guide](docs/STRIPE.md) | payments setup (beginner-friendly) |
+| [Build plan](docs/BUILD_PLAN.md) | milestones M0–M5 + decisions |
 
 ## Run locally
 Prerequisites: **JDK 21+**, **Node 20+**, and **Docker running**.

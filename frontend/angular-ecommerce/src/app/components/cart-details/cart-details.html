@@ -1,4 +1,9 @@
-<h2 class="mb-4">Shopping Cart</h2>
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h2 class="mb-0">Shopping Cart</h2>
+  <a routerLink="/products" class="btn btn-outline-secondary btn-sm">
+    <i class="fa-solid fa-arrow-left me-1"></i> Continue shopping
+  </a>
+</div>
 
 @if (cartItems.length === 0) {
   <div class="alert alert-info">

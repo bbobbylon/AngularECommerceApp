@@ -12,7 +12,7 @@
 
       <!-- Customer -->
       <div class="card mb-4">
-        <div class="card-header fw-semibold">Customer</div>
+        <div class="card-header fw-semibold"><i class="fa-solid fa-user me-2 text-primary"></i>Customer</div>
         <div class="card-body" formGroupName="customer">
           <div class="row g-3">
             <div class="col-md-6">
@@ -42,7 +42,7 @@
 
       <!-- Shipping address -->
       <div class="card mb-4">
-        <div class="card-header fw-semibold">Shipping Address</div>
+        <div class="card-header fw-semibold"><i class="fa-solid fa-truck-fast me-2 text-primary"></i>Shipping Address</div>
         <div class="card-body" formGroupName="shippingAddress">
           <div class="row g-3">
             <div class="col-12">
@@ -98,7 +98,7 @@
       <!-- Billing address -->
       <div class="card mb-4">
         <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-          <span>Billing Address</span>
+          <span><i class="fa-solid fa-file-invoice-dollar me-2 text-primary"></i>Billing Address</span>
           <div class="form-check mb-0">
             <input class="form-check-input" type="checkbox" id="copyShipping"
                    (change)="copyShippingToBilling($event)" />
@@ -159,7 +159,7 @@
 
       <!-- Payment (Stripe) -->
       <div class="card mb-4">
-        <div class="card-header fw-semibold">Payment</div>
+        <div class="card-header fw-semibold"><i class="fa-solid fa-credit-card me-2 text-primary"></i>Payment</div>
         <div class="card-body">
           @if (stripeConfigured) {
             <label class="form-label">Credit or debit card</label>
@@ -185,7 +185,7 @@
     <!-- Order summary -->
     <div class="col-lg-4">
       <div class="card position-sticky" style="top: 90px;">
-        <div class="card-header fw-semibold">Order Summary</div>
+        <div class="card-header fw-semibold"><i class="fa-solid fa-receipt me-2 text-primary"></i>Order Summary</div>
         <div class="card-body">
           <div class="d-flex justify-content-between">
             <span>Total quantity:</span>
