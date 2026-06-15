@@ -1,7 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
-import { OktaAuthStateService } from '@okta/okta-angular';
-import { filter, take } from 'rxjs';
+import { OKTA_AUTH } from '@okta/okta-angular';
 
 import { OrderHistory as OrderHistoryModel } from '../../common/order-history';
 import { OrderHistoryService } from '../../services/order-history.service';
@@ -15,26 +14,33 @@ export class OrderHistory implements OnInit {
 
   orderHistoryList: OrderHistoryModel[] = [];
   loaded = false;
+  demoMode = false;
 
   private orderHistoryService = inject(OrderHistoryService);
-  private authStateService = inject(OktaAuthStateService);
+  private oktaAuth = inject(OKTA_AUTH);
 
-  ngOnInit(): void {
-    this.authStateService.authState$
-      .pipe(
-        filter(state => !!state.isAuthenticated),
-        take(1),
-      )
-      .subscribe(state => {
-        const email = state.idToken?.claims?.email as string | undefined;
-        if (email) {
-          this.orderHistoryService.getOrderHistory(email).subscribe(data => {
-            this.orderHistoryList = data;
-            this.loaded = true;
-          });
-        } else {
-          this.loaded = true;
-        }
-      });
+  async ngOnInit(): Promise<void> {
+    let email: string | undefined;
+
+    try {
+      if (await this.oktaAuth.isAuthenticated()) {
+        const user = await this.oktaAuth.getUser();
+        email = user.email;
+      }
+    } catch {
+      // Okta not configured / not signed in — fall through to demo mode.
+    }
+
+    if (email) {
+      this.orderHistoryService.getOrderHistory(email).subscribe(data => this.setOrders(data));
+    } else {
+      this.demoMode = true;
+      this.orderHistoryService.getAllOrders().subscribe(data => this.setOrders(data));
+    }
+  }
+
+  private setOrders(data: OrderHistoryModel[]): void {
+    this.orderHistoryList = data;
+    this.loaded = true;
   }
 }

@@ -28,6 +28,7 @@ export class Checkout implements OnInit, AfterViewInit {
   totalPrice = 0;
   totalQuantity = 0;
   isSubmitting = false;
+  errorMessage = '';
 
   countries: Country[] = [];
   shippingAddressStates: State[] = [];
@@ -37,6 +38,8 @@ export class Checkout implements OnInit, AfterViewInit {
   private stripe: Stripe | null = null;
   private cardElement?: StripeCardElement;
   cardError = '';
+  // True only when a real Stripe publishable key is set (not the shipped placeholder).
+  stripeConfigured = !environment.stripePublishableKey.includes('REPLACE');
   private paymentInfo = new PaymentInfo();
 
   constructor(
@@ -64,6 +67,9 @@ export class Checkout implements OnInit, AfterViewInit {
   }
 
   async ngAfterViewInit(): Promise<void> {
+    if (!this.stripeConfigured) {
+      return; // demo mode: no card element to mount
+    }
     this.stripe = await loadStripe(environment.stripePublishableKey);
     if (!this.stripe) {
       return;
@@ -140,6 +146,15 @@ export class Checkout implements OnInit, AfterViewInit {
       this.checkoutFormGroup.markAllAsTouched();
       return;
     }
+    this.errorMessage = '';
+
+    // Demo mode: no Stripe configured -> skip the card payment and save the order directly.
+    if (!this.stripeConfigured) {
+      this.isSubmitting = true;
+      this.placeOrder();
+      return;
+    }
+
     if (this.cardError || !this.stripe || !this.cardElement) {
       return;
     }
@@ -174,7 +189,7 @@ export class Checkout implements OnInit, AfterViewInit {
         ).then(result => {
           if (result.error) {
             this.isSubmitting = false;
-            alert(`Payment failed: ${result.error.message}`);
+            this.errorMessage = result.error.message ?? 'Payment failed. Please check your card details.';
           } else {
             this.placeOrder();
           }
@@ -182,7 +197,7 @@ export class Checkout implements OnInit, AfterViewInit {
       },
       error: err => {
         this.isSubmitting = false;
-        alert(`There was an error creating the payment: ${err.message}`);
+        this.errorMessage = `There was an error creating the payment: ${err.message}`;
       },
     });
   }
@@ -208,14 +223,25 @@ export class Checkout implements OnInit, AfterViewInit {
       next: response => this.completeOrder(response.orderTrackingNumber),
       error: err => {
         this.isSubmitting = false;
-        alert(`There was an error placing the order: ${err.message}`);
+        this.errorMessage = `There was an error placing the order: ${err.message}`;
       },
     });
   }
 
   private completeOrder(trackingNumber: string): void {
+    const summary = {
+      totalQuantity: this.totalQuantity,
+      totalPrice: this.totalPrice,
+      items: this.cartService.cartItems.map(item => ({
+        name: item.name,
+        imageUrl: item.imageUrl,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+      })),
+    };
+
     this.cartService.clear();
     this.checkoutFormGroup.reset();
-    this.router.navigateByUrl(`/order-confirmation/${trackingNumber}`);
+    this.router.navigate(['/order-confirmation', trackingNumber], { state: { summary } });
   }
 }

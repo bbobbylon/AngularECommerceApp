@@ -10,7 +10,25 @@
     <p class="fs-5 fw-bold font-monospace">{{ trackingNumber }}</p>
   }
 
-  <a routerLink="/products" class="btn btn-primary mt-3">
+  @if (summary) {
+    <div class="card text-start mx-auto mt-4" style="max-width: 520px;">
+      <div class="card-header fw-semibold">Order summary</div>
+      <ul class="list-group list-group-flush">
+        @for (item of summary.items; track item.name) {
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>{{ item.name }} <span class="text-muted">&times; {{ item.quantity }}</span></span>
+            <span>{{ item.unitPrice * item.quantity | currency:'USD' }}</span>
+          </li>
+        }
+        <li class="list-group-item d-flex justify-content-between fw-bold">
+          <span>Total ({{ summary.totalQuantity }} item{{ summary.totalQuantity === 1 ? '' : 's' }})</span>
+          <span>{{ summary.totalPrice | currency:'USD' }}</span>
+        </li>
+      </ul>
+    </div>
+  }
+
+  <a routerLink="/products" class="btn btn-primary mt-4">
     <i class="fa-solid fa-arrow-left me-1"></i> Continue shopping
   </a>
 </div>

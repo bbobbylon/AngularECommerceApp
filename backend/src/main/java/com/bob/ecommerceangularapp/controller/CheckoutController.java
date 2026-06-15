@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@CrossOrigin("http://localhost:4200")
+@CrossOrigin({"http://localhost:4200", "http://localhost:4250"})
 @RestController
 @RequestMapping("/api/checkout")
 public class CheckoutController {

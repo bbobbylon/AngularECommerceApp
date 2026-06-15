@@ -37,7 +37,7 @@ public class MyDataRestConfig implements RepositoryRestConfigurer {
 
         // allow the Angular dev server to call the API
         cors.addMapping(config.getBasePath() + "/**")
-                .allowedOrigins("http://localhost:4200");
+                .allowedOrigins("http://localhost:4200", "http://localhost:4250");
     }
 
     private void disableHttpMethods(Class<?> domainType, RepositoryRestConfiguration config,

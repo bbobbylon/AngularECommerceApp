@@ -1,35 +1,50 @@
 @if (product) {
-  <nav class="mb-3">
-    <a routerLink="/products" class="text-decoration-none">
-      <i class="fa-solid fa-arrow-left me-1"></i> Back to products
-    </a>
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item">
+        <a routerLink="/products" class="text-decoration-none">Products</a>
+      </li>
+      <li class="breadcrumb-item active" aria-current="page">{{ product.name }}</li>
+    </ol>
   </nav>
 
   <div class="row g-4">
     <div class="col-md-5">
-      <img [src]="product.imageUrl" [alt]="product.name"
-           class="img-fluid rounded shadow-sm" />
+      <div class="card shadow-sm">
+        <img [src]="product.imageUrl" [alt]="product.name"
+             class="card-img-top p-3" style="height: 360px; object-fit: contain;" />
+      </div>
     </div>
     <div class="col-md-7">
-      <h2>{{ product.name }}</h2>
-      <p class="text-muted">SKU: {{ product.sku }}</p>
-      <p class="fs-3 fw-bold">{{ product.unitPrice | currency:'USD' }}</p>
-      <p>{{ product.description }}</p>
+      <h2 class="mb-1">{{ product.name }}</h2>
+      <p class="text-muted small mb-2">SKU: {{ product.sku }}</p>
 
       @if (product.unitsInStock > 0) {
-        <span class="badge bg-success">In stock ({{ product.unitsInStock }})</span>
+        <span class="badge bg-success-subtle text-success-emphasis mb-3">
+          <i class="fa-solid fa-check me-1"></i>In stock ({{ product.unitsInStock }})
+        </span>
       } @else {
-        <span class="badge bg-danger">Out of stock</span>
+        <span class="badge bg-danger-subtle text-danger-emphasis mb-3">Out of stock</span>
       }
 
-      <div class="mt-4">
-        <button type="button" class="btn btn-primary" [disabled]="product.unitsInStock === 0"
-                (click)="addToCart()">
-          <i class="fa-solid fa-cart-shopping me-1"></i> Add to cart
+      <p class="display-6 fw-bold text-primary mb-3">{{ product.unitPrice | currency:'USD' }}</p>
+      <p class="text-secondary">{{ product.description }}</p>
+
+      <div class="mt-4 d-flex gap-2">
+        <button type="button" class="btn btn-primary btn-lg"
+                [disabled]="product.unitsInStock === 0" (click)="addToCart()">
+          <i class="fa-solid fa-cart-plus me-1"></i> Add to cart
         </button>
+        <a routerLink="/products" class="btn btn-outline-secondary btn-lg">
+          <i class="fa-solid fa-arrow-left me-1"></i> Back
+        </a>
       </div>
     </div>
   </div>
 } @else {
-  <div class="text-center text-muted py-5">Loading product...</div>
+  <div class="text-center text-muted py-5">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+  </div>
 }

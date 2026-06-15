@@ -1,5 +1,13 @@
 <h2 class="mb-4">Order History</h2>
 
+@if (demoMode) {
+  <div class="alert alert-secondary small">
+    <i class="fa-solid fa-circle-info me-1"></i>
+    Demo mode &mdash; Okta isn't configured, so this shows all recent orders. With Okta wired up,
+    you'd sign in and see only your own orders here.
+  </div>
+}
+
 @if (orderHistoryList.length === 0) {
   @if (loaded) {
     <div class="alert alert-info">You have no orders yet.</div>

@@ -18,12 +18,20 @@ export class OrderHistoryService {
       `?email=${encodeURIComponent(email)}`;
     return this.httpClient
       .get<GetResponseOrderHistory>(url)
-      .pipe(map(response => response._embedded.orders));
+      .pipe(map(response => response._embedded?.orders ?? []));
+  }
+
+  /** Demo fallback when no user is signed in — shows recent orders so the page renders. */
+  getAllOrders(): Observable<OrderHistory[]> {
+    const url = `${this.ordersUrl}?sort=dateCreated,desc&size=50`;
+    return this.httpClient
+      .get<GetResponseOrderHistory>(url)
+      .pipe(map(response => response._embedded?.orders ?? []));
   }
 }
 
 interface GetResponseOrderHistory {
-  _embedded: {
+  _embedded?: {
     orders: OrderHistory[];
   };
 }

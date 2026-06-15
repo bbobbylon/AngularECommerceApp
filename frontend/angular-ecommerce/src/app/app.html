@@ -1,7 +1,8 @@
-<header class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
-  <div class="container-fluid">
-    <a class="navbar-brand fw-bold" routerLink="/products">
-      <i class="fa-solid fa-bag-shopping me-2"></i>Luv2Shop
+<header class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
+  <div class="container-fluid px-3 px-lg-4">
+    <a class="navbar-brand fw-bold d-flex align-items-center" routerLink="/products">
+      <i class="fa-solid fa-bag-shopping me-2 text-primary"></i>
+      <span>Luv2<span class="text-primary">Shop</span></span>
     </a>
 
     <div class="flex-grow-1 mx-lg-4 my-2 my-lg-0" style="max-width: 560px;">
@@ -15,7 +16,7 @@
   </div>
 </header>
 
-<div class="container-fluid mt-4">
+<div class="container-fluid px-3 px-lg-4 mt-4">
   <div class="row">
     <aside class="col-12 col-md-3 col-lg-2 mb-4">
       <app-product-category-menu></app-product-category-menu>
@@ -26,6 +27,31 @@
   </div>
 </div>
 
-<footer class="bg-dark text-light text-center py-3 mt-5">
-  <small>&copy; 2026 Luv2Shop &middot; Full-stack Angular &amp; Spring Boot demo</small>
+<footer class="bg-dark text-light mt-5 pt-4 pb-3">
+  <div class="container-fluid px-3 px-lg-4">
+    <div class="row gy-3">
+      <div class="col-md-5">
+        <h6 class="fw-bold"><i class="fa-solid fa-bag-shopping me-2 text-primary"></i>Luv2Shop</h6>
+        <p class="small text-secondary mb-0">A full-stack demo store built with Angular 21 &amp; Spring Boot 4.</p>
+      </div>
+      <div class="col-6 col-md-4">
+        <h6 class="text-uppercase small fw-bold text-secondary">Shop</h6>
+        <ul class="list-unstyled small mb-0">
+          <li><a routerLink="/products" class="link-light text-decoration-none">All products</a></li>
+          <li><a routerLink="/cart-details" class="link-light text-decoration-none">Cart</a></li>
+          <li><a routerLink="/members/orders" class="link-light text-decoration-none">My orders</a></li>
+        </ul>
+      </div>
+      <div class="col-6 col-md-3">
+        <h6 class="text-uppercase small fw-bold text-secondary">Built with</h6>
+        <div class="d-flex gap-3 fs-5">
+          <i class="fa-brands fa-angular text-danger" title="Angular"></i>
+          <i class="fa-brands fa-java text-warning" title="Java"></i>
+          <i class="fa-solid fa-database text-info" title="MySQL"></i>
+        </div>
+      </div>
+    </div>
+    <hr class="border-secondary my-3" />
+    <div class="text-center small text-secondary">&copy; 2026 Luv2Shop &middot; Demo project</div>
+  </div>
 </footer>

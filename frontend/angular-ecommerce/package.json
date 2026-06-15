@@ -23,6 +23,7 @@
     "@okta/okta-auth-js": "^8.0.1",
     "@stripe/stripe-js": "^9.8.0",
     "bootstrap": "^5.3.8",
+    "bootswatch": "^5.3.8",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.16.0"

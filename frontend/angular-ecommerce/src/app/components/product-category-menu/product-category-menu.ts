@@ -21,4 +21,14 @@ export class ProductCategoryMenu implements OnInit {
       .getProductCategories()
       .subscribe(data => (this.productCategories = data));
   }
+
+  iconFor(categoryName: string): string {
+    const icons: Record<string, string> = {
+      'Books': 'fa-book',
+      'Coffee Mugs': 'fa-mug-hot',
+      'Mouse Pads': 'fa-computer-mouse',
+      'Luggage': 'fa-suitcase-rolling',
+    };
+    return icons[categoryName] ?? 'fa-tag';
+  }
 }

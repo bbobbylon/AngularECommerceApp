@@ -29,10 +29,14 @@ catalog/cart/checkout flow works with placeholder config, so they don't block lo
 
 ## Commands
 - Backend build + tests: `cd backend && ./mvnw clean package` (tests run against in-memory H2 — no Docker needed)
-- Backend run (needs Docker for MySQL): `cd backend && ./mvnw spring-boot:run`
+- Backend run (needs Docker for MySQL on :3307): `cd backend && ./mvnw spring-boot:run` (→ http://localhost:8585)
 - Frontend build: `cd frontend/angular-ecommerce && npm install && npx ng build`
 - Frontend tests: `cd frontend/angular-ecommerce && CI=true npx ng test --watch=false`
-- Frontend dev server: `cd frontend/angular-ecommerce && npm start` (→ http://localhost:4200)
+- Frontend dev server: `cd frontend/angular-ecommerce && npm start` (→ http://localhost:4250)
+- One-shot build + launch + open browser (Git Bash): `./run.sh` — Ctrl+C stops both servers
+- Stripe setup (optional, for real card payments): see `docs/STRIPE.md`. Without it, checkout runs in demo mode.
+
+Ports are non-default on purpose: backend **8585**, frontend **4250**, MySQL **3307** (avoids 8080/4200/3306).
 
 ## Conventions
 - Java 21 (pom pins `<java.version>21</java.version>`). Don't reintroduce the removed

@@ -169,3 +169,5 @@ Kept off by default so local dev stays on plain HTTP. To enable TLS:
   endpoint, then `stripe.confirmCardPayment(...)` and only then `POST /api/checkout/purchase`.
 - **To enable:** set `STRIPE_SECRET_KEY` (backend) and `environment.stripePublishableKey` (frontend)
   to your Stripe **test** keys. Test card `4242 4242 4242 4242`, any future expiry / CVC / ZIP.
+- **Without Stripe:** checkout runs in *demo mode* (skips the card step, saves the order directly), so
+  the full flow works with no account. Full beginner walkthrough: **[STRIPE.md](STRIPE.md)**.
