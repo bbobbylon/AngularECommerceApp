@@ -108,9 +108,12 @@ External accounts (Okta M3, Stripe M5) are needed later — not blockers now.
 
 ## Verification (Milestone 1)
 In-repo (no DB needed):
-- Backend compiles + packages: `cd backend && ./mvnw -DskipTests clean package` → BUILD SUCCESS.
-  (Tests skipped because `contextLoads` needs a DB.)
-- Frontend builds: `cd frontend/angular-ecommerce && npm install && npx ng build` → success.
+- Backend builds + tests: `cd backend && ./mvnw clean package` → BUILD SUCCESS. Tests run against
+  in-memory **H2** (`backend/src/test/resources/application.properties`), so `contextLoads` boots
+  the full Spring context without Docker, alongside a `CheckoutServiceImpl` unit test and a
+  `ProductRepository` `@DataJpaTest`.
+- Frontend builds + tests: `cd frontend/angular-ecommerce && npm install && npx ng build`, and
+  `CI=true npx ng test --watch=false` (CartService + validator specs) → success.
 
 Full end-to-end (local, requires Docker):
 1. `cd backend && docker compose up -d` (or let `spring-boot-docker-compose` auto-start it).
@@ -119,3 +122,50 @@ Full end-to-end (local, requires Docker):
 3. `cd frontend/angular-ecommerce && npm start` → http://localhost:4200: product grid renders;
    category sidebar filters; keyword search works; pagination + page-size dropdown work;
    clicking a product opens the detail view; empty searches show the "no products found" message.
+
+---
+
+## Implemented beyond M1 (status)
+
+All of the following are **build-verified** (`./mvnw -DskipTests clean package` + `npx ng build`).
+Runtime for M3/M5 needs external accounts; the app is designed to build and run without them.
+
+### Milestone 2 — Cart, Checkout, Save Order ✅
+- Backend: `Country`/`State`/`Customer`/`Address`/`Order`/`OrderItem` entities; `Purchase`/
+  `PurchaseResponse` DTOs; `CountryRepository`, `StateRepository.findByCountryCode`,
+  `CustomerRepository` (`exported=false`); `CheckoutService(Impl)` + `CheckoutController`
+  `POST /api/checkout/purchase`; seeder extended with 6 countries + states. `Order` maps to the
+  `orders` table.
+- Frontend: `CartService` (BehaviorSubject totals + `sessionStorage`), cart-status (header),
+  cart-details (qty +/-/remove), reactive `checkout` (country/state cascade, copy-shipping-to-billing,
+  order summary), add-to-cart wired on product list + details.
+
+### Milestone 3 — Security (Okta OIDC) ✅ (build) / needs Okta to run
+- Backend: `spring-boot-starter-security-oauth2-resource-server`; `OrderRepository`
+  (`findByCustomerEmailOrderByDateCreatedDesc`, exposed read-only); `SecurityConfig` with **two
+  conditional chains** — a JWT-secured chain (active only when
+  `spring.security.oauth2.resourceserver.jwt.issuer-uri` is set) that requires auth for
+  `GET /api/orders/**`, and an open fallback chain otherwise.
+- Frontend: `@okta/okta-angular@8` + `@okta/okta-auth-js@8`; `provideOktaAuth(withOktaConfig(...))`
+  in `app.config.ts`; placeholder config in `src/app/auth/okta-config.ts`; `auth.interceptor`
+  adds the Bearer token on `/api/orders`; `login-status` header component; `members/orders` route
+  guarded by `canActivateAuthGuard`; `login/callback` → `OktaCallbackComponent`.
+- **To enable:** create an Okta SPA app, then set the Angular `issuer`/`clientId` in
+  `okta-config.ts` and the backend `spring.security.oauth2.resourceserver.jwt.issuer-uri`.
+
+### Milestone 4 — HTTPS 📄 (documented, opt-in)
+Kept off by default so local dev stays on plain HTTP. To enable TLS:
+1. Generate a self-signed PKCS12 keystore into `backend/src/main/resources/`:
+   `keytool -genkeypair -alias ecommerce -keyalg RSA -keysize 2048 -storetype PKCS12 -keystore luv2shop-ssl.p12 -validity 365 -storepass secret -dname "CN=localhost"`
+2. Uncomment the `server.ssl.*` block in `application.properties` (serves on `https://localhost:8443`).
+3. Serve the frontend over TLS with `ng serve --ssl` and point `environment.apiUrl` at
+   `https://localhost:8443/api`. (Do **not** commit the keystore.)
+
+### Milestone 5 — Stripe payments ✅ (build) / needs Stripe to run
+- Backend: `stripe-java`; `PaymentInfo` DTO; `CheckoutService.createPaymentIntent` (sets
+  `Stripe.apiKey` from `stripe.key.secret`); `CheckoutController` `POST /api/checkout/payment-intent`
+  returns the PaymentIntent JSON (with `client_secret`).
+- Frontend: `@stripe/stripe-js`; checkout mounts a Stripe **card element**, calls the payment-intent
+  endpoint, then `stripe.confirmCardPayment(...)` and only then `POST /api/checkout/purchase`.
+- **To enable:** set `STRIPE_SECRET_KEY` (backend) and `environment.stripePublishableKey` (frontend)
+  to your Stripe **test** keys. Test card `4242 4242 4242 4242`, any future expiry / CVC / ZIP.

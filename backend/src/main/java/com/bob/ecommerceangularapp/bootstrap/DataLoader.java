@@ -1,9 +1,13 @@
 package com.bob.ecommerceangularapp.bootstrap;
 
+import com.bob.ecommerceangularapp.dao.CountryRepository;
 import com.bob.ecommerceangularapp.dao.ProductCategoryRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
+import com.bob.ecommerceangularapp.dao.StateRepository;
+import com.bob.ecommerceangularapp.entity.Country;
 import com.bob.ecommerceangularapp.entity.Product;
 import com.bob.ecommerceangularapp.entity.ProductCategory;
+import com.bob.ecommerceangularapp.entity.State;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
@@ -20,15 +24,26 @@ public class DataLoader implements CommandLineRunner {
 
     private final ProductRepository productRepository;
     private final ProductCategoryRepository productCategoryRepository;
+    private final CountryRepository countryRepository;
+    private final StateRepository stateRepository;
 
     public DataLoader(ProductRepository productRepository,
-                      ProductCategoryRepository productCategoryRepository) {
+                      ProductCategoryRepository productCategoryRepository,
+                      CountryRepository countryRepository,
+                      StateRepository stateRepository) {
         this.productRepository = productRepository;
         this.productCategoryRepository = productCategoryRepository;
+        this.countryRepository = countryRepository;
+        this.stateRepository = stateRepository;
     }
 
     @Override
     public void run(String... args) {
+        seedCatalog();
+        seedCountriesAndStates();
+    }
+
+    private void seedCatalog() {
         if (productRepository.count() > 0) {
             return;
         }
@@ -110,6 +125,39 @@ public class DataLoader implements CommandLineRunner {
                 "24.99", 75));
 
         productRepository.saveAll(products);
+    }
+
+    private void seedCountriesAndStates() {
+        if (countryRepository.count() > 0) {
+            return;
+        }
+
+        Country usa = new Country("US", "United States");
+        Country canada = new Country("CA", "Canada");
+        Country brazil = new Country("BR", "Brazil");
+        Country germany = new Country("DE", "Germany");
+        Country india = new Country("IN", "India");
+        Country australia = new Country("AU", "Australia");
+        countryRepository.saveAll(List.of(usa, canada, brazil, germany, india, australia));
+
+        List<State> states = new ArrayList<>();
+        addStates(states, usa, "California", "Texas", "New York", "Florida",
+                "Pennsylvania", "Illinois", "Ohio", "Washington");
+        addStates(states, canada, "Ontario", "Quebec", "British Columbia",
+                "Alberta", "Manitoba", "Nova Scotia");
+        addStates(states, brazil, "Sao Paulo", "Rio de Janeiro", "Bahia", "Parana");
+        addStates(states, germany, "Bavaria", "Berlin", "Hamburg", "Hesse", "Saxony");
+        addStates(states, india, "Maharashtra", "Karnataka", "Tamil Nadu",
+                "Delhi", "Gujarat", "West Bengal");
+        addStates(states, australia, "New South Wales", "Victoria", "Queensland",
+                "Western Australia", "Tasmania");
+        stateRepository.saveAll(states);
+    }
+
+    private void addStates(List<State> target, Country country, String... names) {
+        for (String name : names) {
+            target.add(new State(name, country));
+        }
     }
 
     private Product product(String sku, String name, ProductCategory category,
