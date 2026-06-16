@@ -50,6 +50,43 @@ factors once Okta is configured.
 After enabling, set the backend issuer + the Angular `okta-config.ts` (`issuer`/`clientId`) — see
 [BUILD_PLAN.md](BUILD_PLAN.md) → Milestone 3.
 
+## Hardening applied in app code
+
+Three defense-in-depth measures ship in the backend. All of them **preserve graceful degradation** —
+the app still builds and runs fully open with no Okta/IdP for local development.
+
+### Role-based admin access
+
+`SecurityConfig`'s secured chain protects `/api/admin/**` with `hasAuthority(adminRole)` instead of a
+bare `authenticated()`, so a logged-in **non-admin** customer cannot reach the back-office. Authorities
+come from a configurable JWT array claim (Okta's default is `groups`) via a `JwtAuthenticationConverter`:
+
+| Property | Default | Meaning |
+|---|---|---|
+| `app.security.admin-claim` | `groups` | JWT claim that lists the user's group/role memberships. |
+| `app.security.admin-role` | `Admin` | Membership value required to reach `/api/admin/**`. |
+
+Set these only if your IdP names its claim/group differently. While no issuer is configured the **open
+chain** applies and `/api/admin/**` is reachable for development, exactly as before.
+
+### Security response headers
+
+`SecurityConfig.applyHardening()` runs on **both** chains, so every response carries:
+`Content-Security-Policy` (locks scripts to none, frames/ancestors off, `base-uri 'none'`),
+`Strict-Transport-Security` (1 year, `includeSubDomains` — takes effect once you serve over HTTPS),
+`X-Frame-Options: DENY`, a strict `Referrer-Policy`, and a `Permissions-Policy` that denies
+geolocation/microphone/camera.
+
+### Rate limiting + body-size caps
+
+`RateLimitFilter` guards the public, unauthenticated **write** endpoints (`/api/reviews`,
+`/api/coupons`, `/api/newsletter`) with a per-IP fixed-window limit (**30 req/min**, backed by the
+Caffeine cache already on the classpath) and a **64 KB body cap**, returning `429` (with `Retry-After`)
+and `413` respectively. It runs just after `RequestIdFilter` so rejections still carry a correlation id;
+read paths and the core checkout flow are deliberately not limited. The limiter is per-instance — for a
+horizontally-scaled deployment, also enforce limits at the gateway/CDN or move shared state to
+Redis/Bucket4j.
+
 ## Broader security posture
 
 | Area | Status | Notes |
@@ -60,14 +97,18 @@ After enabling, set the backend issuer + the Angular `okta-config.ts` (`issuer`/
 | Input validation | ✅ Added | Bean Validation on public DTOs + a global error handler (no stack traces leaked). |
 | CORS | ✅ Locked | Only `localhost:4200/4250` allowed — **change to your real origin(s) for production.** |
 | CSRF | ✅ N/A for the API | Disabled deliberately: the API is stateless/token-based, not cookie-session based. |
-| Rate limiting | ⛔ TODO | Add a limiter (e.g. Bucket4j, or at the gateway/CDN) on public endpoints — especially `/api/newsletter/subscribe`. |
+| Admin authorization | ✅ Role-gated | When Okta is configured, `/api/admin/**` requires the **admin role** (a JWT groups claim), not just any logged-in user. See [Role-based admin access](#role-based-admin-access). |
+| Response headers | ✅ Hardened | CSP, HSTS, `X-Frame-Options: DENY`, Referrer-Policy, Permissions-Policy on every chain. See [Hardening applied in app code](#hardening-applied-in-app-code). |
+| Rate limiting | ✅ Added | Per-IP fixed-window limit + body-size cap on public write endpoints (`reviews`/`coupons`/`newsletter`). For multi-instance deployments, also limit at the gateway/CDN or swap in Redis/Bucket4j for shared state. |
 | Account/newsletter APIs | ⚠️ Trust the email | Course-faithful simplicity. Gate behind the JWT before handling real users (see below). |
 | Dependency CVEs | ⛔ TODO | Run `mvn versions:display-dependency-updates` / `npm audit`; consider Dependabot. |
 
 ### Production hardening checklist
 - [ ] Configure Okta (issuer + clientId) and **require MFA**; enable passkeys.
+- [x] **Role-gate the admin back-office** — `/api/admin/**` requires the admin role once Okta is on.
+- [x] **Security response headers** — CSP / HSTS / frame / referrer / permissions on every chain.
+- [x] **Rate limiting + body-size caps** on public POST endpoints (in-app; add gateway/CDN limits too).
 - [ ] Protect `/api/account/**` and `/api/newsletter/send-now` with the JWT chain (not just the email).
 - [ ] Enforce HTTPS everywhere; set real CORS origins.
-- [ ] Add rate limiting + bot protection on public POST endpoints.
 - [ ] Rotate secrets; store them in a managed secrets manager (not a flat `.env`) in cloud.
 - [ ] Turn on dependency/CVE scanning and a regular patch cadence (see [MAINTENANCE.md](MAINTENANCE.md)).

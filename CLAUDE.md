@@ -74,6 +74,13 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   `Order.date_created`, via `@Index` + V2); **Caffeine caching** of the catalog search (cache-safe
   `ProductCardView` projection, evicted on admin product writes). Verified live on both a fresh DB
   (Flyway runs V1+V2) and the existing DB (baselined at V1, V2 applied). See `docs/MAINTENANCE.md`.
+- ✅ **Security hardening** — `SecurityConfig` now **role-gates** `/api/admin/**` (`hasAuthority` on a
+  configurable JWT groups claim — `app.security.admin-claim`/`admin-role`, defaulting to a `groups`
+  claim containing `Admin`) instead of bare `authenticated()`, and applies **response-header hardening**
+  (CSP, HSTS, `X-Frame-Options: DENY`, Referrer-Policy, Permissions-Policy) on **both** chains.
+  `RateLimitFilter` adds per-IP rate limiting (30/min via Caffeine) + a 64 KB body cap on the public
+  write endpoints (`/api/reviews|coupons|newsletter`), returning 429/413. All still gated on config so
+  the app runs fully open without Okta (graceful degradation preserved). See `docs/SECURITY.md`.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
