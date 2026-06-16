@@ -1,14 +1,18 @@
 package com.bob.ecommerceangularapp.bootstrap;
 
 import com.bob.ecommerceangularapp.dao.CountryRepository;
+import com.bob.ecommerceangularapp.dao.CouponRepository;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dao.ProductCategoryRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
+import com.bob.ecommerceangularapp.dao.ReviewRepository;
 import com.bob.ecommerceangularapp.dao.StateRepository;
 import com.bob.ecommerceangularapp.entity.Country;
+import com.bob.ecommerceangularapp.entity.Coupon;
 import com.bob.ecommerceangularapp.entity.Customer;
 import com.bob.ecommerceangularapp.entity.Product;
 import com.bob.ecommerceangularapp.entity.ProductCategory;
+import com.bob.ecommerceangularapp.entity.Review;
 import com.bob.ecommerceangularapp.entity.State;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,17 +40,23 @@ public class DataLoader implements CommandLineRunner {
     private final CountryRepository countryRepository;
     private final StateRepository stateRepository;
     private final CustomerRepository customerRepository;
+    private final ReviewRepository reviewRepository;
+    private final CouponRepository couponRepository;
 
     public DataLoader(ProductRepository productRepository,
                       ProductCategoryRepository productCategoryRepository,
                       CountryRepository countryRepository,
                       StateRepository stateRepository,
-                      CustomerRepository customerRepository) {
+                      CustomerRepository customerRepository,
+                      ReviewRepository reviewRepository,
+                      CouponRepository couponRepository) {
         this.productRepository = productRepository;
         this.productCategoryRepository = productCategoryRepository;
         this.countryRepository = countryRepository;
         this.stateRepository = stateRepository;
         this.customerRepository = customerRepository;
+        this.reviewRepository = reviewRepository;
+        this.couponRepository = couponRepository;
     }
 
     @Override
@@ -55,6 +65,86 @@ public class DataLoader implements CommandLineRunner {
         seedCountriesAndStates();
         backfillNewsletterDefaults();
         backfillSalePrices();
+        seedReviews();
+        seedCoupons();
+    }
+
+    private void seedCoupons() {
+        if (couponRepository.count() > 0) {
+            return;
+        }
+        couponRepository.saveAll(List.of(
+                coupon("WELCOME10", "10% off your first order", 10, null, null),
+                coupon("SAVE5", "$5 off orders over $25", null, new BigDecimal("5.00"), new BigDecimal("25.00")),
+                coupon("SUMMER20", "20% off — summer sale", 20, null, null)));
+        log.info("Seeded 3 coupon codes.");
+    }
+
+    private Coupon coupon(String code, String description, Integer percentOff, BigDecimal amountOff, BigDecimal minSpend) {
+        Coupon c = new Coupon();
+        c.setCode(code);
+        c.setDescription(description);
+        c.setPercentOff(percentOff);
+        c.setAmountOff(amountOff);
+        c.setMinSpend(minSpend);
+        c.setActive(true);
+        return c;
+    }
+
+    private static final String[] REVIEW_AUTHORS = {"Ada", "Linus", "Grace", "Alan", "Margaret",
+            "Dennis", "Barbara", "Ken", "Katherine", "Tim", "Radia", "Guido"};
+    private static final String[] REVIEW_COMMENTS = {
+            "Exactly what I wanted — great quality.",
+            "Solid value for the price. Would buy again.",
+            "Arrived quickly and looks even better in person.",
+            "Does the job well, no complaints.",
+            "Really happy with this purchase!",
+            "Good overall, though shipping took a couple extra days.",
+            "Better than expected. Highly recommend.",
+            "Decent product, met my expectations."};
+
+    /** Seeds reviews on ~half the catalog (mostly 4–5★) and sets each product's rating aggregates. */
+    private void seedReviews() {
+        if (reviewRepository.count() > 0) {
+            return;
+        }
+        List<Product> products = productRepository.findAll();
+        List<Review> reviews = new ArrayList<>();
+        List<Product> touched = new ArrayList<>();
+
+        for (int i = 0; i < products.size(); i++) {
+            if (i % 2 != 0) {
+                continue; // about half the catalog gets reviews
+            }
+            Product product = products.get(i);
+            int count = 1 + ((i * 7) % 6); // 1–6 reviews
+            int sum = 0;
+            for (int j = 0; j < count; j++) {
+                int rating = ratingFor(i, j);
+                Review review = new Review();
+                review.setProductId(product.getId());
+                review.setAuthorName(REVIEW_AUTHORS[(i + j) % REVIEW_AUTHORS.length]);
+                review.setRating(rating);
+                review.setComment(REVIEW_COMMENTS[(i * 3 + j) % REVIEW_COMMENTS.length]);
+                review.setVerifiedBuyer((j % 2) == 0);
+                reviews.add(review);
+                sum += rating;
+            }
+            product.setAverageRating(Math.round((sum / (double) count) * 10.0) / 10.0);
+            product.setReviewCount(count);
+            touched.add(product);
+        }
+
+        reviewRepository.saveAll(reviews);
+        productRepository.saveAll(touched);
+        log.info("Seeded {} reviews across {} products.", reviews.size(), touched.size());
+    }
+
+    /** Deterministic, mostly-positive ratings (3–5★). */
+    private int ratingFor(int i, int j) {
+        int seed = (i + j) % 7;
+        int rating = (seed == 0) ? 3 : (seed % 3 == 0) ? 4 : 5;
+        return rating;
     }
 
     /**

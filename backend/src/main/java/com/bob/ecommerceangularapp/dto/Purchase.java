@@ -21,4 +21,8 @@ public class Purchase {
 
     /** Checkout opt-in: create the account on the weekly-deals list (defaults to opted-in). */
     private boolean subscribeToNewsletter = true;
+
+    /** Applied coupon (optional). The server re-validates and records the discount on the order. */
+    private String couponCode;
+    private java.math.BigDecimal subtotal;
 }

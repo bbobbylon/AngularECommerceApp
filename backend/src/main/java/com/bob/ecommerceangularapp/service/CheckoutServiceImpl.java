@@ -1,6 +1,7 @@
 package com.bob.ecommerceangularapp.service;
 
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
+import com.bob.ecommerceangularapp.dto.CouponResponse;
 import com.bob.ecommerceangularapp.dto.PaymentInfo;
 import com.bob.ecommerceangularapp.dto.Purchase;
 import com.bob.ecommerceangularapp.dto.PurchaseResponse;
@@ -27,12 +28,15 @@ public class CheckoutServiceImpl implements CheckoutService {
 
     private final CustomerRepository customerRepository;
     private final EmailService emailService;
+    private final CouponService couponService;
 
     public CheckoutServiceImpl(CustomerRepository customerRepository,
                                EmailService emailService,
+                               CouponService couponService,
                                @Value("${stripe.key.secret}") String secretKey) {
         this.customerRepository = customerRepository;
         this.emailService = emailService;
+        this.couponService = couponService;
         // Stripe is keyed globally via a static field.
         Stripe.apiKey = secretKey;
     }
@@ -53,6 +57,16 @@ public class CheckoutServiceImpl implements CheckoutService {
         // populate order with its addresses
         order.setShippingAddress(purchase.getShippingAddress());
         order.setBillingAddress(purchase.getBillingAddress());
+
+        // Re-validate any coupon server-side and recompute the total authoritatively from the subtotal.
+        if (purchase.getCouponCode() != null && !purchase.getCouponCode().isBlank() && purchase.getSubtotal() != null) {
+            CouponResponse coupon = couponService.validate(purchase.getCouponCode(), purchase.getSubtotal());
+            if (coupon.valid()) {
+                order.setCouponCode(coupon.code());
+                order.setDiscountAmount(coupon.discount());
+                order.setTotalPrice(purchase.getSubtotal().subtract(coupon.discount()));
+            }
+        }
 
         // populate customer with the order, reusing an existing customer if the email matches
         Customer customer = purchase.getCustomer();

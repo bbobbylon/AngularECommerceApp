@@ -31,6 +31,24 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   `docs/SECURITY.md`), and ops/cost/upgrade guidance lives in `docs/MAINTENANCE.md`. `DataLoader` now
   self-heals existing DBs (newsletter + sale-price backfills) and never lets an auxiliary step crash
   the catalog.
+- ✅ **Admin panel (back-office)** — `/api/admin/**` (gated like `/api/orders`): `AdminController` (stats,
+  categories, reviews moderation), `AdminProductController` (product CRUD — custom because SDR writes are
+  disabled), `AdminOrderController` (list + status), `AdminCouponController` (coupon CRUD). `AdminService`
+  + `PageResponse`/`AdminStats`/`AdminOrderView`/`AdminProductRequest` DTOs. Frontend `/admin` area
+  (guarded, full-width — customer sidebar hidden): dashboard, products, orders, reviews, coupons.
+  `authInterceptor` also tokens `/api/admin`.
+- ✅ **Feature set (reviews, coupons, faceted search, wishlist/tracking)**:
+  - **Reviews & ratings** — `Review` entity + `ReviewService`/`ReviewController`; denormalized
+    `Product.averageRating`/`reviewCount` (nullable). Stars on cards/details (`StarRating`), reviews list
+    + write form, admin moderation. Seeded on ~half the catalog.
+  - **Coupons** — `Coupon` entity + `CouponService`/`CouponController` (validate) + admin CRUD; checkout
+    promo field; `CheckoutServiceImpl` re-validates server-side and records `Order.couponCode`/`discountAmount`.
+    Seeded: WELCOME10, SAVE5, SUMMER20.
+  - **Faceted search** — `ProductRepository` is a `JpaSpecificationExecutor`; `ProductQueryService` +
+    `/api/catalog/search` (category/keyword/price/in-stock/on-sale/rating/sort). Product list unified to
+    this endpoint with a filter panel.
+  - **Wishlist + tracking** — `WishlistItem` (email-keyed) + `/api/wishlist` (sync/get/remove); favorites
+    page "sync across devices". `OrderTimeline` component on order-confirmation + order-history.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.

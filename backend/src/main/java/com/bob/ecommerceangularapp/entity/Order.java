@@ -45,6 +45,13 @@ public class Order {
     @Column(name = "status")
     private String status;
 
+    /** Applied coupon code + the discount it produced (nullable when no coupon was used). */
+    @Column(name = "coupon_code")
+    private String couponCode;
+
+    @Column(name = "discount_amount")
+    private BigDecimal discountAmount;
+
     @Column(name = "date_created")
     @CreationTimestamp
     private Date dateCreated;

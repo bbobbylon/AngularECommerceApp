@@ -61,6 +61,15 @@ public class Product {
     @Column(name = "units_in_stock")
     private int unitsInStock;
 
+    // Denormalized review aggregates (kept in sync by ReviewService) so cards/grids show ratings
+    // without an N+1. Nullable wrappers on purpose — adding a NOT NULL column to a populated table
+    // fails under MySQL strict mode (see docs/MAINTENANCE.md).
+    @Column(name = "average_rating")
+    private Double averageRating;
+
+    @Column(name = "review_count")
+    private Integer reviewCount;
+
     @Column(name = "date_created")
     @CreationTimestamp
     private Date dateCreated;

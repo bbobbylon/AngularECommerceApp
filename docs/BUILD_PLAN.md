@@ -214,3 +214,31 @@ Adds real email plus the "online-store goodies" (sale section, About, marketing 
   strategy, DB migration guidance (Flyway recommendation), backups, monitoring.
 - **Not done (needs your cloud accounts):** CI/CD + cloud deploy, Flyway migrations, Actuator health,
   rate limiting, real TLS/CORS origins. Tracked in SECURITY.md / MAINTENANCE.md checklists.
+
+### Admin panel (back-office) ✅
+Custom `/api/admin/**` controllers (Spring Data REST writes stay disabled on the catalog), gated by the
+JWT chain when Okta is configured (open in dev), and tokened by the Angular `authInterceptor`.
+- **Backend:** `AdminController` (`/stats`, `/categories`), `AdminProductController` (list / get / create
+  / update / delete), `AdminOrderController` (list / status). `AdminService` + DTOs (`AdminStats`,
+  `AdminOrderView`, `AdminProductRequest`, `CategoryRequest`, generic `PageResponse`). Repo metrics
+  (counts + revenue sum). Smoke-tested live: stats/list/create(201)/delete(204) + validation(400).
+- **Frontend:** `/admin` area (guarded; full-width — customer category sidebar hidden on admin routes):
+  `AdminLayout` (sidebar), `AdminDashboard` (stat cards), `AdminProducts` (table + delete),
+  `AdminProductForm` (create/edit), `AdminOrders` (inline status). Footer "Admin" link.
+- **For production:** restrict `/api/admin/**` to an admin group/role in Okta (see SECURITY.md).
+
+### Storefront feature set ✅ (build + live smoke-tested)
+1. **Reviews & ratings** — `Review` entity, `ReviewService`/`ReviewController` (list/summary/create),
+   denormalized `Product.averageRating`/`reviewCount` (nullable). Frontend `StarRating`, ratings on
+   cards + details, reviews list + write-a-review, admin moderation. Seeded across ~half the catalog.
+2. **Coupons & discounts** — `Coupon` entity, `CouponService`/`CouponController` (`/validate`), admin CRUD.
+   Checkout promo field; server **re-validates** and records `couponCode`/`discountAmount` on the order.
+   Verified: `WELCOME10` → $10 off $100; `SAVE5` enforces $25 min; bogus codes rejected.
+3. **Faceted search & filters** — `ProductRepository extends JpaSpecificationExecutor`; `ProductQueryService`
+   + `/api/catalog/search` (category, keyword, price range, in-stock, on-sale, min-rating, sort). The
+   product list is unified onto this endpoint with a filter panel.
+4. **Wishlist persistence + order tracking** — `WishlistItem` (email-keyed) + `/api/wishlist`
+   (sync/get/remove); favorites "sync across devices". `OrderTimeline` (Received → Processing → Shipped →
+   Delivered, or Cancelled) on order-confirmation + order-history.
+
+All build-verified (mvnw package: 8 tests; ng build + 12 ng tests) and smoke-tested against MySQL.

@@ -11,6 +11,11 @@ Base URL: **`http://localhost:8585/api`** · Most catalog endpoints are auto-gen
 | | GET | `/products/search/findByNameContaining` | public |
 | | GET | `/products/search/findByOriginalPriceNotNull` | public |
 | | GET | `/product-category` | public |
+| [Catalog search](#catalog-search) | GET | `/catalog/search` (faceted filters) | public |
+| [Reviews](#reviews) | GET | `/reviews?productId=` · `/reviews/summary?productId=` | public |
+| | POST | `/reviews` | public |
+| [Coupons](#coupons) | POST | `/coupons/validate` | public |
+| [Wishlist](#wishlist) | GET | `/wishlist?email=` · POST `/wishlist/sync` · DELETE `/wishlist` | public* |
 | [Reference data](#reference-data) | GET | `/countries` | public |
 | | GET | `/states/search/findByCountryCode` | public |
 | [Checkout](#checkout) | POST | `/checkout/purchase` | public |
@@ -21,6 +26,10 @@ Base URL: **`http://localhost:8585/api`** · Most catalog endpoints are auto-gen
 | [Account](#account) | GET | `/account?email=` | public* |
 | | PUT | `/account` | public* |
 | [Orders](#orders-secured) | GET | `/orders/search/findByCustomerEmailOrderByDateCreatedDesc` | 🔒 JWT |
+| [Admin](#admin-secured) | GET | `/admin/stats` | 🔒 JWT |
+| | GET/POST/PUT/DELETE | `/admin/products/**` | 🔒 JWT |
+| | GET | `/admin/orders` · PUT `/admin/orders/{id}/status` | 🔒 JWT |
+| | GET/POST | `/admin/categories` | 🔒 JWT |
 
 <sub>\* Account endpoints trust the supplied email (course-faithful). The Angular route is gated by the dev/Okta guard; harden with real auth for production.</sub>
 
@@ -68,6 +77,55 @@ curl "http://localhost:8585/api/products/search/findByOriginalPriceNotNull?page=
 ```bash
 curl "http://localhost:8585/api/product-category"
 # -> _embedded.productCategory: [{ id, categoryName }]
+```
+
+---
+
+## Catalog search
+
+Faceted search returning the stable `PageResponse` envelope (`{ content, totalElements, totalPages, number, size }`).
+All params optional. Powers the product list's filter panel.
+
+```bash
+curl "http://localhost:8585/api/catalog/search?categoryId=1&minPrice=10&maxPrice=40&inStock=true&onSale=true&minRating=4&sort=averageRating,desc&page=0&size=12"
+# also: keyword=<text>. sort = field,dir e.g. unitPrice,asc | name,asc | averageRating,desc
+```
+
+## Reviews
+
+```bash
+# List a product's reviews (paginated) + its rating summary
+curl "http://localhost:8585/api/reviews?productId=1&page=0&size=5"
+curl "http://localhost:8585/api/reviews/summary?productId=1"
+# -> { "average": 4.3, "count": 12, "distribution": [0,1,2,4,5] }   (index 0=1★ … 4=5★)
+
+# Submit a review (1–5). Product aggregates update automatically.
+curl -X POST "http://localhost:8585/api/reviews" -H "Content-Type: application/json" \
+  -d '{ "productId":1, "authorName":"Ada", "rating":5, "comment":"Love it!" }'
+```
+Products carry denormalized `averageRating` + `reviewCount` for fast card/grid display. Admin moderation:
+`GET /api/admin/reviews`, `DELETE /api/admin/reviews/{id}`.
+
+## Coupons
+
+```bash
+curl -X POST "http://localhost:8585/api/coupons/validate" -H "Content-Type: application/json" \
+  -d '{ "code":"WELCOME10", "subtotal":100.00 }'
+# -> { "valid":true, "code":"WELCOME10", "discount":10.00, "message":"Code applied — you saved $10.00!" }
+```
+Seeded: `WELCOME10` (10% off), `SAVE5` ($5 off, min $25), `SUMMER20` (20% off). Checkout sends
+`couponCode` + `subtotal`; the server **re-validates** and records `couponCode`/`discountAmount` on the
+order. Admin CRUD: `GET/POST /api/admin/coupons`, `DELETE /api/admin/coupons/{id}`.
+
+## Wishlist
+
+Email-keyed so favorites sync across devices (the frontend keeps a localStorage copy too).
+
+```bash
+curl "http://localhost:8585/api/wishlist?email=ada@example.com"            # -> [1, 2, 3]
+curl -X POST "http://localhost:8585/api/wishlist/sync" -H "Content-Type: application/json" \
+  -d '{ "email":"ada@example.com", "productIds":[1,2,3] }'                 # merges, returns the union
+curl -X DELETE "http://localhost:8585/api/wishlist?email=ada@example.com&productId=2"
 ```
 
 ---
@@ -172,6 +230,42 @@ bearer token automatically.
 curl "http://localhost:8585/api/orders/search/findByCustomerEmailOrderByDateCreatedDesc?email=ada@example.com" \
   -H "Authorization: Bearer <token>"
 ```
+
+---
+
+## Admin (secured)
+
+Back-office endpoints under `/api/admin/**`. Protected by the JWT chain **when Okta is configured**
+(open in local dev, like the rest of the API). Custom controllers because Spring Data REST writes are
+disabled on the catalog. For production, restrict further to an admin group — see [SECURITY.md](SECURITY.md).
+
+```bash
+# Dashboard metrics
+curl "http://localhost:8585/api/admin/stats"
+# -> { totalProducts, activeProducts, lowStockProducts, productsOnSale, totalOrders, totalRevenue, totalCustomers, newsletterSubscribers }
+
+# Products (paginated envelope: { content, totalElements, totalPages, number, size })
+curl "http://localhost:8585/api/admin/products?page=0&size=20"
+curl "http://localhost:8585/api/admin/products/1"
+
+# Create / update / delete a product
+curl -X POST "http://localhost:8585/api/admin/products" -H "Content-Type: application/json" \
+  -d '{ "sku":"MUG-0099","name":"New Mug","description":"...","unitPrice":12.99,
+        "originalPrice":18.99,"imageUrl":"","active":true,"unitsInStock":50,"categoryId":2 }'
+curl -X PUT    "http://localhost:8585/api/admin/products/123" -H "Content-Type: application/json" -d '{ ... }'
+curl -X DELETE "http://localhost:8585/api/admin/products/123"
+
+# Orders + status update
+curl "http://localhost:8585/api/admin/orders?page=0&size=20"
+curl -X PUT "http://localhost:8585/api/admin/orders/5/status?status=Shipped"
+
+# Categories
+curl "http://localhost:8585/api/admin/categories"
+curl -X POST "http://localhost:8585/api/admin/categories" -H "Content-Type: application/json" -d '{ "name":"Gadgets" }'
+```
+
+`originalPrice` is normalized server-side — it's kept only when greater than `unitPrice` (otherwise the
+item isn't on sale). A blank `imageUrl` falls back to a generated placeholder.
 
 ---
 

@@ -27,6 +27,8 @@ export const routes: Routes = [
       { path: 'products/new', loadComponent: () => import('./components/admin/admin-product-form/admin-product-form').then(m => m.AdminProductForm) },
       { path: 'products/:id/edit', loadComponent: () => import('./components/admin/admin-product-form/admin-product-form').then(m => m.AdminProductForm) },
       { path: 'orders', loadComponent: () => import('./components/admin/admin-orders/admin-orders').then(m => m.AdminOrders) },
+      { path: 'reviews', loadComponent: () => import('./components/admin/admin-reviews/admin-reviews').then(m => m.AdminReviews) },
+      { path: 'coupons', loadComponent: () => import('./components/admin/admin-coupons/admin-coupons').then(m => m.AdminCoupons) },
     ],
   },
   {
