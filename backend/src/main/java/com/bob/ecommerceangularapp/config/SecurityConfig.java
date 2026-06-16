@@ -95,8 +95,11 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /** Maps the configured groups claim (e.g. Okta "groups") into Spring Security authorities. */
-    private JwtAuthenticationConverter adminAwareConverter() {
+    /**
+     * Maps the configured groups claim (e.g. Okta "groups") into Spring Security authorities.
+     * Package-private so it can be unit-tested directly (see {@code SecurityConfigTest}).
+     */
+    JwtAuthenticationConverter adminAwareConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
             Object claim = jwt.getClaim(adminClaim);
