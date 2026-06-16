@@ -38,6 +38,7 @@ export class AdminProductForm implements OnInit {
       unitPrice: [null, [Validators.required, Validators.min(0)]],
       originalPrice: [null],
       imageUrl: [''],
+      additionalImages: [''],
       unitsInStock: [0, [Validators.required, Validators.min(0)]],
       active: [true],
       categoryId: [null, Validators.required],
@@ -58,6 +59,7 @@ export class AdminProductForm implements OnInit {
             unitPrice: product.unitPrice,
             originalPrice: product.originalPrice ?? null,
             imageUrl: product.imageUrl,
+            additionalImages: (product.additionalImages ?? []).join('\n'),
             unitsInStock: product.unitsInStock,
             active: product.active,
             categoryId: product.category?.id ?? null,
@@ -86,6 +88,7 @@ export class AdminProductForm implements OnInit {
       unitPrice: Number(value.unitPrice),
       originalPrice: value.originalPrice ? Number(value.originalPrice) : null,
       imageUrl: value.imageUrl ?? '',
+      additionalImages: this.parseImageLines(value.additionalImages),
       unitsInStock: Number(value.unitsInStock),
       active: !!value.active,
       categoryId: Number(value.categoryId),
@@ -106,6 +109,14 @@ export class AdminProductForm implements OnInit {
         this.toast.error('Could not save the product.');
       },
     });
+  }
+
+  /** Splits the gallery textarea (one URL per line) into a trimmed, blank-free list. */
+  private parseImageLines(raw: unknown): string[] {
+    return String(raw ?? '')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
   }
 
   // template validation helpers

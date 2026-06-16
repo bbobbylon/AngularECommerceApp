@@ -1,0 +1,19 @@
+@if (products().length > 0) {
+  <section class="recently-viewed mt-5">
+    <h4 class="mb-3">{{ heading() }}</h4>
+    <div class="rv-strip">
+      @for (p of products(); track p.id) {
+        <a class="rv-card" [routerLink]="['/products', p.id]" [title]="p.name">
+          <div class="rv-thumb position-relative">
+            @if (isOnSale(p)) {
+              <span class="rv-sale">-{{ discountPercent(p) }}%</span>
+            }
+            <img [src]="p.imageUrl" [alt]="p.name" loading="lazy" />
+          </div>
+          <div class="rv-name">{{ p.name }}</div>
+          <div class="rv-price">{{ p.unitPrice | currency:'USD' }}</div>
+        </a>
+      }
+    </div>
+  </section>
+}

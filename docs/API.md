@@ -79,6 +79,9 @@ curl "http://localhost:8585/api/product-category"
 # -> _embedded.productCategory: [{ id, categoryName }]
 ```
 
+> Each product also carries `additionalImages` (a list of extra gallery image URLs, shown as
+> thumbnails on the product page) and `unitsInStock` (drives the "Only N left" / "Out of stock" UI).
+
 ---
 
 ## Catalog search
@@ -251,7 +254,9 @@ curl "http://localhost:8585/api/admin/products/1"
 # Create / update / delete a product
 curl -X POST "http://localhost:8585/api/admin/products" -H "Content-Type: application/json" \
   -d '{ "sku":"MUG-0099","name":"New Mug","description":"...","unitPrice":12.99,
-        "originalPrice":18.99,"imageUrl":"","active":true,"unitsInStock":50,"categoryId":2 }'
+        "originalPrice":18.99,"imageUrl":"","additionalImages":["https://…/back.png","https://…/detail.png"],
+        "active":true,"unitsInStock":50,"categoryId":2 }'
+# additionalImages is optional — extra gallery thumbnails; blanks/dupes are dropped server-side.
 curl -X PUT    "http://localhost:8585/api/admin/products/123" -H "Content-Type: application/json" -d '{ ... }'
 curl -X DELETE "http://localhost:8585/api/admin/products/123"
 

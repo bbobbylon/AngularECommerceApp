@@ -7,6 +7,8 @@ export interface Product {
   /** Pre-sale ("was") price. Present only for items on sale; otherwise null/undefined. */
   originalPrice?: number | null;
   imageUrl: string;
+  /** Extra gallery images shown as thumbnails on the product page. */
+  additionalImages?: string[];
   active: boolean;
   unitsInStock: number;
   /** Denormalized rating aggregates (null/0 when the product has no reviews yet). */
@@ -27,4 +29,18 @@ export function discountPercent(product: Product): number {
     return 0;
   }
   return Math.round((1 - product.unitPrice / product.originalPrice!) * 100);
+}
+
+/** Stock at or below this (but still > 0) is shown as an urgency cue ("Only N left"). */
+export const LOW_STOCK_THRESHOLD = 5;
+
+/** True when the product is in stock but running low — drives the "Only N left" badge. */
+export function isLowStock(product: Product): boolean {
+  return product.unitsInStock > 0 && product.unitsInStock <= LOW_STOCK_THRESHOLD;
+}
+
+/** Main image first, then any gallery images — de-duplicated, blanks removed. */
+export function galleryImages(product: Product): string[] {
+  const all = [product.imageUrl, ...(product.additionalImages ?? [])];
+  return all.filter((url, i) => !!url && all.indexOf(url) === i);
 }

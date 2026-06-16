@@ -241,4 +241,18 @@ JWT chain when Okta is configured (open in dev), and tokened by the Angular `aut
    (sync/get/remove); favorites "sync across devices". `OrderTimeline` (Received → Processing → Shipped →
    Delivered, or Cancelled) on order-confirmation + order-history.
 
+### Storefront UX depth ✅ (build + live smoke-tested)
+5. **Multi-image galleries** — `Product.additionalImages` as an `@ElementCollection` in a side table
+   (`product_image`), LAZY + `@BatchSize` so list endpoints don't N+1; serialized via open-in-view.
+   Thumbnail picker on product-details; admin form "Gallery images" textarea (one URL/line, blanks/dupes
+   stripped server-side). Seeded variants + a **transactional** `backfillGalleryImages()` for existing DBs
+   (lazy collection needs an open session — the first attempt logged-and-skipped exactly as the resilience
+   pattern intends, then the `TransactionTemplate` version backfilled all 100). Verified: `additionalImages`
+   serializes on `/products/{id}` **and** `/catalog/search` (batched, no N+1).
+6. **Recently viewed** — `RecentlyViewedService` (localStorage + signal) and a reusable `RecentlyViewed`
+   strip on product-details (excludes the current product) and the home page.
+7. **Low-stock urgency** — `isLowStock()`/`LOW_STOCK_THRESHOLD` (`common/product.ts`); "Only N left" and
+   "Out of stock" badges on cards + details. `stockFor()` + `backfillStockVariety()` seed a realistic spread.
+   Verified live: of the first 60 products, 4 out-of-stock, 6 low (1–4), 50 healthy.
+
 All build-verified (mvnw package: 8 tests; ng build + 12 ng tests) and smoke-tested against MySQL.

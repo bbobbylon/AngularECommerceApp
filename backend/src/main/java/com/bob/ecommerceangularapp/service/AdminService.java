@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Back-office operations: dashboard metrics, product CRUD, order management, categories. */
 @Service
@@ -103,6 +105,7 @@ public class AdminService {
         product.setUnitPrice(request.unitPrice());
         product.setOriginalPrice(normalizeSalePrice(request.originalPrice(), request.unitPrice()));
         product.setImageUrl(imageOrFallback(request.imageUrl(), request.name()));
+        product.setAdditionalImages(cleanImages(request.additionalImages()));
         product.setActive(request.active());
         product.setUnitsInStock(request.unitsInStock());
         product.setCategory(category);
@@ -122,6 +125,18 @@ public class AdminService {
         }
         String label = (name == null || name.isBlank()) ? "Product" : name.trim();
         return IMG_FALLBACK + URLEncoder.encode(label, StandardCharsets.UTF_8);
+    }
+
+    /** Drops null/blank gallery URLs and trims the rest; never returns null. */
+    private List<String> cleanImages(List<String> images) {
+        if (images == null) {
+            return new ArrayList<>();
+        }
+        return images.stream()
+                .filter(url -> url != null && !url.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
     }
 
     // ----- orders -----

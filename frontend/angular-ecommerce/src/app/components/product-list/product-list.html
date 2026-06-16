@@ -216,10 +216,12 @@
                   <span class="small text-muted text-decoration-line-through">{{ product.originalPrice | currency:'USD' }}</span>
                 }
               </span>
-              @if (product.unitsInStock > 0) {
-                <span class="badge bg-success-subtle text-success-emphasis">In stock</span>
-              } @else {
+              @if (product.unitsInStock === 0) {
                 <span class="badge bg-danger-subtle text-danger-emphasis">Out</span>
+              } @else if (isLowStock(product)) {
+                <span class="badge bg-warning-subtle text-warning-emphasis">Only {{ product.unitsInStock }} left</span>
+              } @else {
+                <span class="badge bg-success-subtle text-success-emphasis">In stock</span>
               }
             </div>
             <button type="button" class="btn btn-primary btn-sm w-100"
@@ -245,6 +247,7 @@
 }
 
 @if (isHome) {
+  <app-recently-viewed></app-recently-viewed>
   <section class="mt-5">
     <app-newsletter-signup variant="band"></app-newsletter-signup>
   </section>

@@ -49,6 +49,17 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
     this endpoint with a filter panel.
   - **Wishlist + tracking** — `WishlistItem` (email-keyed) + `/api/wishlist` (sync/get/remove); favorites
     page "sync across devices". `OrderTimeline` component on order-confirmation + order-history.
+- ✅ **Storefront UX depth (galleries, recently viewed, stock urgency)**:
+  - **Multi-image galleries** — `Product.additionalImages` (`@ElementCollection` → side table `product_image`,
+    LAZY + `@BatchSize`, never ALTERs the populated `product` table). Serialized via open-in-view. Thumbnail
+    picker on product-details; admin product form has a "Gallery images" textarea (one URL/line).
+    `DataLoader.galleryFor()` seeds variants + a transactional `backfillGalleryImages()` populates existing DBs.
+  - **Recently viewed** — `RecentlyViewedService` (localStorage, signal) + reusable `RecentlyViewed` strip on
+    product-details (excludes current) and the home page.
+  - **Low-stock urgency** — `isLowStock()`/`LOW_STOCK_THRESHOLD` in `common/product.ts`; "Only N left" / "Out
+    of stock" badges on cards + details. `DataLoader.stockFor()` + `backfillStockVariety()` seed a realistic
+    spread (most healthy, some 1–4, the odd 0).
+  - "You might also like" related products already existed (`ProductService.getRelatedProducts`).
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.

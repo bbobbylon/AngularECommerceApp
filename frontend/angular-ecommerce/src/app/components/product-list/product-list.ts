@@ -5,17 +5,18 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NgbPaginationModule } from '@ng-bootstrap/ng-bootstrap';
 
 import { CartItem } from '../../common/cart-item';
-import { Product, discountPercent, isOnSale } from '../../common/product';
+import { Product, discountPercent, isLowStock, isOnSale } from '../../common/product';
 import { CartService } from '../../services/cart.service';
 import { FavoritesService } from '../../services/favorites.service';
 import { CatalogFilters, CatalogPage, ProductService } from '../../services/product.service';
 import { ToastService } from '../../services/toast.service';
 import { NewsletterSignup } from '../newsletter-signup/newsletter-signup';
+import { RecentlyViewed } from '../recently-viewed/recently-viewed';
 import { StarRating } from '../star-rating/star-rating';
 
 @Component({
   selector: 'app-product-list',
-  imports: [CommonModule, FormsModule, RouterLink, NgbPaginationModule, NewsletterSignup, StarRating],
+  imports: [CommonModule, FormsModule, RouterLink, NgbPaginationModule, NewsletterSignup, RecentlyViewed, StarRating],
   templateUrl: './product-list.html',
 })
 export class ProductList implements OnInit {
@@ -36,9 +37,10 @@ export class ProductList implements OnInit {
   filterMinRating = 0;
   showFilters = false;
 
-  // sale-pricing helpers exposed to the template
+  // sale-pricing + stock helpers exposed to the template
   protected readonly isOnSale = isOnSale;
   protected readonly discountPercent = discountPercent;
+  protected readonly isLowStock = isLowStock;
 
   /** The landing page: the plain product grid with no category, search, or sale filter. */
   get isHome(): boolean {

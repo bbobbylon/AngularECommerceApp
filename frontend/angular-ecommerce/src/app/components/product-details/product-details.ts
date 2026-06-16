@@ -4,17 +4,19 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { CartItem } from '../../common/cart-item';
-import { Product, discountPercent, isOnSale } from '../../common/product';
+import { Product, discountPercent, galleryImages, isLowStock, isOnSale } from '../../common/product';
 import { CartService } from '../../services/cart.service';
 import { FavoritesService } from '../../services/favorites.service';
 import { ProductService } from '../../services/product.service';
+import { RecentlyViewedService } from '../../services/recently-viewed.service';
 import { Review, ReviewService, ReviewSummary } from '../../services/review.service';
 import { ToastService } from '../../services/toast.service';
+import { RecentlyViewed } from '../recently-viewed/recently-viewed';
 import { StarRating } from '../star-rating/star-rating';
 
 @Component({
   selector: 'app-product-details',
-  imports: [CommonModule, FormsModule, RouterLink, StarRating],
+  imports: [CommonModule, FormsModule, RouterLink, StarRating, RecentlyViewed],
   templateUrl: './product-details.html',
 })
 export class ProductDetails implements OnInit {
@@ -22,6 +24,9 @@ export class ProductDetails implements OnInit {
   product?: Product;
   quantity = 1;
   relatedProducts: Product[] = [];
+
+  /** The large image currently shown in the gallery (defaults to the main image). */
+  readonly selectedImage = signal('');
 
   // reviews
   readonly reviews = signal<Review[]>([]);
@@ -32,13 +37,16 @@ export class ProductDetails implements OnInit {
   reviewForm = { authorName: '', rating: 0, comment: '' };
   hoverRating = 0;
 
-  // sale-pricing helpers exposed to the template
+  // sale-pricing + stock + gallery helpers exposed to the template
   protected readonly isOnSale = isOnSale;
   protected readonly discountPercent = discountPercent;
+  protected readonly isLowStock = isLowStock;
+  protected readonly galleryImages = galleryImages;
 
   protected favorites = inject(FavoritesService);
   private toast = inject(ToastService);
   private reviewService = inject(ReviewService);
+  private recentlyViewed = inject(RecentlyViewedService);
 
   constructor(
     private productService: ProductService,
@@ -71,6 +79,10 @@ export class ProductDetails implements OnInit {
     }
   }
 
+  selectImage(url: string): void {
+    this.selectedImage.set(url);
+  }
+
   ngOnInit(): void {
     this.route.paramMap.subscribe(() => this.handleProductDetails());
   }
@@ -78,7 +90,12 @@ export class ProductDetails implements OnInit {
   private handleProductDetails(): void {
     const productId = Number(this.route.snapshot.paramMap.get('id'));
     this.quantity = 1;
-    this.productService.getProduct(productId).subscribe(data => (this.product = data));
+    this.selectedImage.set('');
+    this.recentlyViewed.record(productId);
+    this.productService.getProduct(productId).subscribe(data => {
+      this.product = data;
+      this.selectedImage.set(data.imageUrl);
+    });
 
     this.relatedProducts = [];
     this.productService.getRelatedProducts(productId).subscribe({

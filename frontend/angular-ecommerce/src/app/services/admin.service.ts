@@ -26,6 +26,20 @@ export interface PageResponse<T> {
   size: number;
 }
 
+export interface ComponentStatus {
+  name: string;
+  ready: boolean;
+  detail: string;
+}
+
+export interface SystemHealth {
+  status: string;
+  version: string;
+  profile: string;
+  uptimeSeconds: number;
+  components: ComponentStatus[];
+}
+
 export interface AdminOrderView {
   id: number;
   orderTrackingNumber: string;
@@ -49,6 +63,7 @@ export interface AdminProductPayload {
   unitPrice: number;
   originalPrice?: number | null;
   imageUrl?: string;
+  additionalImages?: string[];
   active: boolean;
   unitsInStock: number;
   categoryId: number;
@@ -63,6 +78,10 @@ export class AdminService {
 
   getStats(): Observable<AdminStats> {
     return this.http.get<AdminStats>(`${this.baseUrl}/stats`);
+  }
+
+  getSystemHealth(): Observable<SystemHealth> {
+    return this.http.get<SystemHealth>(`${this.baseUrl}/system`);
   }
 
   getProducts(page: number, size: number): Observable<PageResponse<AdminProduct>> {

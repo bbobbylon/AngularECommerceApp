@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /** Create/update payload for admin product management. */
 public record AdminProductRequest(
@@ -14,6 +15,7 @@ public record AdminProductRequest(
         @NotNull(message = "Price is required") @PositiveOrZero(message = "Price must be ≥ 0") BigDecimal unitPrice,
         BigDecimal originalPrice,
         String imageUrl,
+        List<String> additionalImages,
         boolean active,
         @PositiveOrZero(message = "Stock must be ≥ 0") int unitsInStock,
         @NotNull(message = "Category is required") Long categoryId) {

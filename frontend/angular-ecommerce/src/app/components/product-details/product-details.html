@@ -14,9 +14,20 @@
         @if (isOnSale(product)) {
           <span class="sale-badge">-{{ discountPercent(product) }}%</span>
         }
-        <img [src]="product.imageUrl" [alt]="product.name"
+        <img [src]="selectedImage() || product.imageUrl" [alt]="product.name"
              class="card-img-top p-3" style="height: 360px; object-fit: contain;" />
       </div>
+      @if (galleryImages(product).length > 1) {
+        <div class="product-thumbs mt-3">
+          @for (img of galleryImages(product); track img) {
+            <button type="button" class="product-thumb"
+                    [class.active]="(selectedImage() || product.imageUrl) === img"
+                    (click)="selectImage(img)" aria-label="View product image">
+              <img [src]="img" [alt]="product.name" loading="lazy" />
+            </button>
+          }
+        </div>
+      }
     </div>
     <div class="col-md-7">
       <h2 class="mb-1">{{ product.name }}</h2>
@@ -30,12 +41,16 @@
         }
       }
 
-      @if (product.unitsInStock > 0) {
-        <span class="badge bg-success-subtle text-success-emphasis mb-3">
-          <i class="fa-solid fa-check me-1"></i>In stock ({{ product.unitsInStock }})
+      @if (product.unitsInStock === 0) {
+        <span class="badge bg-danger-subtle text-danger-emphasis mb-3">Out of stock</span>
+      } @else if (isLowStock(product)) {
+        <span class="badge bg-warning-subtle text-warning-emphasis mb-3">
+          <i class="fa-solid fa-fire me-1"></i>Only {{ product.unitsInStock }} left — order soon!
         </span>
       } @else {
-        <span class="badge bg-danger-subtle text-danger-emphasis mb-3">Out of stock</span>
+        <span class="badge bg-success-subtle text-success-emphasis mb-3">
+          <i class="fa-solid fa-check me-1"></i>In stock
+        </span>
       }
 
       <div class="d-flex align-items-baseline flex-wrap gap-2 mb-3">
@@ -196,6 +211,8 @@
       </div>
     </section>
   }
+
+  <app-recently-viewed [excludeId]="product.id"></app-recently-viewed>
 } @else {
   <div class="row g-4" aria-hidden="true">
     <div class="col-md-5">

@@ -19,6 +19,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -34,6 +36,8 @@ public class DataLoader implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DataLoader.class);
     private static final String IMG = "https://placehold.co/600x400/eef2fb/8b93ab?text=";
+    /** Below this, a product counts as "low stock" — used to detect an already-varied DB. */
+    private static final int LOW_STOCK_FLOOR = 6;
 
     private final ProductRepository productRepository;
     private final ProductCategoryRepository productCategoryRepository;
@@ -42,6 +46,7 @@ public class DataLoader implements CommandLineRunner {
     private final CustomerRepository customerRepository;
     private final ReviewRepository reviewRepository;
     private final CouponRepository couponRepository;
+    private final TransactionTemplate txTemplate;
 
     public DataLoader(ProductRepository productRepository,
                       ProductCategoryRepository productCategoryRepository,
@@ -49,7 +54,8 @@ public class DataLoader implements CommandLineRunner {
                       StateRepository stateRepository,
                       CustomerRepository customerRepository,
                       ReviewRepository reviewRepository,
-                      CouponRepository couponRepository) {
+                      CouponRepository couponRepository,
+                      PlatformTransactionManager transactionManager) {
         this.productRepository = productRepository;
         this.productCategoryRepository = productCategoryRepository;
         this.countryRepository = countryRepository;
@@ -57,6 +63,7 @@ public class DataLoader implements CommandLineRunner {
         this.customerRepository = customerRepository;
         this.reviewRepository = reviewRepository;
         this.couponRepository = couponRepository;
+        this.txTemplate = new TransactionTemplate(transactionManager);
     }
 
     @Override
@@ -65,6 +72,8 @@ public class DataLoader implements CommandLineRunner {
         seedCountriesAndStates();
         backfillNewsletterDefaults();
         backfillSalePrices();
+        backfillGalleryImages();
+        backfillStockVariety();
         seedReviews();
         seedCoupons();
     }
@@ -178,6 +187,65 @@ public class DataLoader implements CommandLineRunner {
     }
 
     /**
+     * Adds gallery images to products that have none (DBs seeded before the multi-image feature),
+     * so the product page shows thumbnails without a full reset. Idempotent (skips products that
+     * already have a gallery) and defensive: never crashes the catalog.
+     */
+    private void backfillGalleryImages() {
+        try {
+            // Run inside a transaction so the LAZY additionalImages collection can initialize
+            // (the CommandLineRunner has no open session otherwise).
+            Integer count = txTemplate.execute(status -> {
+                int updated = 0;
+                for (Product p : productRepository.findAll()) {
+                    if ((p.getAdditionalImages() == null || p.getAdditionalImages().isEmpty())
+                            && p.getCategory() != null) {
+                        p.setAdditionalImages(galleryFor(p.getCategory()));
+                        updated++;
+                    }
+                }
+                return updated; // managed entities flush on commit
+            });
+            if (count != null && count > 0) {
+                log.info("Backfilled gallery images on {} existing product(s).", count);
+            }
+        } catch (Exception e) {
+            log.warn("Skipped gallery backfill (non-fatal): {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Introduces a realistic stock spread (some low, the odd out-of-stock) on DBs seeded with
+     * uniform stock, so the "Only N left"/out-of-stock UI has something to show. Idempotent:
+     * returns early once any low/zero-stock product exists. Defensive: never crashes the catalog.
+     */
+    private void backfillStockVariety() {
+        try {
+            if (productRepository.count() == 0
+                    || productRepository.countByUnitsInStockLessThan(LOW_STOCK_FLOOR) > 0) {
+                return;
+            }
+            List<Product> all = productRepository.findAll();
+            List<Product> updated = new ArrayList<>();
+            for (int i = 0; i < all.size(); i++) {
+                if (i % 17 == 5) {
+                    all.get(i).setUnitsInStock(0);
+                    updated.add(all.get(i));
+                } else if (i % 11 == 3) {
+                    all.get(i).setUnitsInStock(1 + (i % 4));
+                    updated.add(all.get(i));
+                }
+            }
+            if (!updated.isEmpty()) {
+                productRepository.saveAll(updated);
+                log.info("Backfilled stock variety on {} product(s).", updated.size());
+            }
+        } catch (Exception e) {
+            log.warn("Skipped stock-variety backfill (non-fatal): {}", e.getMessage());
+        }
+    }
+
+    /**
      * One-time backfill so "all users in the database" receive the weekly email (M6 intent).
      * Only touches customers without an unsubscribe token — i.e. rows created before email existed.
      * Customers created at checkout always get a token (even opt-outs), so this never re-subscribes
@@ -272,7 +340,6 @@ public class DataLoader implements CommandLineRunner {
                 originalPrice = unitPrice.multiply(BigDecimal.valueOf(markup)).setScale(2, RoundingMode.HALF_UP);
             }
 
-            int stock = 15 + (i * 13) % 200;
             String sku = skuPrefix + "-" + String.format("%04d", i + 1);
             list.add(Product.builder()
                     .sku(sku)
@@ -281,12 +348,33 @@ public class DataLoader implements CommandLineRunner {
                     .unitPrice(unitPrice)
                     .originalPrice(originalPrice)
                     .imageUrl(IMG + category.getCategoryName().replace(" ", "+"))
+                    .additionalImages(galleryFor(category))
                     .active(true)
-                    .unitsInStock(stock)
+                    .unitsInStock(stockFor(i))
                     .category(category)
                     .build());
         }
         return list;
+    }
+
+    /** A realistic stock spread: most healthy, some low ("Only N left"), the odd out-of-stock. */
+    private int stockFor(int i) {
+        if (i % 17 == 5) {
+            return 0;                   // ~6% out of stock
+        }
+        if (i % 11 == 3) {
+            return 1 + (i % 4);         // ~9% low stock (1–4 left)
+        }
+        return 15 + (i * 13) % 200;     // healthy
+    }
+
+    /** Extra gallery shots for the product page (placeholder variants until real photos exist). */
+    private List<String> galleryFor(ProductCategory category) {
+        String label = category.getCategoryName().replace(" ", "+");
+        return new ArrayList<>(List.of(
+                "https://placehold.co/600x400/f4f6fb/8b93ab?text=" + label + "+Back",
+                "https://placehold.co/600x400/eaf0ff/5b6bb5?text=" + label + "+Detail",
+                "https://placehold.co/600x400/fff4ea/b58a5b?text=" + label + "+In+Use"));
     }
 
     private void seedCountriesAndStates() {

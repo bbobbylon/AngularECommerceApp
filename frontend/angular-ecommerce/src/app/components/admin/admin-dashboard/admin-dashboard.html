@@ -72,3 +72,39 @@
     <a routerLink="/admin/orders" class="btn btn-outline-secondary"><i class="fa-solid fa-receipt me-1"></i> View orders</a>
   </div>
 }
+
+@if (health(); as h) {
+  <div class="card mt-4 system-health">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h5 class="fw-bold mb-0"><i class="fa-solid fa-heart-pulse me-2 text-danger"></i>System health</h5>
+        <div class="d-flex align-items-center gap-3 small text-muted">
+          <span class="badge rounded-pill" [class.bg-success]="h.status === 'UP'" [class.bg-danger]="h.status !== 'UP'">
+            {{ h.status }}
+          </span>
+          <span title="Build version">v{{ h.version }}</span>
+          <span title="Active profile"><i class="fa-solid fa-gear me-1"></i>{{ h.profile }}</span>
+          <span title="Uptime"><i class="fa-solid fa-clock me-1"></i>{{ formatUptime(h.uptimeSeconds) }}</span>
+        </div>
+      </div>
+      <div class="row g-3">
+        @for (c of h.components; track c.name) {
+          <div class="col-6 col-lg-3">
+            <div class="health-item" [class.ready]="c.ready">
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <i class="fa-solid" [class.fa-circle-check]="c.ready" [class.fa-circle-minus]="!c.ready"
+                   [class.text-success]="c.ready" [class.text-muted]="!c.ready"></i>
+                <span class="fw-semibold">{{ c.name }}</span>
+              </div>
+              <div class="small text-muted">{{ c.detail }}</div>
+            </div>
+          </div>
+        }
+      </div>
+      <p class="text-muted small mt-3 mb-0">
+        Optional integrations showing as inactive is expected — the app degrades gracefully.
+        Ops probes: <code>/actuator/health</code>, <code>/actuator/metrics</code>, <code>/actuator/prometheus</code>.
+      </p>
+    </div>
+  </div>
+}

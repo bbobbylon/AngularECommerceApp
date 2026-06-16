@@ -39,6 +39,12 @@
               <label class="form-label">Image URL</label>
               <input type="text" class="form-control" formControlName="imageUrl" placeholder="https://… (leave blank for a placeholder)" />
             </div>
+            <div class="col-12">
+              <label class="form-label">Gallery images <span class="text-muted">(optional)</span></label>
+              <textarea class="form-control" rows="3" formControlName="additionalImages"
+                        placeholder="One image URL per line — shown as thumbnails on the product page"></textarea>
+              <div class="form-text">Extra photos beyond the main image. One URL per line.</div>
+            </div>
           </div>
         </div>
       </div>
