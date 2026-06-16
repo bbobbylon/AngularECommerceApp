@@ -15,4 +15,6 @@ public interface NewsletterSubscriberRepository extends JpaRepository<Newsletter
     NewsletterSubscriber findByUnsubscribeToken(String unsubscribeToken);
 
     List<NewsletterSubscriber> findBySubscribedTrue();
+
+    long countBySubscribedTrue();
 }

@@ -15,4 +15,6 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     Customer findByUnsubscribeToken(String unsubscribeToken);
 
     List<Customer> findByNewsletterSubscribedTrue();
+
+    long countByNewsletterSubscribedTrue();
 }

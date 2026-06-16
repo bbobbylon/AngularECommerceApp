@@ -7,6 +7,7 @@ import com.bob.ecommerceangularapp.dto.AccountUpdateRequest;
 import com.bob.ecommerceangularapp.email.EmailService;
 import com.bob.ecommerceangularapp.entity.Customer;
 import com.bob.ecommerceangularapp.entity.NewsletterSubscriber;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -62,7 +63,7 @@ public class AccountController {
 
     @PutMapping
     @Transactional
-    public ResponseEntity<AccountPreferences> updatePreferences(@RequestBody AccountUpdateRequest request) {
+    public ResponseEntity<AccountPreferences> updatePreferences(@Valid @RequestBody AccountUpdateRequest request) {
         String normalized = normalize(request.email());
         AccountPreferences updated = null;
 

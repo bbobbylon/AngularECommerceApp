@@ -2,6 +2,7 @@ package com.bob.ecommerceangularapp.controller;
 
 import com.bob.ecommerceangularapp.dto.SubscribeRequest;
 import com.bob.ecommerceangularapp.service.NewsletterService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -35,7 +36,7 @@ public class NewsletterController {
 
     /** Signup box → subscribe + send a welcome email. */
     @PostMapping("/subscribe")
-    public ResponseEntity<Map<String, String>> subscribe(@RequestBody SubscribeRequest request) {
+    public ResponseEntity<Map<String, String>> subscribe(@Valid @RequestBody SubscribeRequest request) {
         try {
             newsletterService.subscribe(request.email(), request.name());
         } catch (IllegalArgumentException e) {

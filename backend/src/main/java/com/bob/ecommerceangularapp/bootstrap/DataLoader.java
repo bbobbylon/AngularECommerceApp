@@ -54,6 +54,37 @@ public class DataLoader implements CommandLineRunner {
         seedCatalog();
         seedCountriesAndStates();
         backfillNewsletterDefaults();
+        backfillSalePrices();
+    }
+
+    /**
+     * Puts existing products on sale when none are yet (e.g. a DB seeded before the M6 sale feature),
+     * so the /sale page has content without a full DB reset. Idempotent: once any product is on sale
+     * this returns early. Defensive: never crashes the catalog.
+     */
+    private void backfillSalePrices() {
+        try {
+            if (productRepository.count() == 0
+                    || productRepository.findByOriginalPriceNotNull(PageRequest.of(0, 1)).getTotalElements() > 0) {
+                return;
+            }
+            List<Product> all = productRepository.findAll();
+            List<Product> updated = new ArrayList<>();
+            for (int i = 0; i < all.size(); i++) {
+                Product p = all.get(i);
+                if (p.getOriginalPrice() == null && i % 3 == 0) {
+                    double markup = 1.20 + ((i * 7) % 30) / 100.0; // 20%–49% off
+                    p.setOriginalPrice(p.getUnitPrice().multiply(BigDecimal.valueOf(markup)).setScale(2, RoundingMode.HALF_UP));
+                    updated.add(p);
+                }
+            }
+            if (!updated.isEmpty()) {
+                productRepository.saveAll(updated);
+                log.info("Backfilled sale prices on {} existing product(s).", updated.size());
+            }
+        } catch (Exception e) {
+            log.warn("Skipped sale-price backfill (non-fatal): {}", e.getMessage());
+        }
     }
 
     /**

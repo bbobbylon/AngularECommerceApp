@@ -16,4 +16,11 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     /** On-sale products — anything with a pre-sale ("was") price set. Powers the /sale page. */
     Page<Product> findByOriginalPriceNotNull(Pageable pageable);
+
+    // ----- admin dashboard metrics -----
+    long countByActiveTrue();
+
+    long countByUnitsInStockLessThan(int threshold);
+
+    long countByOriginalPriceNotNull();
 }

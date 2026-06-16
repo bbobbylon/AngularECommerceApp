@@ -30,6 +30,9 @@ public class SecurityConfig {
         http
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.GET, "/api/orders/**").authenticated()
+                        // Back-office: require authentication. For production, further restrict to an
+                        // admin group/role (e.g. .hasAuthority('SCOPE_admin')) — see docs/SECURITY.md.
+                        .requestMatchers("/api/admin/**").authenticated()
                         .anyRequest().permitAll())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
                 .cors(Customizer.withDefaults())
