@@ -343,6 +343,39 @@ footer h6 { font-family: var(--font-body); }
   100% { transform: scale(1); }
 }
 
+/* order status timeline */
+.order-timeline { display: flex; margin: 0.25rem 0; }
+.ot-step { flex: 1; text-align: center; position: relative; }
+.ot-step::before {
+  content: ''; position: absolute; top: 13px; left: -50%; width: 100%; height: 3px;
+  background: var(--line); z-index: 0;
+}
+.ot-step:first-child::before { display: none; }
+.ot-step.done::before { background: var(--accent); }
+.ot-node {
+  position: relative; z-index: 1; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--line); color: #fff; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.72rem;
+}
+.ot-step.done .ot-node { background: var(--accent); }
+.ot-step.current .ot-node { box-shadow: 0 0 0 4px var(--accent-soft); }
+.ot-label { font-size: 0.76rem; margin-top: 0.35rem; color: var(--muted); }
+.ot-step.done .ot-label { color: var(--ink); font-weight: 600; }
+
+/* star ratings */
+.star-rating { display: inline-flex; align-items: center; gap: 1px; color: var(--gold); font-size: 0.85rem; white-space: nowrap; }
+.star-rating .empty { color: var(--line); }
+.star-rating .star-value { color: var(--ink-soft); font-weight: 700; margin-right: 0.3rem; font-size: 0.85rem; }
+.star-rating .star-count { color: var(--muted); margin-left: 0.3rem; font-size: 0.82rem; }
+.star-rating.lg { font-size: 1.15rem; }
+/* interactive star input (write a review) */
+.star-input { display: inline-flex; gap: 0.2rem; font-size: 1.5rem; cursor: pointer; }
+.star-input i { color: var(--line); transition: color 0.12s var(--ease), transform 0.12s var(--ease); }
+.star-input i.on { color: var(--gold); }
+.star-input i:hover { transform: scale(1.15); }
+.rating-bar { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.rating-bar > span { display: block; height: 100%; background: var(--gold); }
+
 /* sale "% off" badge on product cards */
 .sale-badge {
   position: absolute; top: 10px; left: 10px; z-index: 3;

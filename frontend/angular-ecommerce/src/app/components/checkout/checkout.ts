@@ -1,10 +1,11 @@
 import { CommonModule } from '@angular/common';
 import { AfterViewInit, Component, OnInit, inject } from '@angular/core';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Stripe, StripeCardElement, loadStripe } from '@stripe/stripe-js';
 
 import { ConfigService } from '../../services/config.service';
+import { CouponService } from '../../services/coupon.service';
 import { Country } from '../../common/country';
 import { Order } from '../../common/order';
 import { OrderItem } from '../../common/order-item';
@@ -18,7 +19,7 @@ import { Luv2ShopValidators } from '../../validators/luv2shop-validators';
 
 @Component({
   selector: 'app-checkout',
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule],
   templateUrl: './checkout.html',
 })
 export class Checkout implements OnInit, AfterViewInit {
@@ -29,6 +30,18 @@ export class Checkout implements OnInit, AfterViewInit {
   totalQuantity = 0;
   isSubmitting = false;
   errorMessage = '';
+
+  // coupon / discount
+  private couponService = inject(CouponService);
+  couponCode = '';
+  appliedCode = '';
+  discount = 0;
+  couponError = '';
+  applyingCoupon = false;
+
+  get grandTotal(): number {
+    return Math.max(0, this.totalPrice - this.discount);
+  }
 
   countries: Country[] = [];
   shippingAddressStates: State[] = [];
@@ -120,6 +133,40 @@ export class Checkout implements OnInit, AfterViewInit {
   get billingCountry() { return this.checkoutFormGroup.get('billingAddress.country'); }
   get billingZipCode() { return this.checkoutFormGroup.get('billingAddress.zipCode'); }
 
+  applyCoupon(): void {
+    const code = this.couponCode.trim();
+    if (!code) {
+      return;
+    }
+    this.applyingCoupon = true;
+    this.couponError = '';
+    this.couponService.validate(code, this.totalPrice).subscribe({
+      next: res => {
+        if (res.valid) {
+          this.discount = res.discount;
+          this.appliedCode = res.code;
+          this.couponError = '';
+        } else {
+          this.discount = 0;
+          this.appliedCode = '';
+          this.couponError = res.message;
+        }
+        this.applyingCoupon = false;
+      },
+      error: () => {
+        this.couponError = 'Could not check that code. Please try again.';
+        this.applyingCoupon = false;
+      },
+    });
+  }
+
+  removeCoupon(): void {
+    this.discount = 0;
+    this.appliedCode = '';
+    this.couponCode = '';
+    this.couponError = '';
+  }
+
   copyShippingToBilling(event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
     if (checked) {
@@ -166,7 +213,7 @@ export class Checkout implements OnInit, AfterViewInit {
 
     this.isSubmitting = true;
 
-    this.paymentInfo.amount = Math.round(this.totalPrice * 100);
+    this.paymentInfo.amount = Math.round(this.grandTotal * 100);
     this.paymentInfo.currency = 'USD';
     this.paymentInfo.receiptEmail = this.email?.value;
 
@@ -208,7 +255,7 @@ export class Checkout implements OnInit, AfterViewInit {
   }
 
   private placeOrder(): void {
-    const order = new Order(this.totalQuantity, this.totalPrice);
+    const order = new Order(this.totalQuantity, this.grandTotal);
     const orderItems: OrderItem[] = this.cartService.cartItems.map(item => new OrderItem(item));
 
     const purchase = new Purchase();
@@ -224,6 +271,10 @@ export class Checkout implements OnInit, AfterViewInit {
     purchase.order = order;
     purchase.orderItems = orderItems;
     purchase.subscribeToNewsletter = !!this.checkoutFormGroup.get('subscribeToNewsletter')?.value;
+    if (this.appliedCode && this.discount > 0) {
+      purchase.couponCode = this.appliedCode;
+      purchase.subtotal = this.totalPrice;
+    }
 
     this.checkoutService.placeOrder(purchase).subscribe({
       next: response => this.completeOrder(response.orderTrackingNumber),
@@ -237,7 +288,7 @@ export class Checkout implements OnInit, AfterViewInit {
   private completeOrder(trackingNumber: string): void {
     const summary = {
       totalQuantity: this.totalQuantity,
-      totalPrice: this.totalPrice,
+      totalPrice: this.grandTotal,
       items: this.cartService.cartItems.map(item => ({
         name: item.name,
         imageUrl: item.imageUrl,

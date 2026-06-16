@@ -10,6 +10,10 @@
     <p class="fs-5 fw-bold font-monospace">{{ trackingNumber }}</p>
   }
 
+  <div class="mx-auto mt-4" style="max-width: 520px;">
+    <app-order-timeline status="Received"></app-order-timeline>
+  </div>
+
   @if (summary) {
     <div class="card text-start mx-auto mt-4" style="max-width: 520px;">
       <div class="card-header fw-semibold">Order summary</div>

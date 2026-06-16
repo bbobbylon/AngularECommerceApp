@@ -26,6 +26,11 @@ export class FavoritesService {
     this.commit(this._ids().filter(x => x !== id));
   }
 
+  /** Replace the whole list (used when syncing with the account wishlist). */
+  setAll(ids: number[]): void {
+    this.commit([...new Set(ids)]);
+  }
+
   private commit(ids: number[]): void {
     this._ids.set(ids);
     try {

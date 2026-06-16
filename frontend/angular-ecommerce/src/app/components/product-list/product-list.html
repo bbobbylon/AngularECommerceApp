@@ -89,6 +89,10 @@
   </div>
 
   <div class="d-flex align-items-center gap-3 flex-wrap">
+    <button type="button" class="btn btn-sm btn-outline-secondary" (click)="showFilters = !showFilters">
+      <i class="fa-solid fa-sliders me-1"></i> Filters
+      @if (hasActiveFilters) { <span class="badge bg-primary ms-1">on</span> }
+    </button>
     <div class="d-flex align-items-center gap-2">
       <label for="sortBy" class="text-muted small mb-0">Sort</label>
       <select id="sortBy" class="form-select form-select-sm" style="width:auto"
@@ -110,6 +114,50 @@
   </div>
 </div>
 
+@if (showFilters) {
+  <div class="card mb-4 filter-panel">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-6 col-md-3">
+          <label for="minPrice" class="form-label small mb-1">Min price</label>
+          <input id="minPrice" type="number" min="0" class="form-control form-control-sm" placeholder="$0"
+                 [(ngModel)]="filterMinPrice" name="minPrice" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label for="maxPrice" class="form-label small mb-1">Max price</label>
+          <input id="maxPrice" type="number" min="0" class="form-control form-control-sm" placeholder="Any"
+                 [(ngModel)]="filterMaxPrice" name="maxPrice" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label for="minRating" class="form-label small mb-1">Min rating</label>
+          <select id="minRating" class="form-select form-select-sm" [(ngModel)]="filterMinRating" name="minRating">
+            <option [ngValue]="0">Any</option>
+            <option [ngValue]="3">3★ &amp; up</option>
+            <option [ngValue]="4">4★ &amp; up</option>
+            <option [ngValue]="5">5★ only</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 d-flex flex-column gap-1">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="inStock" [(ngModel)]="filterInStock" name="inStock" />
+            <label class="form-check-label small" for="inStock">In stock only</label>
+          </div>
+          @if (!saleMode) {
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="onSale" [(ngModel)]="filterOnSale" name="onSale" />
+              <label class="form-check-label small" for="onSale">On sale</label>
+            </div>
+          }
+        </div>
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <button type="button" class="btn btn-primary btn-sm" (click)="applyFilters()">Apply filters</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" (click)="clearFilters()" [disabled]="!hasActiveFilters">Clear</button>
+      </div>
+    </div>
+  </div>
+}
+
 @if (isLoading) {
   <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 g-4">
     @for (s of [0,1,2,3,4,5,6,7]; track s) {
@@ -127,8 +175,11 @@
     }
   </div>
 } @else if (products.length === 0) {
-  <div class="alert alert-warning" role="alert">
-    No products found. Try a different category or search term.
+  <div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2" role="alert">
+    <span>No products found. Try a different category, search term, or fewer filters.</span>
+    @if (hasActiveFilters) {
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="clearFilters()">Clear filters</button>
+    }
   </div>
 } @else {
   <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 g-4">
@@ -152,6 +203,11 @@
             <h6 class="product-name mb-1">
               <a [routerLink]="['/products', product.id]">{{ product.name }}</a>
             </h6>
+            @if (product.reviewCount) {
+              <div class="mb-1">
+                <app-star-rating [rating]="product.averageRating" [count]="product.reviewCount" [showCount]="true"></app-star-rating>
+              </div>
+            }
             <p class="product-sub small text-muted mb-2">{{ product.description }}</p>
             <div class="d-flex justify-content-between align-items-center mt-auto mb-2">
               <span class="d-flex align-items-baseline gap-2">

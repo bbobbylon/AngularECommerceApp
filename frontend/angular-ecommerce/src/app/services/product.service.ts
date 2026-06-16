@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable, catchError, forkJoin, map, of, switchMap } from 'rxjs';
 
@@ -6,12 +6,55 @@ import { environment } from '../../environments/environment';
 import { Product } from '../common/product';
 import { ProductCategory } from '../common/product-category';
 
+export interface CatalogFilters {
+  categoryId?: number;
+  keyword?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  inStock?: boolean;
+  onSale?: boolean;
+  minRating?: number;
+  sort?: string;
+  page?: number;
+  size?: number;
+}
+
+/** Stable pagination envelope returned by the faceted /catalog/search endpoint. */
+export interface CatalogPage {
+  content: Product[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ProductService {
 
   private readonly baseUrl = environment.apiUrl;
 
   constructor(private httpClient: HttpClient) {}
+
+  /** Faceted catalog search (category, keyword, price, in-stock, on-sale, rating, sort). */
+  searchCatalog(filters: CatalogFilters): Observable<CatalogPage> {
+    let params = new HttpParams();
+    const set = (k: string, v: unknown) => {
+      if (v !== undefined && v !== null && v !== '') {
+        params = params.set(k, String(v));
+      }
+    };
+    set('categoryId', filters.categoryId);
+    set('keyword', filters.keyword);
+    set('minPrice', filters.minPrice);
+    set('maxPrice', filters.maxPrice);
+    set('inStock', filters.inStock);
+    set('onSale', filters.onSale);
+    set('minRating', filters.minRating);
+    set('sort', filters.sort);
+    set('page', filters.page ?? 0);
+    set('size', filters.size ?? 12);
+    return this.httpClient.get<CatalogPage>(`${this.baseUrl}/catalog/search`, { params });
+  }
 
   getProductListPaginate(page: number, pageSize: number, categoryId: number, sort = ''): Observable<GetResponseProducts> {
     const sortParam = sort ? `&sort=${sort}` : '';

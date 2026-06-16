@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NgbPaginationModule } from '@ng-bootstrap/ng-bootstrap';
 
@@ -7,13 +8,14 @@ import { CartItem } from '../../common/cart-item';
 import { Product, discountPercent, isOnSale } from '../../common/product';
 import { CartService } from '../../services/cart.service';
 import { FavoritesService } from '../../services/favorites.service';
-import { GetResponseProducts, ProductService } from '../../services/product.service';
+import { CatalogFilters, CatalogPage, ProductService } from '../../services/product.service';
 import { ToastService } from '../../services/toast.service';
 import { NewsletterSignup } from '../newsletter-signup/newsletter-signup';
+import { StarRating } from '../star-rating/star-rating';
 
 @Component({
   selector: 'app-product-list',
-  imports: [CommonModule, RouterLink, NgbPaginationModule, NewsletterSignup],
+  imports: [CommonModule, FormsModule, RouterLink, NgbPaginationModule, NewsletterSignup, StarRating],
   templateUrl: './product-list.html',
 })
 export class ProductList implements OnInit {
@@ -22,10 +24,17 @@ export class ProductList implements OnInit {
   isLoading = false;
 
   currentCategoryId = 1;
-  previousCategoryId = 1;
   searchMode = false;
   saleMode = false;
-  previousKeyword = '';
+  private previousScopeKey = '';
+
+  // facet filters
+  filterMinPrice: number | null = null;
+  filterMaxPrice: number | null = null;
+  filterInStock = false;
+  filterOnSale = false;
+  filterMinRating = 0;
+  showFilters = false;
 
   // sale-pricing helpers exposed to the template
   protected readonly isOnSale = isOnSale;
@@ -46,10 +55,16 @@ export class ProductList implements OnInit {
   sortBy = '';
   readonly sortOptions = [
     { label: 'Featured', value: '' },
+    { label: 'Top rated', value: 'averageRating,desc' },
     { label: 'Price: Low to High', value: 'unitPrice,asc' },
     { label: 'Price: High to Low', value: 'unitPrice,desc' },
     { label: 'Name: A–Z', value: 'name,asc' },
   ];
+
+  get hasActiveFilters(): boolean {
+    return this.filterMinPrice != null || this.filterMaxPrice != null
+      || this.filterInStock || this.filterOnSale || this.filterMinRating > 0;
+  }
 
   protected favorites = inject(FavoritesService);
   private toast = inject(ToastService);
@@ -77,76 +92,67 @@ export class ProductList implements OnInit {
   listProducts(): void {
     this.isLoading = true;
     this.searchMode = this.route.snapshot.paramMap.has('keyword');
-    if (this.saleMode) {
-      this.handleSaleProducts();
-    } else if (this.searchMode) {
-      this.handleSearchProducts();
-    } else {
-      this.handleListProducts();
-    }
-  }
-
-  private handleSaleProducts(): void {
-    this.productService
-      .getProductsOnSalePaginate(this.pageNumber - 1, this.pageSize, this.sortBy)
-      .subscribe({
-        next: data => this.processResult(data),
-        error: () => {
-          this.products = [];
-          this.isLoading = false;
-        },
-      });
-  }
-
-  private handleListProducts(): void {
     const hasCategoryId = this.route.snapshot.paramMap.has('id');
-    this.currentCategoryId = hasCategoryId
-      ? Number(this.route.snapshot.paramMap.get('id'))
-      : 1;
-
-    // reset to first page whenever the category changes
-    if (this.previousCategoryId !== this.currentCategoryId) {
-      this.pageNumber = 1;
-    }
-    this.previousCategoryId = this.currentCategoryId;
-
-    this.productService
-      .getProductListPaginate(this.pageNumber - 1, this.pageSize, this.currentCategoryId, this.sortBy)
-      .subscribe({
-        next: data => this.processResult(data),
-        error: () => {
-          this.products = [];
-          this.isLoading = false;
-        },
-      });
-  }
-
-  private handleSearchProducts(): void {
     const keyword = this.route.snapshot.paramMap.get('keyword') ?? '';
+    this.currentCategoryId = hasCategoryId ? Number(this.route.snapshot.paramMap.get('id')) : 1;
 
-    // reset to first page whenever the keyword changes
-    if (this.previousKeyword !== keyword) {
+    // reset to first page whenever the scope (home/category/search/sale) changes
+    const scopeKey = this.saleMode ? 'sale'
+      : this.searchMode ? `search:${keyword}`
+      : hasCategoryId ? `category:${this.currentCategoryId}`
+      : 'home';
+    if (this.previousScopeKey !== scopeKey) {
       this.pageNumber = 1;
     }
-    this.previousKeyword = keyword;
+    this.previousScopeKey = scopeKey;
 
-    this.productService
-      .searchProductsPaginate(this.pageNumber - 1, this.pageSize, keyword, this.sortBy)
-      .subscribe({
-        next: data => this.processResult(data),
-        error: () => {
-          this.products = [];
-          this.isLoading = false;
-        },
-      });
+    const filters: CatalogFilters = {
+      page: this.pageNumber - 1,
+      size: this.pageSize,
+      sort: this.sortBy,
+      minPrice: this.filterMinPrice ?? undefined,
+      maxPrice: this.filterMaxPrice ?? undefined,
+      inStock: this.filterInStock || undefined,
+      onSale: this.saleMode ? true : (this.filterOnSale || undefined),
+      minRating: this.filterMinRating || undefined,
+    };
+    if (this.searchMode) {
+      filters.keyword = keyword;
+    } else if (hasCategoryId) {
+      filters.categoryId = this.currentCategoryId;
+    }
+
+    this.productService.searchCatalog(filters).subscribe({
+      next: data => this.processResult(data),
+      error: () => {
+        this.products = [];
+        this.totalElements = 0;
+        this.isLoading = false;
+      },
+    });
   }
 
-  private processResult(data: GetResponseProducts): void {
-    this.products = data._embedded.products;
-    this.pageNumber = data.page.number + 1;
-    this.pageSize = data.page.size;
-    this.totalElements = data.page.totalElements;
+  private processResult(data: CatalogPage): void {
+    this.products = data.content;
+    this.pageNumber = data.number + 1;
+    this.pageSize = data.size;
+    this.totalElements = data.totalElements;
     this.isLoading = false;
+  }
+
+  applyFilters(): void {
+    this.pageNumber = 1;
+    this.listProducts();
+  }
+
+  clearFilters(): void {
+    this.filterMinPrice = null;
+    this.filterMaxPrice = null;
+    this.filterInStock = false;
+    this.filterOnSale = false;
+    this.filterMinRating = 0;
+    this.pageNumber = 1;
+    this.listProducts();
   }
 
   updatePageSize(value: string): void {

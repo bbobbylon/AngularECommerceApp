@@ -5,10 +5,11 @@ import { OKTA_AUTH } from '@okta/okta-angular';
 
 import { OrderHistory as OrderHistoryModel } from '../../common/order-history';
 import { OrderHistoryService } from '../../services/order-history.service';
+import { OrderTimeline } from '../order-timeline/order-timeline';
 
 @Component({
   selector: 'app-order-history',
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, OrderTimeline],
   templateUrl: './order-history.html',
 })
 export class OrderHistory implements OnInit {

@@ -11,4 +11,7 @@ export class Purchase {
   orderItems!: OrderItem[];
   /** Checkout opt-in: create the account on the weekly-deals list. */
   subscribeToNewsletter = true;
+  /** Applied coupon (optional) + the pre-discount subtotal, so the server can re-validate. */
+  couponCode?: string;
+  subtotal?: number;
 }

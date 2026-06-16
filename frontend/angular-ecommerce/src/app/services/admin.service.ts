@@ -5,6 +5,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Product } from '../common/product';
 import { ProductCategory } from '../common/product-category';
+import { Review } from './review.service';
 
 export interface AdminStats {
   totalProducts: number;
@@ -102,4 +103,46 @@ export class AdminService {
   createCategory(name: string): Observable<ProductCategory> {
     return this.http.post<ProductCategory>(`${this.baseUrl}/categories`, { name });
   }
+
+  getReviews(page: number, size: number): Observable<PageResponse<Review>> {
+    const params = new HttpParams().set('page', page).set('size', size);
+    return this.http.get<PageResponse<Review>>(`${this.baseUrl}/reviews`, { params });
+  }
+
+  deleteReview(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/reviews/${id}`);
+  }
+
+  getCoupons(): Observable<Coupon[]> {
+    return this.http.get<Coupon[]>(`${this.baseUrl}/coupons`);
+  }
+
+  createCoupon(payload: CouponPayload): Observable<Coupon> {
+    return this.http.post<Coupon>(`${this.baseUrl}/coupons`, payload);
+  }
+
+  deleteCoupon(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/coupons/${id}`);
+  }
+}
+
+export interface Coupon {
+  id: number;
+  code: string;
+  description?: string;
+  percentOff?: number | null;
+  amountOff?: number | null;
+  minSpend?: number | null;
+  active: boolean;
+  expiresAt?: string | null;
+}
+
+export interface CouponPayload {
+  code: string;
+  description?: string;
+  percentOff?: number | null;
+  amountOff?: number | null;
+  minSpend?: number | null;
+  active: boolean;
+  expiresAt?: string | null;
 }

@@ -1,0 +1,14 @@
+@if (cancelled) {
+  <div class="text-danger small fw-semibold"><i class="fa-solid fa-ban me-1"></i>Order cancelled</div>
+} @else {
+  <div class="order-timeline">
+    @for (step of steps; track step; let i = $index) {
+      <div class="ot-step" [class.done]="i <= currentIndex" [class.current]="i === currentIndex">
+        <div class="ot-node">
+          @if (i < currentIndex) { <i class="fa-solid fa-check"></i> }
+        </div>
+        <div class="ot-label">{{ step }}</div>
+      </div>
+    }
+  </div>
+}

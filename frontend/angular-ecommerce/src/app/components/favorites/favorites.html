@@ -10,6 +10,25 @@
   </a>
 </div>
 
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="d-flex flex-wrap align-items-end gap-2">
+      <div class="flex-grow-1" style="min-width: 220px;">
+        <label for="syncEmail" class="form-label small mb-1">
+          <i class="fa-solid fa-cloud-arrow-up me-1 text-primary"></i>Sync wishlist across devices
+        </label>
+        <input id="syncEmail" type="email" class="form-control form-control-sm" placeholder="you@example.com"
+               [(ngModel)]="syncEmail" name="syncEmail" />
+      </div>
+      <button type="button" class="btn btn-outline-primary btn-sm" (click)="syncWithAccount()" [disabled]="syncing()">
+        @if (syncing()) { <i class="fa-solid fa-spinner fa-spin me-1"></i> } @else { <i class="fa-solid fa-arrows-rotate me-1"></i> }
+        Sync
+      </button>
+    </div>
+    <div class="form-text">Save these favorites to your account and pull them on any device.</div>
+  </div>
+</div>
+
 @if (isLoading) {
   <div class="text-muted">Loading your favorites...</div>
 } @else if (products.length === 0) {

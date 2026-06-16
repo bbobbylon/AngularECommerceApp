@@ -9,6 +9,9 @@ export interface Product {
   imageUrl: string;
   active: boolean;
   unitsInStock: number;
+  /** Denormalized rating aggregates (null/0 when the product has no reviews yet). */
+  averageRating?: number | null;
+  reviewCount?: number | null;
   dateCreated: Date;
   lastUpdated: Date;
 }
