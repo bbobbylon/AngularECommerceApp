@@ -28,6 +28,27 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- Caching: Spring Cache abstraction backed by Caffeine (in-process) for hot catalog reads. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+        <!-- Database migrations: Flyway owns the schema (ddl-auto=validate). Retires the
+             "ddl-auto=update silently skips a NOT NULL column on a populated table" gotcha.
+             Spring Boot 4 splits auto-config into modules — the STARTER brings spring-boot-flyway
+             (the auto-configuration) + flyway-core; flyway-mysql adds MySQL 8 support. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-mysql</artifactId>
+        </dependency>
         <!-- Prometheus scrape endpoint at /actuator/prometheus for enterprise metrics pipelines. -->
         <dependency>
             <groupId>io.micrometer</groupId>

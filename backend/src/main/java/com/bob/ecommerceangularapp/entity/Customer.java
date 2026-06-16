@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -16,7 +17,8 @@ import java.util.Set;
 import java.util.UUID;
 
 @Entity
-@Table(name = "customer")
+// email is looked up on checkout, account, and newsletter flows; index it (not unique by design).
+@Table(name = "customer", indexes = @Index(name = "idx_customer_email", columnList = "email"))
 @Getter
 @Setter
 public class Customer {

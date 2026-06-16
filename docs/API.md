@@ -27,9 +27,12 @@ Base URL: **`http://localhost:8585/api`** · Most catalog endpoints are auto-gen
 | | PUT | `/account` | public* |
 | [Orders](#orders-secured) | GET | `/orders/search/findByCustomerEmailOrderByDateCreatedDesc` | 🔒 JWT |
 | [Admin](#admin-secured) | GET | `/admin/stats` | 🔒 JWT |
+| | GET | `/admin/system` (system health view) | 🔒 JWT |
 | | GET/POST/PUT/DELETE | `/admin/products/**` | 🔒 JWT |
 | | GET | `/admin/orders` · PUT `/admin/orders/{id}/status` | 🔒 JWT |
 | | GET/POST | `/admin/categories` | 🔒 JWT |
+| [Observability](#observability-actuator) | GET | `/actuator/health` · `/health/liveness` · `/health/readiness` | public |
+| | GET | `/actuator/info` · `/actuator/metrics` · `/actuator/prometheus` | public |
 
 <sub>\* Account endpoints trust the supplied email (course-faithful). The Angular route is gated by the dev/Okta guard; harden with real auth for production.</sub>
 
@@ -247,6 +250,11 @@ disabled on the catalog. For production, restrict further to an admin group — 
 curl "http://localhost:8585/api/admin/stats"
 # -> { totalProducts, activeProducts, lowStockProducts, productsOnSale, totalOrders, totalRevenue, totalCustomers, newsletterSubscribers }
 
+# System health (powers the dashboard "System health" card)
+curl "http://localhost:8585/api/admin/system"
+# -> { status, version, profile, uptimeSeconds, components:[{ name, ready, detail }] }
+#    components: Database / Email (SMTP) / Payments (Stripe) / Auth (Okta) — ready:false = not wired up.
+
 # Products (paginated envelope: { content, totalElements, totalPages, number, size })
 curl "http://localhost:8585/api/admin/products?page=0&size=20"
 curl "http://localhost:8585/api/admin/products/1"
@@ -273,6 +281,23 @@ curl -X POST "http://localhost:8585/api/admin/categories" -H "Content-Type: appl
 item isn't on sale). A blank `imageUrl` falls back to a generated placeholder.
 
 ---
+
+## Observability (Actuator)
+
+Spring Boot Actuator endpoints for ops/orchestrators. Full details in [OBSERVABILITY.md](OBSERVABILITY.md).
+
+```bash
+curl "http://localhost:8585/actuator/health"             # {"status":"UP", groups:[liveness,readiness]}
+curl "http://localhost:8585/actuator/health/readiness"   # k8s readinessProbe
+curl "http://localhost:8585/actuator/health/liveness"    # k8s livenessProbe
+curl "http://localhost:8585/actuator/info"               # build version + time
+curl "http://localhost:8585/actuator/metrics"            # Micrometer metric names
+curl "http://localhost:8585/actuator/prometheus"         # Prometheus scrape format
+```
+
+Every request gets an `X-Request-Id` correlation id (generated, or reused from the inbound header),
+echoed on the response and printed in logs. The mail health indicator is intentionally disabled so an
+unconfigured SMTP server never flips health to DOWN.
 
 ## Conventions
 

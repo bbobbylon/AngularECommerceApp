@@ -12,6 +12,7 @@ Start here. The docs are intentionally concise and visual.
 | 💳 **[STRIPE.md](STRIPE.md)** | Beginner-friendly Stripe walkthrough (test mode, keys, test cards). |
 | 📧 **[EMAIL.md](EMAIL.md)** | Gmail SMTP setup (App Password), transactional + weekly marketing email, unsubscribe, testing the blast. |
 | 🔐 **[SECURITY.md](SECURITY.md)** | Auth model, enabling MFA/OTP + passkeys (WebAuthn) via Okta, and the production hardening checklist. |
+| 📈 **[OBSERVABILITY.md](OBSERVABILITY.md)** | Actuator health/liveness/readiness probes, metrics + Prometheus, build info, request-id correlation, and the admin System Health view. |
 | 🛠️ **[MAINTENANCE.md](MAINTENANCE.md)** | Forecasted costs, routine maintenance, upgrade strategy, the `ddl-auto` gotcha, backups & monitoring. |
 | 🗺️ **[BUILD_PLAN.md](BUILD_PLAN.md)** | Milestone plan (M0–M6), locked decisions, and how to enable Okta / Stripe / HTTPS / Email. |
 

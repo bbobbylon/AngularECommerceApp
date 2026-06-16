@@ -67,20 +67,36 @@ cd frontend/angular-ecommerce && npx ng build && CI=true npx ng test --watch=fal
 
 ---
 
-## 🗄️ Database — schema changes & the `ddl-auto` gotcha
+## 🗄️ Database — schema changes with Flyway
 
-This project uses Hibernate `spring.jpa.hibernate.ddl-auto=update`, which **auto-applies entity
-changes** to the schema. It's convenient for a course/demo but has sharp edges:
+**The schema is owned by Flyway** (`backend/src/main/resources/db/migration/`), and Hibernate runs
+`spring.jpa.hibernate.ddl-auto=validate` — on boot it verifies the live schema matches the entities
+and **fails fast** if not. This retired the old `ddl-auto=update` gotcha described below.
 
-- ⚠️ **Adding a `NOT NULL` column to a table that already has rows fails** on MySQL strict mode
-  (`Incorrect datetime value: '0000-00-00...'`). `update` logs the error and *continues*, leaving the
-  column missing — which then breaks queries at runtime. (This exact issue once crashed the backend on
-  boot via a `date_created` column — see git history.) **Make new columns nullable**, or give them a
-  default, when the table may already contain data.
-- `update` **never drops** columns/tables and won't always reconcile type changes.
-- **Recommendation for production:** adopt a migration tool — **Flyway** (simplest) or Liquibase — and
-  set `ddl-auto=validate`. Versioned SQL migrations are reviewable, repeatable, and safe on populated
-  tables. This is the single biggest step toward a production-grade database lifecycle.
+### Making a schema change
+1. Change the JPA entity as usual.
+2. Add a **new** migration `V{n}__short_description.sql` (next number; e.g. `V3__add_gift_cards.sql`)
+   with the `ALTER`/`CREATE` SQL. Never edit a migration that's already been applied — Flyway
+   checksums applied migrations and will refuse to start if one changed.
+3. Boot the app: Flyway applies the pending migration, then `validate` confirms the entity↔schema match.
+4. Tip: generate the exact DDL Hibernate expects with
+   `-Dspring.jpa.properties.jakarta.persistence.schema-generation.scripts.action=create
+   -Dspring.jpa.properties.jakarta.persistence.schema-generation.scripts.create-target=target/schema.sql`,
+   then copy the relevant statements into your migration. (That's how `V1__baseline.sql` was produced.)
+
+### How existing vs fresh databases behave
+- **Existing** databases (created by the old `ddl-auto=update`) are **baselined at V1** on first boot —
+  V1 is *not* re-run against them; later migrations (V2+) apply normally.
+- **Fresh/empty** databases get the whole schema built from `V1` onward.
+
+### The old `ddl-auto=update` gotcha (now retired — kept for history)
+`update` auto-applied entity changes but had sharp edges: **adding a `NOT NULL` column to a populated
+table fails** on MySQL strict mode (`Incorrect datetime value: '0000-00-00...'`); `update` logged the
+error and *continued*, leaving the column missing and breaking queries at runtime (this once crashed
+the backend on boot via a `date_created` column — see git history). `update` also never drops columns.
+With `validate` + Flyway, a mismatch now fails loudly at startup instead of corrupting silently. (The
+`DataLoader` backfills remain defensive regardless, so an auxiliary seed step can never take down the
+catalog.)
 
 ### Reset the database (dev)
 The catalog is reseeded automatically by `DataLoader` when empty, and one-time **backfills** keep an
@@ -97,14 +113,21 @@ docker compose up -d
 
 ---
 
-## 📈 Monitoring & health (recommended for production)
+## 📈 Monitoring & health
 
-Not enabled by default (kept minimal for the course), but add before going live:
-- **Spring Boot Actuator** — re-add `spring-boot-starter-actuator`, expose `/actuator/health` (and
-  `/info`), and wire it to your platform's health checks / uptime monitoring.
-- **Centralized logs** — ship `backend.log` (and frontend errors) to your platform's logging.
-- **Uptime + alerts** — a simple external ping on `/api/products` catches "storefront is down" fast
-  (the symptom we want to never miss).
+**Spring Boot Actuator is wired up** — see [OBSERVABILITY.md](OBSERVABILITY.md) for the full surface.
+Quick reference:
+- **Probes:** `/actuator/health/liveness` + `/actuator/health/readiness` → wire to your platform's
+  health checks (k8s `livenessProbe`/`readinessProbe`).
+- **Metrics:** `/actuator/metrics` + `/actuator/prometheus` (scrape into Prometheus/Grafana).
+- **Admin view:** `Admin → Dashboard` "System health" card (`GET /api/admin/system`).
+- **Request correlation:** every response carries `X-Request-Id` (also in logs) for tracing.
+
+Still recommended before going live:
+- **Centralized logs** — turn on JSON logging (`logging.structured.format.console=ecs`) and ship to
+  your platform's logging (ELK/Loki/Datadog). The `requestId` is included for correlation.
+- **Uptime + alerts** — alert on `/actuator/health/readiness` and a synthetic check on `/api/products`
+  to catch "storefront is down" fast.
 
 ---
 

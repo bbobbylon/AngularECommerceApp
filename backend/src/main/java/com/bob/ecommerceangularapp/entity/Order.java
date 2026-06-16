@@ -7,6 +7,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -23,7 +24,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "orders")
+// Admin order list + order history both sort by recency.
+@Table(name = "orders", indexes = @Index(name = "idx_orders_date_created", columnList = "date_created"))
 @Getter
 @Setter
 public class Order {

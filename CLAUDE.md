@@ -60,6 +60,20 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
     of stock" badges on cards + details. `DataLoader.stockFor()` + `backfillStockVariety()` seed a realistic
     spread (most healthy, some 1–4, the odd 0).
   - "You might also like" related products already existed (`ProductService.getRelatedProducts`).
+- ✅ **Observability & ops** — `spring-boot-starter-actuator` + `micrometer-registry-prometheus`:
+  health (+ liveness/readiness **probes**), `/actuator/info` (build version/time via the `build-info`
+  goal), metrics, `/actuator/prometheus`. `RequestIdFilter` adds an `X-Request-Id` correlation id
+  (MDC → logs via `logging.pattern.level`, echoed on responses). **`management.health.mail.enabled=false`**
+  — the auto-configured mail indicator otherwise forces health DOWN when SMTP is unconfigured (would
+  evict healthy pods). Admin-facing `GET /api/admin/system` (`SystemHealthService`/`AdminSystemController`
+  + `SystemHealth` DTO) powers the **Admin → Dashboard** "System health" card. Structured JSON logging is
+  opt-in (`logging.structured.format.console=ecs`). See `docs/OBSERVABILITY.md`.
+- ✅ **Data & reliability** — **Flyway** migrations own the schema (`V1__baseline.sql` generated from
+  the entities + `V2__add_search_indexes.sql`), `ddl-auto=validate` (gotcha retired); secondary
+  **indexes** on hot columns (`Review.product_id`, `Customer.email`, `Product(active,category_id)`,
+  `Order.date_created`, via `@Index` + V2); **Caffeine caching** of the catalog search (cache-safe
+  `ProductCardView` projection, evicted on admin product writes). Verified live on both a fresh DB
+  (Flyway runs V1+V2) and the existing DB (baselined at V1, V2 applied). See `docs/MAINTENANCE.md`.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
@@ -85,11 +99,18 @@ Ports are non-default on purpose: backend **8585**, frontend **4250**, MySQL **3
   `security-oauth2-resource-server` (M3), `stripe-java` (M5) and `spring-boot-starter-mail` (M6)
   starters are intentional.
 - API base path is `/api` (Spring Data REST). Frontend reads `environment.apiUrl`.
-- MySQL only, course-faithful; Hibernate `ddl-auto=update`; data seeded via `CommandLineRunner`.
-  ⚠️ `ddl-auto=update` can't add a `NOT NULL` column to a populated table (MySQL strict mode) — it
-  logs-and-skips, leaving the column missing and crashing queries. Make new columns **nullable** (or
-  reseed). Keep `DataLoader` backfills defensive so they can never take down the catalog. See
-  `docs/MAINTENANCE.md`.
+- MySQL only, course-faithful; data seeded via `CommandLineRunner` (`DataLoader`).
+- **Schema is owned by Flyway** (`src/main/resources/db/migration/V{n}__*.sql`); Hibernate runs
+  `ddl-auto=validate` — it verifies the schema matches the entities on boot and **fails fast** on a
+  mismatch (this retired the old `ddl-auto=update` "silently skips a NOT NULL column on a populated
+  table" gotcha). **Any entity change now needs a new `V{n}` migration** — never edit an applied one;
+  never reintroduce `ddl-auto=update`. Existing pre-Flyway DBs are baselined at V1; fresh DBs build
+  from the migrations. Tests run on H2 with Flyway disabled (`spring.flyway.enabled=false`) +
+  `ddl-auto=create-drop`. See `docs/MAINTENANCE.md`.
+- Hot catalog reads are cached (Caffeine, `CacheConfig`): `/api/catalog/search` returns the
+  `ProductCardView` projection (no lazy gallery → cache-safe, no N+1); admin product writes evict it.
+- Security/payments degrade gracefully: keep them gated on config (Okta issuer URI,
+  Stripe key) so the app builds and runs without those external accounts.
 - Security/payments degrade gracefully: keep them gated on config (Okta issuer URI,
   Stripe key) so the app builds and runs without those external accounts.
 - Verify both builds after changes: `./mvnw -DskipTests clean package` and `npx ng build`.

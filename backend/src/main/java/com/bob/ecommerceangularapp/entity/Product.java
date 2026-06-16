@@ -8,6 +8,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OrderColumn;
@@ -27,7 +28,8 @@ import java.util.Date;
 import java.util.List;
 
 @Entity
-@Table(name = "product")
+// The storefront filters on active products within a category on nearly every catalog query.
+@Table(name = "product", indexes = @Index(name = "idx_product_active_category", columnList = "active, category_id"))
 @Getter
 @Setter
 @NoArgsConstructor

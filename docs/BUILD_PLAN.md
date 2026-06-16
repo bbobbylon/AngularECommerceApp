@@ -255,4 +255,39 @@ JWT chain when Okta is configured (open in dev), and tokened by the Angular `aut
    "Out of stock" badges on cards + details. `stockFor()` + `backfillStockVariety()` seed a realistic spread.
    Verified live: of the first 60 products, 4 out-of-stock, 6 low (1–4), 50 healthy.
 
+### Observability & ops ✅ (build + live smoke-tested)
+8. **Actuator + Micrometer** — `spring-boot-starter-actuator` + `micrometer-registry-prometheus`.
+   Exposed: `health` (+ `liveness`/`readiness` probes), `info` (build version/time via the `build-info`
+   goal), `metrics`, `prometheus`. Verified live: health/liveness/readiness → 200, 93 metrics, Prometheus
+   scrape OK, `/info` shows the build version.
+9. **Health philosophy** — `management.health.mail.enabled=false`. The auto-configured mail indicator
+   opens an SMTP connection per health check; with no Gmail creds it failed and forced `/actuator/health`
+   to **DOWN (503)** — which in prod would make k8s/LBs evict a healthy pod. Found and fixed during the
+   live smoke test. Mail/Stripe/Okta status is surfaced via the admin view instead.
+10. **Request correlation** — `RequestIdFilter` sets/reuses `X-Request-Id`, puts it in the MDC (shown in
+    logs via `logging.pattern.level`), and echoes it on responses. Verified: generated id echoed; inbound
+    `X-Request-Id` passed through. Structured JSON logging is opt-in (`logging.structured.format.console`).
+11. **Admin System Health** — `GET /api/admin/system` (`SystemHealthService` + `AdminSystemController` +
+    `SystemHealth` DTO) → status/version/profile/uptime + per-integration readiness. Rendered as the
+    **Admin → Dashboard** "System health" card. See `docs/OBSERVABILITY.md`.
+
+### Data & reliability ✅ (build + live smoke-tested on fresh AND existing DBs)
+12. **Flyway migrations** — `spring-boot-starter-flyway` + `flyway-mysql` (note: Spring Boot 4 split
+    auto-config into modules, so the raw `flyway-core` jar alone does NOT auto-configure — the starter is
+    required). `V1__baseline.sql` was generated from the entities via Hibernate's schema export (so it
+    matches them exactly); `V2__add_search_indexes.sql` adds the indexes. `ddl-auto` switched from
+    `update` → **`validate`** — the gotcha is retired (drift now fails fast at boot). Existing DBs are
+    baselined at V1 (`baseline-on-migrate=true`); fresh DBs run V1+V2. Tests keep H2 + `create-drop` with
+    `spring.flyway.enabled=false`. **Verified live:** fresh DB → Flyway applied V1+V2, validate passed,
+    seeded 100 products; existing DB → baselined V1, applied V2 (4 indexes created), validate passed,
+    data intact.
+13. **Indexes** — `@Index` on the hot finder columns (`Review.product_id`, `Customer.email`,
+    `Product(active, category_id)`, `Order.date_created`), applied via the V2 migration so both fresh and
+    existing DBs get them (existing unique columns like `Coupon.code` were already indexed).
+14. **Caching** — Spring Cache + **Caffeine** (`CacheConfig`, 60s TTL, 500 entries) on the catalog search.
+    The endpoint now returns the lightweight **`ProductCardView`** projection (no lazy `additionalImages`
+    gallery) — cache-safe (no detached-lazy-init), no N+1, and transparent to the frontend (the details
+    page still uses the SDR `/products/{id}` resource for the gallery). Admin product writes
+    `@CacheEvict` the cache. Verified: card payload omits the gallery; detail endpoint still serves it.
+
 All build-verified (mvnw package: 8 tests; ng build + 12 ng tests) and smoke-tested against MySQL.

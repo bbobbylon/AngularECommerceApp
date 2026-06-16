@@ -1,7 +1,7 @@
 package com.bob.ecommerceangularapp.controller;
 
 import com.bob.ecommerceangularapp.dto.PageResponse;
-import com.bob.ecommerceangularapp.entity.Product;
+import com.bob.ecommerceangularapp.dto.ProductCardView;
 import com.bob.ecommerceangularapp.service.ProductQueryService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -29,7 +29,7 @@ public class ProductFilterController {
     }
 
     @GetMapping("/search")
-    public PageResponse<Product> search(
+    public PageResponse<ProductCardView> search(
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) BigDecimal minPrice,

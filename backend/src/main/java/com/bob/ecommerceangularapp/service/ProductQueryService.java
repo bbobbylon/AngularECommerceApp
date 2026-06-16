@@ -1,7 +1,10 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.CacheConfig;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
+import com.bob.ecommerceangularapp.dto.ProductCardView;
 import com.bob.ecommerceangularapp.entity.Product;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -21,8 +24,15 @@ public class ProductQueryService {
         this.productRepository = productRepository;
     }
 
-    public Page<Product> search(Long categoryId, String keyword, BigDecimal minPrice, BigDecimal maxPrice,
-                                Boolean inStock, Boolean onSale, Integer minRating, Pageable pageable) {
+    /**
+     * Faceted search returning the cache-safe {@link ProductCardView} projection. Cached by the full
+     * filter combination (short TTL); admin product writes evict the cache (see AdminService).
+     */
+    @Cacheable(value = CacheConfig.CATALOG_SEARCH,
+            key = "#categoryId + '|' + #keyword + '|' + #minPrice + '|' + #maxPrice + '|' "
+                    + "+ #inStock + '|' + #onSale + '|' + #minRating + '|' + #pageable")
+    public Page<ProductCardView> search(Long categoryId, String keyword, BigDecimal minPrice, BigDecimal maxPrice,
+                                        Boolean inStock, Boolean onSale, Integer minRating, Pageable pageable) {
 
         List<Specification<Product>> specs = new ArrayList<>();
         // Storefront only shows active products.
@@ -51,6 +61,6 @@ public class ProductQueryService {
             specs.add((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("averageRating"), (double) minRating));
         }
 
-        return productRepository.findAll(Specification.allOf(specs), pageable);
+        return productRepository.findAll(Specification.allOf(specs), pageable).map(ProductCardView::of);
     }
 }

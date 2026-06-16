@@ -8,10 +8,12 @@ import com.bob.ecommerceangularapp.dao.ProductRepository;
 import com.bob.ecommerceangularapp.dto.AdminOrderView;
 import com.bob.ecommerceangularapp.dto.AdminProductRequest;
 import com.bob.ecommerceangularapp.dto.AdminStats;
+import com.bob.ecommerceangularapp.config.CacheConfig;
 import com.bob.ecommerceangularapp.entity.Customer;
 import com.bob.ecommerceangularapp.entity.Order;
 import com.bob.ecommerceangularapp.entity.Product;
 import com.bob.ecommerceangularapp.entity.ProductCategory;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -74,6 +76,7 @@ public class AdminService {
     }
 
     @Transactional
+    @CacheEvict(value = CacheConfig.CATALOG_SEARCH, allEntries = true)
     public Product createProduct(AdminProductRequest request) {
         Product product = new Product();
         apply(product, request);
@@ -81,6 +84,7 @@ public class AdminService {
     }
 
     @Transactional
+    @CacheEvict(value = CacheConfig.CATALOG_SEARCH, allEntries = true)
     public Product updateProduct(Long id, AdminProductRequest request) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
@@ -89,6 +93,7 @@ public class AdminService {
     }
 
     @Transactional
+    @CacheEvict(value = CacheConfig.CATALOG_SEARCH, allEntries = true)
     public void deleteProduct(Long id) {
         if (!productRepository.existsById(id)) {
             throw new IllegalArgumentException("Product not found: " + id);
