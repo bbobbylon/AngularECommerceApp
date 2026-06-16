@@ -75,6 +75,31 @@
   </div>
 
   <div class="col-12 col-lg-4">
+    <div class="card mb-4">
+      <div class="card-body">
+        <h6 class="fw-bold"><i class="fa-solid fa-fingerprint me-2 text-primary"></i>Security &amp; sign-in</h6>
+        <p class="small text-muted mb-2">
+          Two-factor authentication (MFA/OTP) and <strong>passkeys</strong> are handled by our
+          identity provider for the strongest protection of your account.
+        </p>
+        <ul class="small text-muted ps-3 mb-3">
+          <li>Add a passkey (Face ID / Touch ID / security key)</li>
+          <li>Turn on an authenticator app or SMS code</li>
+          <li>Review active sessions &amp; devices</li>
+        </ul>
+        @if (oktaConfigured) {
+          <a [href]="oktaSettingsUrl" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm">
+            <i class="fa-solid fa-shield-halved me-1"></i> Manage sign-in &amp; passkeys
+          </a>
+        } @else {
+          <div class="alert alert-secondary small mb-0">
+            Sign-in security activates once single sign-on (Okta) is configured for this store.
+            See <code>docs/SECURITY.md</code>.
+          </div>
+        }
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-body">
         <h6 class="fw-bold"><i class="fa-solid fa-circle-info me-2 text-primary"></i>About your data</h6>

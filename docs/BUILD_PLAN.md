@@ -196,3 +196,21 @@ Adds real email plus the "online-store goodies" (sale section, About, marketing 
   expanded footer; checkout "create account & subscribe" opt-in.
 - **To enable real sending:** set `GMAIL_USERNAME` + `GMAIL_APP_PASSWORD` (App Password). Full
   walkthrough: **[EMAIL.md](EMAIL.md)**. **Without it:** everything works; email is silently skipped.
+
+### Production-readiness pass ✅
+- **Resilience / bug fix:** a `NOT NULL date_created` column on the (populated) `customer` table failed
+  to apply under MySQL strict mode, so the column was silently missing and a startup backfill crashed
+  the whole backend (blanking products + sale pages). Fix: removed the unused column, made `DataLoader`
+  backfills defensive (try/catch — never crash the catalog), and added a sale-price backfill so an
+  existing DB populates `/sale` without a reset. Documented the `ddl-auto` pitfall in MAINTENANCE.md.
+- **API hardening:** `GlobalExceptionHandler` (`@RestControllerAdvice`) returns consistent JSON errors
+  (no leaked stack traces); Bean Validation (`@Valid` + `@Email`/`@NotBlank`) on public DTOs.
+- **Storefront completeness:** standard info/legal pages — `/faq`, `/contact`, `/shipping-returns`,
+  `/privacy`, `/terms` — with footer links.
+- **Security:** auth model + how to enable **MFA/OTP and passkeys (WebAuthn) via Okta** documented in
+  **[SECURITY.md](SECURITY.md)**; account portal has a "Security & sign-in" card. (App-native WebAuthn
+  is intentionally *not* added — identity is delegated to Okta.)
+- **Operations:** **[MAINTENANCE.md](MAINTENANCE.md)** — forecasted costs, maintenance cadence, upgrade
+  strategy, DB migration guidance (Flyway recommendation), backups, monitoring.
+- **Not done (needs your cloud accounts):** CI/CD + cloud deploy, Flyway migrations, Actuator health,
+  rate limiting, real TLS/CORS origins. Tracked in SECURITY.md / MAINTENANCE.md checklists.

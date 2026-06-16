@@ -25,6 +25,12 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   `Product.originalPrice` (sales); `NewsletterService` + `WeeklyAdScheduler`; `NewsletterController` +
   `AccountController`. Frontend: `/sale`, `/about`, guarded `/account`, newsletter signup, sale pricing,
   promo bar, marketing sections, checkout opt-in. See `docs/EMAIL.md`.
+- ✅ **Production-readiness pass** — `GlobalExceptionHandler` (`@RestControllerAdvice`) + Bean Validation
+  on public DTOs; info/legal pages (`/faq`, `/contact`, `/shipping-returns`, `/privacy`, `/terms`) +
+  footer links; account "Security & sign-in" card. MFA/OTP/passkeys are delegated to Okta (see
+  `docs/SECURITY.md`), and ops/cost/upgrade guidance lives in `docs/MAINTENANCE.md`. `DataLoader` now
+  self-heals existing DBs (newsletter + sale-price backfills) and never lets an auxiliary step crash
+  the catalog.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
@@ -51,6 +57,10 @@ Ports are non-default on purpose: backend **8585**, frontend **4250**, MySQL **3
   starters are intentional.
 - API base path is `/api` (Spring Data REST). Frontend reads `environment.apiUrl`.
 - MySQL only, course-faithful; Hibernate `ddl-auto=update`; data seeded via `CommandLineRunner`.
+  ⚠️ `ddl-auto=update` can't add a `NOT NULL` column to a populated table (MySQL strict mode) — it
+  logs-and-skips, leaving the column missing and crashing queries. Make new columns **nullable** (or
+  reseed). Keep `DataLoader` backfills defensive so they can never take down the catalog. See
+  `docs/MAINTENANCE.md`.
 - Security/payments degrade gracefully: keep them gated on config (Okta issuer URI,
   Stripe key) so the app builds and runs without those external accounts.
 - Verify both builds after changes: `./mvnw -DskipTests clean package` and `npx ng build`.

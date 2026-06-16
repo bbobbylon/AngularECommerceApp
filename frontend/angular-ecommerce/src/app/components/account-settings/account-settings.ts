@@ -3,6 +3,8 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { OktaAuthStateService } from '@okta/okta-angular';
 
+import { isOktaConfigured } from '../../auth/dev-auth.guard';
+import { oktaConfig } from '../../auth/okta-config';
 import { AccountPreferences, AccountService } from '../../services/account.service';
 import { ToastService } from '../../services/toast.service';
 
@@ -31,6 +33,12 @@ export class AccountSettings implements OnInit {
   readonly loading = signal(false);
   readonly saving = signal(false);
   readonly notFound = signal(false);
+
+  // Sign-in security (MFA/OTP/passkeys) is managed by the identity provider (Okta).
+  readonly oktaConfigured = isOktaConfigured();
+  readonly oktaSettingsUrl = this.oktaConfigured
+    ? oktaConfig.issuer.replace(/\/oauth2\/.*$/, '') + '/enduser/settings'
+    : '';
 
   private accountService = inject(AccountService);
   private authStateService = inject(OktaAuthStateService);

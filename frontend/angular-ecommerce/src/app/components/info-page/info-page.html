@@ -1,0 +1,16 @@
+<div class="mb-4">
+  <h1 class="fw-bold mb-1"><i class="fa-solid {{ content.icon }} me-2 text-primary"></i>{{ content.title }}</h1>
+  <p class="text-muted mb-0">{{ content.intro }}</p>
+</div>
+
+<div class="row">
+  <div class="col-lg-9">
+    @for (section of content.sections; track section.heading) {
+      <section class="mb-4">
+        <h5 class="fw-bold mb-2">{{ section.heading }}</h5>
+        <p class="text-muted mb-0">{{ section.body }}</p>
+      </section>
+    }
+    <p class="small text-muted">Last updated: June 2026.</p>
+  </div>
+</div>

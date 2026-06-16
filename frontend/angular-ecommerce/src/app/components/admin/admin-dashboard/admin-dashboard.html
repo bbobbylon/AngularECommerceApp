@@ -1,0 +1,74 @@
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+  <div>
+    <h1 class="fw-bold mb-1">Dashboard</h1>
+    <p class="text-muted mb-0">A snapshot of your store.</p>
+  </div>
+  <a routerLink="/admin/products/new" class="btn btn-primary"><i class="fa-solid fa-plus me-1"></i> New product</a>
+</div>
+
+@if (loading()) {
+  <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading stats…</div>
+} @else if (error()) {
+  <div class="alert alert-danger">Couldn't load dashboard stats. Is the backend running?</div>
+} @else if (stats(); as s) {
+  <div class="row g-3">
+    <div class="col-6 col-lg-3">
+      <div class="stat-card">
+        <div class="stat-icon"><i class="fa-solid fa-box-open"></i></div>
+        <div class="stat-value">{{ s.totalProducts | number }}</div>
+        <div class="stat-label">Products</div>
+        <div class="stat-sub">{{ s.activeProducts | number }} active</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="stat-card">
+        <div class="stat-icon text-warning"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div class="stat-value">{{ s.lowStockProducts | number }}</div>
+        <div class="stat-label">Low stock</div>
+        <div class="stat-sub">fewer than 10 units</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="stat-card">
+        <div class="stat-icon"><i class="fa-solid fa-receipt"></i></div>
+        <div class="stat-value">{{ s.totalOrders | number }}</div>
+        <div class="stat-label">Orders</div>
+        <div class="stat-sub">all time</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="stat-card">
+        <div class="stat-icon text-success"><i class="fa-solid fa-sack-dollar"></i></div>
+        <div class="stat-value">{{ s.totalRevenue | currency:'USD' }}</div>
+        <div class="stat-label">Revenue</div>
+        <div class="stat-sub">gross</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="stat-card">
+        <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
+        <div class="stat-value">{{ s.totalCustomers | number }}</div>
+        <div class="stat-label">Customers</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="stat-card">
+        <div class="stat-icon"><i class="fa-solid fa-envelope-open-text"></i></div>
+        <div class="stat-value">{{ s.newsletterSubscribers | number }}</div>
+        <div class="stat-label">Subscribers</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="stat-card">
+        <div class="stat-icon text-primary"><i class="fa-solid fa-tag"></i></div>
+        <div class="stat-value">{{ s.productsOnSale | number }}</div>
+        <div class="stat-label">On sale</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2 mt-4">
+    <a routerLink="/admin/products" class="btn btn-outline-primary"><i class="fa-solid fa-box-open me-1"></i> Manage products</a>
+    <a routerLink="/admin/orders" class="btn btn-outline-secondary"><i class="fa-solid fa-receipt me-1"></i> View orders</a>
+  </div>
+}

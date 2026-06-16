@@ -18,8 +18,43 @@ export const routes: Routes = [
     canActivate: [devOrAuthGuard],
   },
   {
+    path: 'admin',
+    loadComponent: () => import('./components/admin/admin-layout/admin-layout').then(m => m.AdminLayout),
+    canActivate: [devOrAuthGuard],
+    children: [
+      { path: '', loadComponent: () => import('./components/admin/admin-dashboard/admin-dashboard').then(m => m.AdminDashboard) },
+      { path: 'products', loadComponent: () => import('./components/admin/admin-products/admin-products').then(m => m.AdminProducts) },
+      { path: 'products/new', loadComponent: () => import('./components/admin/admin-product-form/admin-product-form').then(m => m.AdminProductForm) },
+      { path: 'products/:id/edit', loadComponent: () => import('./components/admin/admin-product-form/admin-product-form').then(m => m.AdminProductForm) },
+      { path: 'orders', loadComponent: () => import('./components/admin/admin-orders/admin-orders').then(m => m.AdminOrders) },
+    ],
+  },
+  {
     path: 'about',
     loadComponent: () => import('./components/about/about').then(m => m.About),
+  },
+  {
+    path: 'faq',
+    loadComponent: () => import('./components/faq/faq').then(m => m.Faq),
+  },
+  {
+    path: 'contact',
+    loadComponent: () => import('./components/contact/contact').then(m => m.Contact),
+  },
+  {
+    path: 'shipping-returns',
+    loadComponent: () => import('./components/info-page/info-page').then(m => m.InfoPage),
+    data: { page: 'shipping' },
+  },
+  {
+    path: 'privacy',
+    loadComponent: () => import('./components/info-page/info-page').then(m => m.InfoPage),
+    data: { page: 'privacy' },
+  },
+  {
+    path: 'terms',
+    loadComponent: () => import('./components/info-page/info-page').then(m => m.InfoPage),
+    data: { page: 'terms' },
   },
   {
     // Reuses ProductList in "sale mode" (fetches on-sale products) — same grid, cart & favorites.

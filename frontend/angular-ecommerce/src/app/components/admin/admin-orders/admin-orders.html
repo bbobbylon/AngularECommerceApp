@@ -1,0 +1,55 @@
+<div class="mb-4">
+  <h1 class="fw-bold mb-1">Orders</h1>
+  @if (!loading()) {
+    <p class="text-muted mb-0">{{ totalElements }} order{{ totalElements === 1 ? '' : 's' }}</p>
+  }
+</div>
+
+@if (loading()) {
+  <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+} @else if (orders().length === 0) {
+  <div class="alert alert-secondary">No orders yet.</div>
+} @else {
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead>
+        <tr><th>Order</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        @for (o of orders(); track o.id) {
+          <tr>
+            <td>
+              <div class="fw-semibold">#{{ o.id }}</div>
+              <div class="small text-muted text-truncate" style="max-width: 180px;" [title]="o.orderTrackingNumber">{{ o.orderTrackingNumber }}</div>
+            </td>
+            <td class="small">{{ o.dateCreated | date:'mediumDate' }}</td>
+            <td>
+              <div class="fw-semibold">{{ o.customerName }}</div>
+              <div class="small text-muted">{{ o.customerEmail }}</div>
+            </td>
+            <td>{{ o.totalQuantity }}</td>
+            <td class="fw-semibold">{{ o.totalPrice | currency:'USD' }}</td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge {{ badgeClass(o.status) }}">{{ o.status || '—' }}</span>
+                <select class="form-select form-select-sm" style="width:auto"
+                        [value]="o.status" (change)="updateStatus(o, $any($event.target).value)">
+                  @for (s of statuses; track s) {
+                    <option [value]="s">{{ s }}</option>
+                  }
+                </select>
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (totalElements > pageSize) {
+    <div class="d-flex justify-content-center mt-3">
+      <ngb-pagination [collectionSize]="totalElements" [(page)]="pageNumber" [pageSize]="pageSize"
+                      [maxSize]="5" [boundaryLinks]="true" (pageChange)="load()"></ngb-pagination>
+    </div>
+  }
+}

@@ -56,10 +56,12 @@
 
 <div class="container-fluid px-3 px-lg-4 mt-4">
   <div class="row">
-    <aside class="col-12 col-md-3 col-lg-2 mb-4">
-      <app-product-category-menu></app-product-category-menu>
-    </aside>
-    <main id="main-content" tabindex="-1" class="col-12 col-md-9 col-lg-10">
+    @if (!isAdminRoute()) {
+      <aside class="col-12 col-md-3 col-lg-2 mb-4">
+        <app-product-category-menu></app-product-category-menu>
+      </aside>
+    }
+    <main id="main-content" tabindex="-1" [class]="isAdminRoute() ? 'col-12' : 'col-12 col-md-9 col-lg-10'">
       <router-outlet></router-outlet>
     </main>
   </div>
@@ -96,15 +98,30 @@
           <li class="mb-1"><a routerLink="/about" class="link-light text-decoration-none">About us</a></li>
           <li class="mb-1"><a routerLink="/account" class="link-light text-decoration-none">My account</a></li>
           <li class="mb-1"><a routerLink="/members/orders" class="link-light text-decoration-none">My orders</a></li>
+          <li class="mb-1"><a routerLink="/admin" class="link-light text-decoration-none">Admin</a></li>
         </ul>
       </div>
-      <div class="col-12 col-md-6 col-lg-4">
+      <div class="col-6 col-md-3 col-lg-2">
+        <h6 class="text-uppercase small fw-bold text-secondary">Help</h6>
+        <ul class="list-unstyled small mb-0">
+          <li class="mb-1"><a routerLink="/faq" class="link-light text-decoration-none">FAQ</a></li>
+          <li class="mb-1"><a routerLink="/contact" class="link-light text-decoration-none">Contact</a></li>
+          <li class="mb-1"><a routerLink="/shipping-returns" class="link-light text-decoration-none">Shipping &amp; returns</a></li>
+        </ul>
+      </div>
+      <div class="col-12 col-md-6 col-lg-3">
         <app-newsletter-signup variant="inline"></app-newsletter-signup>
       </div>
     </div>
     <hr class="border-secondary my-3" />
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 small text-secondary">
-      <span>&copy; 2026 Luv2Shop &middot; Demo project</span>
+      <span class="d-flex flex-wrap align-items-center gap-2">
+        <span>&copy; 2026 Luv2Shop &middot; Demo project</span>
+        <span class="text-secondary">&middot;</span>
+        <a routerLink="/privacy" class="link-light text-decoration-none">Privacy</a>
+        <span class="text-secondary">&middot;</span>
+        <a routerLink="/terms" class="link-light text-decoration-none">Terms</a>
+      </span>
       <span class="d-flex align-items-center gap-3">
         <span>Built with</span>
         <i class="fa-brands fa-angular text-danger" title="Angular"></i>

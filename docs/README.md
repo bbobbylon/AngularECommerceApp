@@ -11,6 +11,8 @@ Start here. The docs are intentionally concise and visual.
 | 🚀 **[DEPLOYMENT.md](DEPLOYMENT.md)** | CI/CD + manual deploy templates for GCP / AWS / Azure, with topology diagrams. |
 | 💳 **[STRIPE.md](STRIPE.md)** | Beginner-friendly Stripe walkthrough (test mode, keys, test cards). |
 | 📧 **[EMAIL.md](EMAIL.md)** | Gmail SMTP setup (App Password), transactional + weekly marketing email, unsubscribe, testing the blast. |
+| 🔐 **[SECURITY.md](SECURITY.md)** | Auth model, enabling MFA/OTP + passkeys (WebAuthn) via Okta, and the production hardening checklist. |
+| 🛠️ **[MAINTENANCE.md](MAINTENANCE.md)** | Forecasted costs, routine maintenance, upgrade strategy, the `ddl-auto` gotcha, backups & monitoring. |
 | 🗺️ **[BUILD_PLAN.md](BUILD_PLAN.md)** | Milestone plan (M0–M6), locked decisions, and how to enable Okta / Stripe / HTTPS / Email. |
 
 New to the project? Read **ARCHITECTURE** for the mental model, then **DEVELOPMENT** to run it.

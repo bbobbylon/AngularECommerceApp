@@ -1,0 +1,21 @@
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <div class="admin-brand"><i class="fa-solid fa-gauge-high me-2"></i>Admin</div>
+    <nav class="admin-nav">
+      <a routerLink="/admin" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
+        <i class="fa-solid fa-chart-line"></i> Dashboard
+      </a>
+      <a routerLink="/admin/products" routerLinkActive="active">
+        <i class="fa-solid fa-box-open"></i> Products
+      </a>
+      <a routerLink="/admin/orders" routerLinkActive="active">
+        <i class="fa-solid fa-receipt"></i> Orders
+      </a>
+    </nav>
+    <a routerLink="/products" class="admin-back"><i class="fa-solid fa-arrow-left me-1"></i> Back to store</a>
+  </aside>
+
+  <section class="admin-content">
+    <router-outlet></router-outlet>
+  </section>
+</div>

@@ -5,14 +5,14 @@ import { OKTA_AUTH } from '@okta/okta-angular';
 import { environment } from '../../environments/environment';
 
 /**
- * Attaches the Okta access token as a Bearer header on calls to the secured
- * order-history endpoints (`/api/orders/**`). Everything else is left untouched.
+ * Attaches the Okta access token as a Bearer header on calls to the secured endpoints
+ * (`/api/orders/**` order history and `/api/admin/**` back-office). Everything else is untouched.
  */
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const oktaAuth = inject(OKTA_AUTH);
-  const securedPrefix = `${environment.apiUrl}/orders`;
+  const securedPrefixes = [`${environment.apiUrl}/orders`, `${environment.apiUrl}/admin`];
 
-  if (req.urlWithParams.startsWith(securedPrefix)) {
+  if (securedPrefixes.some(prefix => req.urlWithParams.startsWith(prefix))) {
     const accessToken = oktaAuth.getAccessToken();
     if (accessToken) {
       req = req.clone({ setHeaders: { Authorization: `Bearer ${accessToken}` } });

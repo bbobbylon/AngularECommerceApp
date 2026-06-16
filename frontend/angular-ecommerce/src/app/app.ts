@@ -1,5 +1,7 @@
 import { Component, inject } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { filter, map, startWith } from 'rxjs';
 
 import { BackToTop } from './components/back-to-top/back-to-top';
 import { CartStatus } from './components/cart-status/cart-status';
@@ -20,5 +22,16 @@ import { ThemeService } from './services/theme.service';
 export class App {
   protected readonly themeService = inject(ThemeService);
   protected readonly favorites = inject(FavoritesService);
+  private readonly router = inject(Router);
   title = 'angular-ecommerce';
+
+  /** Admin routes get a full-width canvas — hide the customer category sidebar there. */
+  protected readonly isAdminRoute = toSignal(
+    this.router.events.pipe(
+      filter(e => e instanceof NavigationEnd),
+      map(() => this.router.url.startsWith('/admin')),
+      startWith(this.router.url.startsWith('/admin')),
+    ),
+    { initialValue: this.router.url.startsWith('/admin') },
+  );
 }

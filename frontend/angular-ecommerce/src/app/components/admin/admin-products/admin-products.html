@@ -1,0 +1,72 @@
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+  <div>
+    <h1 class="fw-bold mb-1">Products</h1>
+    @if (!loading()) {
+      <p class="text-muted mb-0">{{ totalElements }} product{{ totalElements === 1 ? '' : 's' }}</p>
+    }
+  </div>
+  <a routerLink="/admin/products/new" class="btn btn-primary"><i class="fa-solid fa-plus me-1"></i> New product</a>
+</div>
+
+@if (loading()) {
+  <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+} @else {
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead>
+        <tr><th>Product</th><th>SKU</th><th>Price</th><th>Stock</th><th>Status</th><th class="text-end">Actions</th></tr>
+      </thead>
+      <tbody>
+        @for (p of products(); track p.id) {
+          <tr>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <img [src]="p.imageUrl" [alt]="p.name" class="admin-thumb" />
+                <div>
+                  <div class="fw-semibold">{{ p.name }}</div>
+                  <div class="small text-muted">{{ p.category?.categoryName }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="small text-muted">{{ p.sku }}</td>
+            <td>
+              <span class="fw-semibold">{{ p.unitPrice | currency:'USD' }}</span>
+              @if (isOnSale(p)) {
+                <span class="small text-muted text-decoration-line-through ms-1">{{ p.originalPrice | currency:'USD' }}</span>
+              }
+            </td>
+            <td>
+              @if (p.unitsInStock < 10) {
+                <span class="badge bg-danger-subtle text-danger-emphasis">{{ p.unitsInStock }} low</span>
+              } @else {
+                {{ p.unitsInStock }}
+              }
+            </td>
+            <td>
+              @if (p.active) {
+                <span class="badge bg-success-subtle text-success-emphasis">Active</span>
+              } @else {
+                <span class="badge bg-secondary-subtle text-secondary">Hidden</span>
+              }
+            </td>
+            <td class="text-end text-nowrap">
+              <a [routerLink]="['/admin/products', p.id, 'edit']" class="btn btn-sm btn-outline-secondary me-1" aria-label="Edit">
+                <i class="fa-solid fa-pen"></i>
+              </a>
+              <button type="button" class="btn btn-sm btn-outline-danger" (click)="remove(p)" aria-label="Delete">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (totalElements > pageSize) {
+    <div class="d-flex justify-content-center mt-3">
+      <ngb-pagination [collectionSize]="totalElements" [(page)]="pageNumber" [pageSize]="pageSize"
+                      [maxSize]="5" [boundaryLinks]="true" (pageChange)="load()"></ngb-pagination>
+    </div>
+  }
+}
