@@ -44,3 +44,29 @@ jobs:
       - run: npm ci
       - run: npx ng build
       - run: CI=true npx ng test --watch=false
+
+  e2e:
+    name: Frontend (Playwright E2E smoke)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/angular-ecommerce
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/angular-ecommerce/package-lock.json
+      - run: npm ci
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      # Hermetic: the specs stub the API, so no backend/DB is needed. Playwright starts `ng serve`.
+      - run: npx playwright test
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/angular-ecommerce/playwright-report/
+          retention-days: 7

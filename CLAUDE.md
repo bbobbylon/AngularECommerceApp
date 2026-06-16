@@ -88,6 +88,12 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   relaxed `script-src 'self' 'unsafe-inline'` only on `/swagger-ui`+`/v3/api-docs` (via
   `DelegatingRequestMatcherHeaderWriter`), strict everywhere else. Toggle off in prod with
   `springdoc.api-docs.enabled=false`/`springdoc.swagger-ui.enabled=false`. See `docs/API.md`.
+- ✅ **Frontend E2E (Playwright)** — `frontend/angular-ecommerce/e2e/` smoke suite: core storefront flow
+  (browse → add to cart → checkout in demo mode → order confirmation) + an app-shell/static-page check.
+  **Hermetic** — `e2e/support/mock-backend.ts` stubs the API at the network layer (matching the real
+  `/catalog/search`, HAL `_embedded`, and checkout contracts), so no backend/MySQL is needed; the
+  Playwright `webServer` starts `ng serve` itself. `npm run e2e` locally; runs in CI as the
+  **Frontend (Playwright E2E smoke)** job (`ci.yml`).
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
@@ -101,6 +107,7 @@ boots and the catalog/cart/checkout flow works with placeholder config, so they 
 - Backend run (needs Docker for MySQL on :3307): `cd backend && ./mvnw spring-boot:run` (→ http://localhost:8585)
 - Frontend build: `cd frontend/angular-ecommerce && npm install && npx ng build`
 - Frontend tests: `cd frontend/angular-ecommerce && CI=true npx ng test --watch=false`
+- Frontend E2E (Playwright, hermetic — stubs the API, starts `ng serve` itself): `cd frontend/angular-ecommerce && npx playwright install chromium` (one-time) then `npm run e2e`
 - Frontend dev server: `cd frontend/angular-ecommerce && npm start` (→ http://localhost:4250)
 - One-shot build + launch + open browser (Git Bash): `./run.sh` — Ctrl+C stops both servers
 - Stripe setup (optional, for real card payments): see `docs/STRIPE.md`. Without it, checkout runs in demo mode.

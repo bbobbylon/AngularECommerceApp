@@ -34,7 +34,16 @@ cd backend && ./mvnw clean package
 # Frontend — production build + unit tests (Vitest)
 cd frontend/angular-ecommerce && npx ng build
 cd frontend/angular-ecommerce && CI=true npx ng test --watch=false
+
+# Frontend — end-to-end smoke tests (Playwright). Hermetic: the specs stub the API at the
+# network layer, so no backend/DB is needed — Playwright starts `ng serve` automatically.
+cd frontend/angular-ecommerce && npx playwright install chromium   # one-time browser download
+cd frontend/angular-ecommerce && npm run e2e                        # or `npm run e2e:ui` to debug
 ```
+
+The E2E suite (`frontend/angular-ecommerce/e2e/`) covers the core storefront flow — browse →
+add to cart → checkout (demo mode) → order confirmation — plus an app-shell/static-page smoke
+check. It runs in CI as the **Frontend (Playwright E2E smoke)** job.
 
 ## Ports (intentionally non-default)
 | Service | Port |
