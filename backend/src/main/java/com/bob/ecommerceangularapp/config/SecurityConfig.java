@@ -13,8 +13,11 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.header.writers.ContentSecurityPolicyHeaderWriter;
+import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.header.writers.StaticHeadersWriter;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import java.util.Collection;
 import java.util.List;
@@ -44,6 +47,26 @@ public class SecurityConfig {
     /** Membership value required to reach the admin back-office. */
     @Value("${app.security.admin-role:Admin}")
     private String adminRole;
+
+    /** Strict CSP for the JSON API: no scripts at all, locked to same-origin. */
+    private static final String STRICT_CSP =
+            "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; "
+                    + "script-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+
+    /**
+     * Relaxed CSP applied ONLY to the Swagger UI / OpenAPI paths: Swagger UI ships inline scripts and
+     * styles, so it needs {@code script-src 'self' 'unsafe-inline'}. Still same-origin-only — the strict
+     * policy above keeps protecting every other (JSON) response.
+     */
+    private static final String SWAGGER_CSP =
+            "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; "
+                    + "script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'";
+
+    /** Matches the springdoc-served documentation endpoints. */
+    private static final RequestMatcher SWAGGER_PATHS = request -> {
+        String uri = request.getRequestURI();
+        return uri.startsWith("/swagger-ui") || uri.startsWith("/v3/api-docs");
+    };
 
     @Bean
     @ConditionalOnProperty(prefix = "spring.security.oauth2.resourceserver.jwt", name = "issuer-uri")
@@ -88,16 +111,21 @@ public class SecurityConfig {
         return converter;
     }
 
-    /** Response-header hardening shared by every filter chain. */
+    /**
+     * Response-header hardening shared by every filter chain. The CSP is applied per-path: the strict
+     * policy on everything by default, and a Swagger-compatible one only on the docs endpoints (the two
+     * matchers are mutually exclusive, so exactly one CSP header is written per response).
+     */
     private void applyHardening(HttpSecurity http) throws Exception {
         http.headers(headers -> headers
                 .frameOptions(frame -> frame.deny())
-                .contentSecurityPolicy(csp -> csp.policyDirectives(
-                        "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; "
-                                + "script-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"))
                 .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000))
                 .referrerPolicy(rp -> rp.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
                 .addHeaderWriter(new StaticHeadersWriter("Permissions-Policy",
-                        "geolocation=(), microphone=(), camera=()")));
+                        "geolocation=(), microphone=(), camera=()"))
+                .addHeaderWriter(new DelegatingRequestMatcherHeaderWriter(SWAGGER_PATHS,
+                        new ContentSecurityPolicyHeaderWriter(SWAGGER_CSP)))
+                .addHeaderWriter(new DelegatingRequestMatcherHeaderWriter(request -> !SWAGGER_PATHS.matches(request),
+                        new ContentSecurityPolicyHeaderWriter(STRICT_CSP))));
     }
 }

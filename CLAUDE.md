@@ -81,6 +81,13 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   `RateLimitFilter` adds per-IP rate limiting (30/min via Caffeine) + a 64 KB body cap on the public
   write endpoints (`/api/reviews|coupons|newsletter`), returning 429/413. All still gated on config so
   the app runs fully open without Okta (graceful degradation preserved). See `docs/SECURITY.md`.
+- ✅ **API docs (OpenAPI/Swagger)** — `springdoc-openapi-starter-webmvc-ui` **3.0.3** (the v3 line targets
+  Spring Boot 4 / Spring Framework 7; 2.x is Boot 3 only). Swagger UI at `/swagger-ui.html`, spec at
+  `/v3/api-docs`. `OpenApiConfig` supplies the title/description + a Bearer-JWT scheme (Authorize button).
+  Because the strict CSP sets `script-src 'none'`, `SecurityConfig` applies a **path-scoped CSP** — the
+  relaxed `script-src 'self' 'unsafe-inline'` only on `/swagger-ui`+`/v3/api-docs` (via
+  `DelegatingRequestMatcherHeaderWriter`), strict everywhere else. Toggle off in prod with
+  `springdoc.api-docs.enabled=false`/`springdoc.swagger-ui.enabled=false`. See `docs/API.md`.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
