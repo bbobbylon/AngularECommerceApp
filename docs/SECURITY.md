@@ -101,7 +101,7 @@ Redis/Bucket4j.
 | Response headers | ✅ Hardened | CSP, HSTS, `X-Frame-Options: DENY`, Referrer-Policy, Permissions-Policy on every chain. See [Hardening applied in app code](#hardening-applied-in-app-code). |
 | Rate limiting | ✅ Added | Per-IP fixed-window limit + body-size cap on public write endpoints (`reviews`/`coupons`/`newsletter`). For multi-instance deployments, also limit at the gateway/CDN or swap in Redis/Bucket4j for shared state. |
 | Account/newsletter APIs | ⚠️ Trust the email | Course-faithful simplicity. Gate behind the JWT before handling real users (see below). |
-| Dependency CVEs | ⛔ TODO | Run `mvn versions:display-dependency-updates` / `npm audit`; consider Dependabot. |
+| Dependency CVEs | ✅ Automated | Dependabot (Maven + npm + actions) raises security/update PRs; CI gates on CVEs (see [Dependency & CVE scanning](#dependency--cve-scanning)). |
 
 ### Production hardening checklist
 - [ ] Configure Okta (issuer + clientId) and **require MFA**; enable passkeys.
@@ -111,4 +111,23 @@ Redis/Bucket4j.
 - [ ] Protect `/api/account/**` and `/api/newsletter/send-now` with the JWT chain (not just the email).
 - [ ] Enforce HTTPS everywhere; set real CORS origins.
 - [ ] Rotate secrets; store them in a managed secrets manager (not a flat `.env`) in cloud.
-- [ ] Turn on dependency/CVE scanning and a regular patch cadence (see [MAINTENANCE.md](MAINTENANCE.md)).
+- [x] **Dependency / CVE scanning + patch cadence** — Dependabot + a CI gate (see below).
+
+## Dependency & CVE scanning
+
+Three layers keep dependencies patched and known-vulnerable versions out:
+
+1. **Dependabot** (`.github/dependabot.yml`) — weekly update PRs for **Maven**, **npm**, and
+   **GitHub Actions**, plus immediate **security PRs** when an advisory hits a pinned version.
+   Minor/patch bumps are grouped to cut review noise.
+2. **Dependency review** (CI, on pull requests) — `actions/dependency-review-action` fails a PR that
+   introduces a dependency with a **high+** severity advisory, across both Maven and npm, using the
+   GitHub Advisory DB (no NVD API key required).
+3. **`npm audit` gate** (CI) — `npm audit --omit=dev --audit-level=high` on every push/PR. It scans
+   **shipped (production) dependencies**; dev-tooling advisories are left to Dependabot since they
+   never reach users. Today the production tree is clean of high+ advisories, so this gate is green.
+
+> **Deeper / offline scanning (optional):** for an air-gapped or compliance-grade Maven scan, add the
+> [OWASP `dependency-check-maven`](https://jeremylong.github.io/DependencyCheck/) plugin (needs an NVD
+> API key and a longer CI budget for the database download). The three layers above cover the common
+> case without that overhead.

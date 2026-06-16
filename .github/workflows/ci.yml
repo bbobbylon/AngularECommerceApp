@@ -70,3 +70,26 @@ jobs:
           name: playwright-report
           path: frontend/angular-ecommerce/playwright-report/
           retention-days: 7
+
+  security:
+    name: Security (dependency / CVE scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # On PRs: flag vulnerable / newly-introduced dependencies across BOTH ecosystems
+      # (Maven + npm) using the GitHub Advisory DB. No NVD API key needed.
+      - name: Dependency review
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/angular-ecommerce/package-lock.json
+      # Gate on shipped (production) dependencies; dev-tooling advisories are handled by Dependabot
+      # and don't reach users. Uses the lockfile — no install needed.
+      - name: npm audit (production deps)
+        working-directory: frontend/angular-ecommerce
+        run: npm audit --omit=dev --audit-level=high

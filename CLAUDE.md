@@ -94,6 +94,10 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   `/catalog/search`, HAL `_embedded`, and checkout contracts), so no backend/MySQL is needed; the
   Playwright `webServer` starts `ng serve` itself. `npm run e2e` locally; runs in CI as the
   **Frontend (Playwright E2E smoke)** job (`ci.yml`).
+- ✅ **Dependency / CVE scanning** — `.github/dependabot.yml` (Maven + npm + actions, weekly + security
+  PRs); CI **security** job: `actions/dependency-review-action` (PRs, fail-on high+, both ecosystems) +
+  `npm audit --omit=dev --audit-level=high` (shipped deps; green today). Closes the last `SECURITY.md`
+  TODO. See `docs/SECURITY.md` → Dependency & CVE scanning.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
