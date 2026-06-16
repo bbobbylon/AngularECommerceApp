@@ -3,7 +3,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { CartItem } from '../../common/cart-item';
-import { Product } from '../../common/product';
+import { Product, discountPercent, isOnSale } from '../../common/product';
 import { CartService } from '../../services/cart.service';
 import { FavoritesService } from '../../services/favorites.service';
 import { ProductService } from '../../services/product.service';
@@ -19,6 +19,10 @@ export class ProductDetails implements OnInit {
   product?: Product;
   quantity = 1;
   relatedProducts: Product[] = [];
+
+  // sale-pricing helpers exposed to the template
+  protected readonly isOnSale = isOnSale;
+  protected readonly discountPercent = discountPercent;
 
   protected favorites = inject(FavoritesService);
   private toast = inject(ToastService);

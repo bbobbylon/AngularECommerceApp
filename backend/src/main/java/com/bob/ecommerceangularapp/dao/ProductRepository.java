@@ -13,4 +13,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     Page<Product> findByCategoryId(@Param("id") Long id, Pageable pageable);
 
     Page<Product> findByNameContaining(@Param("name") String name, Pageable pageable);
+
+    /** On-sale products — anything with a pre-sale ("was") price set. Powers the /sale page. */
+    Page<Product> findByOriginalPriceNotNull(Pageable pageable);
 }

@@ -4,15 +4,16 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NgbPaginationModule } from '@ng-bootstrap/ng-bootstrap';
 
 import { CartItem } from '../../common/cart-item';
-import { Product } from '../../common/product';
+import { Product, discountPercent, isOnSale } from '../../common/product';
 import { CartService } from '../../services/cart.service';
 import { FavoritesService } from '../../services/favorites.service';
 import { GetResponseProducts, ProductService } from '../../services/product.service';
 import { ToastService } from '../../services/toast.service';
+import { NewsletterSignup } from '../newsletter-signup/newsletter-signup';
 
 @Component({
   selector: 'app-product-list',
-  imports: [CommonModule, RouterLink, NgbPaginationModule],
+  imports: [CommonModule, RouterLink, NgbPaginationModule, NewsletterSignup],
   templateUrl: './product-list.html',
 })
 export class ProductList implements OnInit {
@@ -23,7 +24,17 @@ export class ProductList implements OnInit {
   currentCategoryId = 1;
   previousCategoryId = 1;
   searchMode = false;
+  saleMode = false;
   previousKeyword = '';
+
+  // sale-pricing helpers exposed to the template
+  protected readonly isOnSale = isOnSale;
+  protected readonly discountPercent = discountPercent;
+
+  /** The landing page: the plain product grid with no category, search, or sale filter. */
+  get isHome(): boolean {
+    return !this.searchMode && !this.saleMode && !this.route.snapshot.paramMap.has('id');
+  }
 
   // pagination (NgbPagination is 1-based; Spring Data REST is 0-based)
   pageNumber = 1;
@@ -59,17 +70,32 @@ export class ProductList implements OnInit {
   }
 
   ngOnInit(): void {
+    this.saleMode = this.route.snapshot.data['mode'] === 'sale';
     this.route.paramMap.subscribe(() => this.listProducts());
   }
 
   listProducts(): void {
     this.isLoading = true;
     this.searchMode = this.route.snapshot.paramMap.has('keyword');
-    if (this.searchMode) {
+    if (this.saleMode) {
+      this.handleSaleProducts();
+    } else if (this.searchMode) {
       this.handleSearchProducts();
     } else {
       this.handleListProducts();
     }
+  }
+
+  private handleSaleProducts(): void {
+    this.productService
+      .getProductsOnSalePaginate(this.pageNumber - 1, this.pageSize, this.sortBy)
+      .subscribe({
+        next: data => this.processResult(data),
+        error: () => {
+          this.products = [];
+          this.isLoading = false;
+        },
+      });
   }
 
   private handleListProducts(): void {

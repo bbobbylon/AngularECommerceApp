@@ -19,9 +19,15 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   Elements card in the checkout. Needs a Stripe test key at runtime.
 - 📄 **Milestone 4** — HTTPS is documented as opt-in config (commented block in `application.properties`
   + steps in BUILD_PLAN.md); plain HTTP stays the default so local dev isn't disrupted.
+- ✅ **Milestone 6** — Email + account settings + storefront polish. `spring-boot-starter-mail` +
+  `@EnableScheduling`; gated `EmailService`/`EmailTemplates` (welcome, order confirmation, settings,
+  weekly blast); `NewsletterSubscriber` + `Customer.newsletterSubscribed`/`unsubscribeToken`;
+  `Product.originalPrice` (sales); `NewsletterService` + `WeeklyAdScheduler`; `NewsletterController` +
+  `AccountController`. Frontend: `/sale`, `/about`, guarded `/account`, newsletter signup, sale pricing,
+  promo bar, marketing sections, checkout opt-in. See `docs/EMAIL.md`.
 
-Okta (M3) and Stripe (M5) require external accounts to run; the app still boots and the
-catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
+Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
+boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
 
 ## Layout
 - `backend/` — Spring Boot (Maven). Package root `com.bob.ecommerceangularapp`.
@@ -40,8 +46,9 @@ Ports are non-default on purpose: backend **8585**, frontend **4250**, MySQL **3
 
 ## Conventions
 - Java 21 (pom pins `<java.version>21</java.version>`). Don't reintroduce the removed
-  starters (ldap/saml2/batch/mail/webflux/postgres) — see BUILD_PLAN.md §0.2. The
-  `security-oauth2-resource-server` starter (M3) and `stripe-java` (M5) are intentional.
+  starters (ldap/saml2/batch/webflux/postgres) — see BUILD_PLAN.md §0.2. The
+  `security-oauth2-resource-server` (M3), `stripe-java` (M5) and `spring-boot-starter-mail` (M6)
+  starters are intentional.
 - API base path is `/api` (Spring Data REST). Frontend reads `environment.apiUrl`.
 - MySQL only, course-faithful; Hibernate `ddl-auto=update`; data seeded via `CommandLineRunner`.
 - Security/payments degrade gracefully: keep them gated on config (Okta issuer URI,

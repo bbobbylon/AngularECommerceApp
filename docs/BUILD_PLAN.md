@@ -47,6 +47,9 @@ security → HTTPS → Stripe — built in milestones mirroring the course relea
   security (oauth2/webauthn/saml2), webclient, webflux, postgresql, restdocs and the
   asciidoctor plugin + Shibboleth repo. Set `<java.version>21</java.version>`. Kept the
   spring-boot-maven-plugin Lombok exclude and the compiler Lombok annotation-processor path.
+  > **Update (M6):** `spring-boot-starter-mail` is now **intentionally back in** — the app sends
+  > transactional + weekly marketing email. This supersedes the "removed mail" note above. The
+  > other removed starters stay removed.
 - **0.3** Trimmed `backend/compose.yaml` to a single MySQL service
   (`3306:3306`, `MYSQL_DATABASE=full-stack-ecommerce`).
 - **0.4** `backend/src/main/resources/application.properties`: datasource (matching compose),
@@ -171,3 +174,25 @@ Kept off by default so local dev stays on plain HTTP. To enable TLS:
   to your Stripe **test** keys. Test card `4242 4242 4242 4242`, any future expiry / CVC / ZIP.
 - **Without Stripe:** checkout runs in *demo mode* (skips the card step, saves the order directly), so
   the full flow works with no account. Full beginner walkthrough: **[STRIPE.md](STRIPE.md)**.
+
+### Milestone 6 — Email, account settings & storefront polish ✅ (build) / needs Gmail to send
+Adds real email plus the "online-store goodies" (sale section, About, marketing sections).
+
+- **Backend:** re-added `spring-boot-starter-mail`; `@EnableScheduling`.
+  - `email/EmailService` (gated on `spring.mail.username` — no-op + log when unset, never throws) +
+    `email/EmailTemplates` (branded inline-HTML via Java text blocks, no extra template engine).
+  - `NewsletterSubscriber` entity + repo; `Customer` extended with `newsletterSubscribed` +
+    `unsubscribeToken`; `Product` extended with nullable `originalPrice` (sale "was" price) and
+    `ProductRepository.findByOriginalPriceNotNull` (exposed at `/api/products/search/...`).
+  - `NewsletterService` (subscribe/unsubscribe, weekly recipient collection = subscribed customers ∪
+    standalone subscribers, deduped) + `WeeklyAdScheduler` (`@Scheduled`, `app.newsletter.cron`,
+    default Mon 09:00). `NewsletterController` (`/subscribe`, `/unsubscribe`, guarded `/send-now`) and
+    `AccountController` (`GET`/`PUT /api/account`). Checkout `Purchase` gained `subscribeToNewsletter`;
+    `CheckoutServiceImpl` sets the preference + sends order-confirmation / welcome email.
+  - Seeder now marks ~⅓ of products on sale (sets `originalPrice`).
+- **Frontend:** `/sale` (reuses `ProductList` in "sale mode"), `/about`, guarded `/account` settings
+  portal; reusable `newsletter-signup` (band + footer); sale pricing (strikethrough + % off) on cards
+  & details; home value-prop/trust tiles, sale teaser & newsletter CTA; promo bar, secondary nav,
+  expanded footer; checkout "create account & subscribe" opt-in.
+- **To enable real sending:** set `GMAIL_USERNAME` + `GMAIL_APP_PASSWORD` (App Password). Full
+  walkthrough: **[EMAIL.md](EMAIL.md)**. **Without it:** everything works; email is silently skipped.

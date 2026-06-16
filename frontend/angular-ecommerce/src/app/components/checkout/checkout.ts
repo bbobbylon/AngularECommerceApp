@@ -65,6 +65,7 @@ export class Checkout implements OnInit, AfterViewInit {
       }),
       shippingAddress: this.buildAddressGroup(),
       billingAddress: this.buildAddressGroup(),
+      subscribeToNewsletter: [true],
     });
 
     this.formService.getCountries().subscribe(data => (this.countries = data));
@@ -222,6 +223,7 @@ export class Checkout implements OnInit, AfterViewInit {
 
     purchase.order = order;
     purchase.orderItems = orderItems;
+    purchase.subscribeToNewsletter = !!this.checkoutFormGroup.get('subscribeToNewsletter')?.value;
 
     this.checkoutService.placeOrder(purchase).subscribe({
       next: response => this.completeOrder(response.orderTrackingNumber),

@@ -1,14 +1,19 @@
 package com.bob.ecommerceangularapp.bootstrap;
 
 import com.bob.ecommerceangularapp.dao.CountryRepository;
+import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dao.ProductCategoryRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
 import com.bob.ecommerceangularapp.dao.StateRepository;
 import com.bob.ecommerceangularapp.entity.Country;
+import com.bob.ecommerceangularapp.entity.Customer;
 import com.bob.ecommerceangularapp.entity.Product;
 import com.bob.ecommerceangularapp.entity.ProductCategory;
 import com.bob.ecommerceangularapp.entity.State;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -23,27 +28,60 @@ import java.util.List;
 @Component
 public class DataLoader implements CommandLineRunner {
 
+    private static final Logger log = LoggerFactory.getLogger(DataLoader.class);
     private static final String IMG = "https://placehold.co/600x400/eef2fb/8b93ab?text=";
 
     private final ProductRepository productRepository;
     private final ProductCategoryRepository productCategoryRepository;
     private final CountryRepository countryRepository;
     private final StateRepository stateRepository;
+    private final CustomerRepository customerRepository;
 
     public DataLoader(ProductRepository productRepository,
                       ProductCategoryRepository productCategoryRepository,
                       CountryRepository countryRepository,
-                      StateRepository stateRepository) {
+                      StateRepository stateRepository,
+                      CustomerRepository customerRepository) {
         this.productRepository = productRepository;
         this.productCategoryRepository = productCategoryRepository;
         this.countryRepository = countryRepository;
         this.stateRepository = stateRepository;
+        this.customerRepository = customerRepository;
     }
 
     @Override
     public void run(String... args) {
         seedCatalog();
         seedCountriesAndStates();
+        backfillNewsletterDefaults();
+    }
+
+    /**
+     * One-time backfill so "all users in the database" receive the weekly email (M6 intent).
+     * Only touches customers without an unsubscribe token — i.e. rows created before email existed.
+     * Customers created at checkout always get a token (even opt-outs), so this never re-subscribes
+     * someone who deliberately opted out.
+     *
+     * <p>Wrapped defensively: this is an auxiliary step, so a hiccup here (e.g. schema drift on a
+     * populated table) is logged and swallowed — it must never take down the catalog API.
+     */
+    private void backfillNewsletterDefaults() {
+        try {
+            List<Customer> pending = customerRepository.findAll().stream()
+                    .filter(c -> c.getUnsubscribeToken() == null || c.getUnsubscribeToken().isBlank())
+                    .toList();
+            if (pending.isEmpty()) {
+                return;
+            }
+            for (Customer customer : pending) {
+                customer.setNewsletterSubscribed(true);
+                customer.ensureUnsubscribeToken();
+            }
+            customerRepository.saveAll(pending);
+            log.info("Backfilled newsletter defaults for {} existing customer(s).", pending.size());
+        } catch (Exception e) {
+            log.warn("Skipped newsletter backfill (non-fatal): {}", e.getMessage());
+        }
     }
 
     private void seedCatalog() {
@@ -105,6 +143,14 @@ public class DataLoader implements CommandLineRunner {
             String name = (partsA[i % partsA.length] + " " + partsB[i % partsB.length]).trim();
             double price = minPrice + ((maxPrice - minPrice) * ((i * 37) % 100) / 100.0);
             BigDecimal unitPrice = BigDecimal.valueOf(price).setScale(2, RoundingMode.HALF_UP);
+
+            // Put roughly every third item on sale: unitPrice is the deal, originalPrice the "was".
+            BigDecimal originalPrice = null;
+            if (i % 3 == 0) {
+                double markup = 1.20 + ((i * 7) % 30) / 100.0; // 20%–49% off
+                originalPrice = unitPrice.multiply(BigDecimal.valueOf(markup)).setScale(2, RoundingMode.HALF_UP);
+            }
+
             int stock = 15 + (i * 13) % 200;
             String sku = skuPrefix + "-" + String.format("%04d", i + 1);
             list.add(Product.builder()
@@ -112,6 +158,7 @@ public class DataLoader implements CommandLineRunner {
                     .name(name)
                     .description(description)
                     .unitPrice(unitPrice)
+                    .originalPrice(originalPrice)
                     .imageUrl(IMG + category.getCategoryName().replace(" ", "+"))
                     .active(true)
                     .unitsInStock(stock)

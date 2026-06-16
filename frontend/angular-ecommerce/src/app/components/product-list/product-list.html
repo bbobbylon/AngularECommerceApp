@@ -1,22 +1,84 @@
-@if (!searchMode) {
+@if (saleMode) {
+  <div class="shop-hero sale-hero p-4 p-md-5 mb-4">
+    <span class="badge rounded-pill mb-3 px-3 py-2"
+          style="background: rgba(255,255,255,.14); color:#fff;">
+      <i class="fa-solid fa-bolt me-1" style="color: var(--gold);"></i> Limited-time deals
+    </span>
+    <h1 class="fw-bold mb-2">The sale is on.</h1>
+    <p class="mb-0 fs-5" style="max-width: 560px; color: rgba(255,255,255,.85);">
+      Markdowns across books, mugs, mouse pads &amp; luggage &mdash; while stocks last.
+      Fresh deals drop every week.
+    </p>
+  </div>
+} @else if (isHome) {
   <div class="shop-hero p-4 p-md-5 mb-4">
     <span class="badge rounded-pill mb-3 px-3 py-2"
           style="background: rgba(255,255,255,.14); color:#fff;">
       <i class="fa-solid fa-star me-1" style="color: var(--gold);"></i> Handpicked goods
     </span>
     <h1 class="fw-bold mb-2">Little things,<br />big delight.</h1>
-    <p class="mb-0 fs-5" style="max-width: 560px; color: rgba(255,255,255,.85);">
+    <p class="mb-3 fs-5" style="max-width: 560px; color: rgba(255,255,255,.85);">
       Books, coffee mugs, mouse pads &amp; luggage &mdash; curated for the desk, the commute,
       and everywhere in between.
     </p>
+    <div class="d-flex flex-wrap gap-2">
+      <a routerLink="/products" fragment="catalog" class="btn btn-light btn-lg fw-bold">
+        <i class="fa-solid fa-bag-shopping me-1"></i> Shop all
+      </a>
+      <a routerLink="/sale" class="btn btn-outline-light btn-lg">
+        <i class="fa-solid fa-tag me-1"></i> Shop the sale
+      </a>
+    </div>
   </div>
+
+  <!-- value props / trust badges — fills the space under the hero -->
+  <div class="row g-3 mb-4 value-props">
+    <div class="col-6 col-lg-3">
+      <div class="value-prop h-100">
+        <i class="fa-solid fa-truck-fast"></i>
+        <h6 class="mb-1">Free shipping</h6>
+        <p class="small mb-0 text-muted">On every order over $50.</p>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="value-prop h-100">
+        <i class="fa-solid fa-rotate-left"></i>
+        <h6 class="mb-1">30-day returns</h6>
+        <p class="small mb-0 text-muted">Changed your mind? No worries.</p>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="value-prop h-100">
+        <i class="fa-solid fa-lock"></i>
+        <h6 class="mb-1">Secure checkout</h6>
+        <p class="small mb-0 text-muted">Encrypted payments via Stripe.</p>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="value-prop h-100">
+        <i class="fa-solid fa-envelope-open-text"></i>
+        <h6 class="mb-1">Weekly deals</h6>
+        <p class="small mb-0 text-muted">The best prices, in your inbox.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- sale teaser strip -->
+  <a routerLink="/sale" class="sale-strip d-flex align-items-center justify-content-between mb-4 text-decoration-none">
+    <span class="fw-bold"><i class="fa-solid fa-bolt me-2"></i>Up to 49% off this week &mdash; shop the sale</span>
+    <span class="fw-bold">Shop now <i class="fa-solid fa-arrow-right ms-1"></i></span>
+  </a>
 }
+
+<span id="catalog"></span>
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <div>
     <h2 class="mb-0">
       @if (searchMode) {
         Search results
+      } @else if (saleMode) {
+        On sale now
       } @else {
         Products
       }
@@ -73,6 +135,9 @@
     @for (product of products; track product.id) {
       <div class="col reveal">
         <div class="card product-card h-100 shadow-sm position-relative">
+          @if (isOnSale(product)) {
+            <span class="sale-badge">-{{ discountPercent(product) }}%</span>
+          }
           <button type="button" class="fav-btn" [class.is-fav]="favorites.isFavorite(product.id)"
                   (click)="toggleFavorite(product)"
                   [attr.aria-pressed]="favorites.isFavorite(product.id)"
@@ -89,7 +154,12 @@
             </h6>
             <p class="product-sub small text-muted mb-2">{{ product.description }}</p>
             <div class="d-flex justify-content-between align-items-center mt-auto mb-2">
-              <span class="fs-5 fw-bold text-primary">{{ product.unitPrice | currency:'USD' }}</span>
+              <span class="d-flex align-items-baseline gap-2">
+                <span class="fs-5 fw-bold text-primary">{{ product.unitPrice | currency:'USD' }}</span>
+                @if (isOnSale(product)) {
+                  <span class="small text-muted text-decoration-line-through">{{ product.originalPrice | currency:'USD' }}</span>
+                }
+              </span>
               @if (product.unitsInStock > 0) {
                 <span class="badge bg-success-subtle text-success-emphasis">In stock</span>
               } @else {
@@ -116,4 +186,10 @@
       (pageChange)="listProducts()">
     </ngb-pagination>
   </div>
+}
+
+@if (isHome) {
+  <section class="mt-5">
+    <app-newsletter-signup variant="band"></app-newsletter-signup>
+  </section>
 }

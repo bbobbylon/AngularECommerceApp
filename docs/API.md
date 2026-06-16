@@ -9,12 +9,20 @@ Base URL: **`http://localhost:8585/api`** · Most catalog endpoints are auto-gen
 | | GET | `/products/{id}` | public |
 | | GET | `/products/search/findByCategoryId` | public |
 | | GET | `/products/search/findByNameContaining` | public |
+| | GET | `/products/search/findByOriginalPriceNotNull` | public |
 | | GET | `/product-category` | public |
 | [Reference data](#reference-data) | GET | `/countries` | public |
 | | GET | `/states/search/findByCountryCode` | public |
 | [Checkout](#checkout) | POST | `/checkout/purchase` | public |
 | | POST | `/checkout/payment-intent` | public |
+| [Newsletter](#newsletter) | POST | `/newsletter/subscribe` | public |
+| | GET | `/newsletter/unsubscribe` | public |
+| | POST | `/newsletter/send-now` | 🔑 admin token |
+| [Account](#account) | GET | `/account?email=` | public* |
+| | PUT | `/account` | public* |
 | [Orders](#orders-secured) | GET | `/orders/search/findByCustomerEmailOrderByDateCreatedDesc` | 🔒 JWT |
+
+<sub>\* Account endpoints trust the supplied email (course-faithful). The Angular route is gated by the dev/Okta guard; harden with real auth for production.</sub>
 
 ---
 
@@ -50,6 +58,12 @@ curl "http://localhost:8585/api/products/search/findByCategoryId?id=1&page=0&siz
 curl "http://localhost:8585/api/products/search/findByNameContaining?name=Action"
 ```
 
+### On-sale products (powers `/sale`)
+```bash
+curl "http://localhost:8585/api/products/search/findByOriginalPriceNotNull?page=0&size=12"
+# products on sale carry "originalPrice" (the pre-sale "was" price) > "unitPrice"
+```
+
 ### Categories
 ```bash
 curl "http://localhost:8585/api/product-category"
@@ -81,13 +95,16 @@ curl -X POST "http://localhost:8585/api/checkout/purchase" \
     "shippingAddress":{ "street":"1 Test St","city":"Testville","state":"California","country":"United States","zipCode":"90210" },
     "billingAddress": { "street":"1 Test St","city":"Testville","state":"California","country":"United States","zipCode":"90210" },
     "order":          { "totalQuantity":2, "totalPrice":21.98, "status":"Received" },
-    "orderItems":     [ { "imageUrl":"...", "quantity":2, "unitPrice":10.99, "productId":1 } ]
+    "orderItems":     [ { "imageUrl":"...", "quantity":2, "unitPrice":10.99, "productId":1 } ],
+    "subscribeToNewsletter": true
   }'
 # -> { "orderTrackingNumber": "a8a78b09-...." }
 ```
 
 The server generates the tracking number and cascade-persists `customer → order → orderItems →
-shipping/billing addresses`.
+shipping/billing addresses`. `subscribeToNewsletter` (default `true`) sets the customer's email
+preference and, when enabled, sends a welcome email; an order-confirmation email is always sent
+(both are no-ops unless email is configured — see [EMAIL.md](EMAIL.md)).
 
 ### Create a Stripe PaymentIntent
 ```bash
@@ -97,6 +114,51 @@ curl -X POST "http://localhost:8585/api/checkout/payment-intent" \
 # -> the Stripe PaymentIntent JSON (contains client_secret)
 ```
 Requires `STRIPE_SECRET_KEY` — see [STRIPE.md](STRIPE.md). `amount` is in the smallest currency unit (cents).
+
+---
+
+## Newsletter
+
+See [EMAIL.md](EMAIL.md) for setup. All sends are no-ops unless Gmail SMTP is configured.
+
+### Subscribe (signup box)
+```bash
+curl -X POST "http://localhost:8585/api/newsletter/subscribe" \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "ada@example.com", "name": "Ada" }'
+# -> { "message": "You're subscribed! Check your inbox for a welcome email." }
+```
+
+### Unsubscribe (one-click from email)
+```bash
+curl "http://localhost:8585/api/newsletter/unsubscribe?token=<unsubscribeToken>"
+# (or ?email=ada@example.com) -> returns a small branded HTML confirmation page
+```
+
+### Trigger the weekly blast manually (admin)
+```bash
+curl -X POST "http://localhost:8585/api/newsletter/send-now?token=<NEWSLETTER_ADMIN_TOKEN>"
+# -> { "message": "Weekly blast triggered.", "recipients": N }
+```
+Disabled (`403`) unless `app.newsletter.admin-token` is set and matches `?token=`.
+
+---
+
+## Account
+
+Email-preferences portal. Resolves a customer (or standalone subscriber) by email.
+
+```bash
+# Read preferences
+curl "http://localhost:8585/api/account?email=ada@example.com"
+# -> { "firstName":"Ada", "lastName":"Lovelace", "email":"ada@example.com", "newsletterSubscribed":true }
+
+# Update preferences (newsletterSubscribed may be omitted to leave unchanged); sends a "settings updated" email
+curl -X PUT "http://localhost:8585/api/account" \
+  -H "Content-Type: application/json" \
+  -d '{ "email":"ada@example.com", "firstName":"Ada", "lastName":"Lovelace", "newsletterSubscribed":false }'
+```
+Returns `404` when no customer/subscriber matches the email.
 
 ---
 

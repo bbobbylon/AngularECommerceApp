@@ -13,6 +13,7 @@ import lombok.Setter;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 @Entity
 @Table(name = "customer")
@@ -34,6 +35,14 @@ public class Customer {
     @Column(name = "email")
     private String email;
 
+    /** Opt-in to the weekly marketing email. Defaults to subscribed for new customers. */
+    @Column(name = "newsletter_subscribed")
+    private boolean newsletterSubscribed = true;
+
+    /** Opaque token used for one-click unsubscribe links in marketing email. */
+    @Column(name = "unsubscribe_token", unique = true)
+    private String unsubscribeToken;
+
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL)
     private Set<Order> orders = new HashSet<>();
 
@@ -42,5 +51,13 @@ public class Customer {
             orders.add(order);
             order.setCustomer(this);
         }
+    }
+
+    /** Lazily assigns an unsubscribe token so existing rows backfill on next save. */
+    public String ensureUnsubscribeToken() {
+        if (unsubscribeToken == null || unsubscribeToken.isBlank()) {
+            unsubscribeToken = UUID.randomUUID().toString().replace("-", "");
+        }
+        return unsubscribeToken;
     }
 }

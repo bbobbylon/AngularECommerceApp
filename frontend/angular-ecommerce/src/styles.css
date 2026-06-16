@@ -180,6 +180,31 @@ a:hover { color: var(--accent); }
 .bg-danger-subtle { background: var(--accent-soft) !important; }
 .text-danger-emphasis { color: var(--accent-600) !important; }
 
+/* ---------- Promo / announcement bar ---------- */
+.promo-bar {
+  background: linear-gradient(125deg, #ff5470 0%, #ff8a3d 55%, #f5b400 100%);
+  color: #fff; font-size: 0.86rem; padding: 0.5rem 1rem; line-height: 1.3;
+}
+.promo-bar-link { color: #fff; text-decoration: none; }
+.promo-bar-link:hover { color: #fff; }
+.promo-bar .promo-cta { text-decoration: underline; font-weight: 700; margin-left: 0.25rem; white-space: nowrap; }
+
+/* ---------- Secondary nav ---------- */
+.subnav { background: var(--surface); border-bottom: 1px solid var(--line); }
+.subnav-list {
+  list-style: none; margin: 0; padding: 0; display: flex; gap: 0.25rem;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.subnav-list a {
+  display: inline-block; padding: 0.7rem 0.85rem; color: var(--ink-soft);
+  font-weight: 600; font-size: 0.92rem; white-space: nowrap;
+  border-bottom: 2px solid transparent; transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.subnav-list a:hover { color: var(--accent-600); }
+.subnav-list a.active { color: var(--accent-600); border-bottom-color: var(--accent); }
+.subnav-list a.subnav-sale { color: var(--accent); }
+.subnav-list a.subnav-sale.active { border-bottom-color: var(--accent); }
+
 /* ---------- Navbar + footer ---------- */
 .bg-dark { background-color: var(--nav) !important; }
 .navbar.bg-dark { background: var(--nav) !important; border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
@@ -226,6 +251,9 @@ a:hover { color: var(--accent); }
   position: relative; overflow: hidden; color: #fff; border-radius: 24px; box-shadow: var(--shadow-lg);
   background: linear-gradient(125deg, #ff5470 0%, #b15bff 50%, #2bb9ff 100%);
 }
+.shop-hero.sale-hero { background: linear-gradient(125deg, #ff5470 0%, #ff8a3d 55%, #f5b400 100%); }
+.shop-hero .btn-light { color: var(--accent-600); background: #fff; border-color: #fff; }
+.shop-hero .btn-light:hover { color: var(--accent-600); background: #fff5f7; border-color: #fff5f7; transform: translateY(-1px); }
 .shop-hero::after {
   content: ''; position: absolute; inset: 0;
   background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px);
@@ -314,6 +342,48 @@ footer h6 { font-family: var(--font-body); }
   60%  { transform: scale(1.15); opacity: 1; }
   100% { transform: scale(1); }
 }
+
+/* sale "% off" badge on product cards */
+.sale-badge {
+  position: absolute; top: 10px; left: 10px; z-index: 3;
+  background: var(--accent); color: #fff; font-weight: 800; font-size: 0.78rem;
+  padding: 0.3em 0.6em; border-radius: var(--radius-pill);
+  box-shadow: 0 4px 10px -2px rgba(255, 84, 112, 0.6); letter-spacing: 0.01em;
+}
+
+/* value-prop / trust-badge tiles under the hero */
+.value-prop {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 1.1rem 1.15rem; box-shadow: var(--shadow-sm);
+  transition: transform 0.2s var(--ease), box-shadow 0.25s var(--ease), border-color 0.2s var(--ease);
+}
+.value-prop:hover { transform: translateY(-4px); box-shadow: var(--shadow) !important; border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.value-prop i { font-size: 1.5rem; color: var(--accent); margin-bottom: 0.5rem; display: block; }
+.value-prop h6 { font-family: var(--font-body); font-weight: 700; }
+
+/* sale teaser strip + reusable promo gradient strip */
+.sale-strip, .promo-strip {
+  border-radius: var(--radius); padding: 0.85rem 1.25rem; color: #fff;
+  background: linear-gradient(125deg, #ff5470 0%, #ff8a3d 55%, #f5b400 100%);
+  box-shadow: var(--shadow-sm); transition: transform 0.15s var(--ease), box-shadow 0.2s var(--ease);
+}
+.sale-strip { color: #fff; }
+.sale-strip:hover { transform: translateY(-2px); box-shadow: var(--shadow) !important; color: #fff; }
+
+/* newsletter signup band */
+.newsletter-band {
+  position: relative; overflow: hidden; border-radius: 24px; color: #fff;
+  background: linear-gradient(125deg, #1b2133 0%, #2b2150 55%, #3a2160 100%);
+  box-shadow: var(--shadow-lg); padding: 2.25rem 1.75rem;
+}
+.newsletter-band::after {
+  content: ''; position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.10) 1px, transparent 1px);
+  background-size: 17px 17px; opacity: 0.6; pointer-events: none;
+}
+.newsletter-band h3, .newsletter-band p { position: relative; color: #fff; }
+.newsletter-band .form-control { border: 0; }
+.newsletter-inline .form-control { min-width: 0; }
 
 /* favorite (wishlist) heart on product cards */
 .fav-btn {

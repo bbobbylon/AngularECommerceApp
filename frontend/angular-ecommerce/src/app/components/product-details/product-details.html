@@ -10,7 +10,10 @@
 
   <div class="row g-4">
     <div class="col-md-5">
-      <div class="card shadow-sm">
+      <div class="card shadow-sm position-relative">
+        @if (isOnSale(product)) {
+          <span class="sale-badge">-{{ discountPercent(product) }}%</span>
+        }
         <img [src]="product.imageUrl" [alt]="product.name"
              class="card-img-top p-3" style="height: 360px; object-fit: contain;" />
       </div>
@@ -27,7 +30,13 @@
         <span class="badge bg-danger-subtle text-danger-emphasis mb-3">Out of stock</span>
       }
 
-      <p class="display-6 fw-bold text-primary mb-3">{{ product.unitPrice | currency:'USD' }}</p>
+      <div class="d-flex align-items-baseline flex-wrap gap-2 mb-3">
+        <span class="display-6 fw-bold text-primary">{{ product.unitPrice | currency:'USD' }}</span>
+        @if (isOnSale(product)) {
+          <span class="fs-4 text-muted text-decoration-line-through">{{ product.originalPrice | currency:'USD' }}</span>
+          <span class="badge bg-danger-subtle text-danger-emphasis align-self-center">Save {{ discountPercent(product) }}%</span>
+        }
+      </div>
       <p class="text-secondary">{{ product.description }}</p>
 
       @if (product.unitsInStock > 0) {
@@ -73,7 +82,10 @@
       <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
         @for (rp of relatedProducts; track rp.id) {
           <div class="col reveal">
-            <div class="card product-card h-100 shadow-sm">
+            <div class="card product-card h-100 shadow-sm position-relative">
+              @if (isOnSale(rp)) {
+                <span class="sale-badge">-{{ discountPercent(rp) }}%</span>
+              }
               <a [routerLink]="['/products', rp.id]" [title]="rp.name">
                 <img [src]="rp.imageUrl" [alt]="rp.name" class="card-img-top" loading="lazy" />
               </a>
@@ -81,7 +93,12 @@
                 <h6 class="product-name mb-2">
                   <a [routerLink]="['/products', rp.id]">{{ rp.name }}</a>
                 </h6>
-                <span class="fs-6 fw-bold text-primary mt-auto mb-2">{{ rp.unitPrice | currency:'USD' }}</span>
+                <span class="mt-auto mb-2 d-flex align-items-baseline gap-2">
+                  <span class="fs-6 fw-bold text-primary">{{ rp.unitPrice | currency:'USD' }}</span>
+                  @if (isOnSale(rp)) {
+                    <span class="small text-muted text-decoration-line-through">{{ rp.originalPrice | currency:'USD' }}</span>
+                  }
+                </span>
                 <button type="button" class="btn btn-outline-primary btn-sm w-100"
                         [disabled]="rp.unitsInStock === 0" (click)="addProductToCart(rp)">
                   <i class="fa-solid fa-cart-plus me-1"></i> Add

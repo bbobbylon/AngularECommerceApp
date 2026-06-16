@@ -21,6 +21,14 @@ export class ProductService {
     return this.httpClient.get<GetResponseProducts>(url);
   }
 
+  getProductsOnSalePaginate(page: number, pageSize: number, sort = ''): Observable<GetResponseProducts> {
+    const sortParam = sort ? `&sort=${sort}` : '';
+    const url =
+      `${this.baseUrl}/products/search/findByOriginalPriceNotNull` +
+      `?page=${page}&size=${pageSize}${sortParam}`;
+    return this.httpClient.get<GetResponseProducts>(url);
+  }
+
   searchProductsPaginate(page: number, pageSize: number, keyword: string, sort = ''): Observable<GetResponseProducts> {
     const sortParam = sort ? `&sort=${sort}` : '';
     const url =

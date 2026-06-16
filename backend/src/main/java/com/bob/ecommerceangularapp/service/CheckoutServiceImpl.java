@@ -4,6 +4,7 @@ import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dto.PaymentInfo;
 import com.bob.ecommerceangularapp.dto.Purchase;
 import com.bob.ecommerceangularapp.dto.PurchaseResponse;
+import com.bob.ecommerceangularapp.email.EmailService;
 import com.bob.ecommerceangularapp.entity.Customer;
 import com.bob.ecommerceangularapp.entity.Order;
 import com.bob.ecommerceangularapp.entity.OrderItem;
@@ -25,10 +26,13 @@ import java.util.UUID;
 public class CheckoutServiceImpl implements CheckoutService {
 
     private final CustomerRepository customerRepository;
+    private final EmailService emailService;
 
     public CheckoutServiceImpl(CustomerRepository customerRepository,
+                               EmailService emailService,
                                @Value("${stripe.key.secret}") String secretKey) {
         this.customerRepository = customerRepository;
+        this.emailService = emailService;
         // Stripe is keyed globally via a static field.
         Stripe.apiKey = secretKey;
     }
@@ -56,10 +60,26 @@ public class CheckoutServiceImpl implements CheckoutService {
         if (existingCustomer != null) {
             customer = existingCustomer;
         }
+
+        // Apply the checkout newsletter opt-in and track whether this is a fresh subscription
+        // (newly created account, or a previously-unsubscribed customer re-opting-in).
+        boolean wasSubscribed = customer.isNewsletterSubscribed() && existingCustomer != null;
+        customer.setNewsletterSubscribed(purchase.isSubscribeToNewsletter());
+        // Every customer gets a token (even opt-outs) so token-presence means "processed" — this lets
+        // the startup backfill safely subscribe only pre-existing rows without re-subscribing opt-outs.
+        customer.ensureUnsubscribeToken();
+
         customer.add(order);
 
         // cascade persists the order, items and addresses
         customerRepository.save(customer);
+
+        // Email is gated inside EmailService — these are safe no-ops when SMTP isn't configured.
+        emailService.sendOrderConfirmation(customer.getEmail(), customer.getFirstName(),
+                orderTrackingNumber, order.getTotalPrice());
+        if (customer.isNewsletterSubscribed() && !wasSubscribed) {
+            emailService.sendWelcome(customer.getEmail(), customer.getFirstName());
+        }
 
         return new PurchaseResponse(orderTrackingNumber);
     }

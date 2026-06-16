@@ -13,6 +13,21 @@ export const routes: Routes = [
     canActivate: [devOrAuthGuard],
   },
   {
+    path: 'account',
+    loadComponent: () => import('./components/account-settings/account-settings').then(m => m.AccountSettings),
+    canActivate: [devOrAuthGuard],
+  },
+  {
+    path: 'about',
+    loadComponent: () => import('./components/about/about').then(m => m.About),
+  },
+  {
+    // Reuses ProductList in "sale mode" (fetches on-sale products) — same grid, cart & favorites.
+    path: 'sale',
+    loadComponent: () => import('./components/product-list/product-list').then(m => m.ProductList),
+    data: { mode: 'sale' },
+  },
+  {
     path: 'order-confirmation/:trackingNumber',
     loadComponent: () => import('./components/order-confirmation/order-confirmation').then(m => m.OrderConfirmation),
   },

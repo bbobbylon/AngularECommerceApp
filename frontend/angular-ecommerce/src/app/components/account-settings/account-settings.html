@@ -1,0 +1,89 @@
+<div class="mb-4">
+  <h1 class="fw-bold mb-1"><i class="fa-solid fa-gear me-2 text-primary"></i>Account settings</h1>
+  <p class="text-muted mb-0">Manage your details and email preferences.</p>
+</div>
+
+<div class="row g-4">
+  <div class="col-12 col-lg-8">
+
+    <!-- email lookup -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <label for="lookupEmail" class="form-label">Your email</label>
+        <form class="d-flex gap-2 flex-wrap" (ngSubmit)="load()">
+          <input id="lookupEmail" type="email" name="lookupEmail" class="form-control" style="max-width: 360px;"
+                 placeholder="you@example.com" autocomplete="email" [(ngModel)]="email" [disabled]="loading()" />
+          <button type="submit" class="btn btn-outline-primary" [disabled]="loading()">
+            @if (loading()) { <i class="fa-solid fa-spinner fa-spin me-1"></i> } @else { <i class="fa-solid fa-magnifying-glass me-1"></i> }
+            Find my preferences
+          </button>
+        </form>
+        @if (notFound()) {
+          <div class="alert alert-warning mt-3 mb-0">
+            We couldn't find an account for that email. Place an order or
+            <a routerLink="/products">join the newsletter</a> to get started.
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- preferences (shown once loaded) -->
+    @if (prefs(); as p) {
+      <div class="card">
+        <div class="card-body">
+          <h5 class="mb-3">Profile &amp; preferences</h5>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label for="firstName" class="form-label">First name</label>
+              <input id="firstName" type="text" name="firstName" class="form-control" [(ngModel)]="firstName" />
+            </div>
+            <div class="col-md-6">
+              <label for="lastName" class="form-label">Last name</label>
+              <input id="lastName" type="text" name="lastName" class="form-control" [(ngModel)]="lastName" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Email</label>
+              <input type="email" class="form-control" [value]="p.email" disabled />
+            </div>
+          </div>
+
+          <hr class="my-4" />
+
+          <h6 class="mb-3">Email preferences</h6>
+          <div class="form-check form-switch fs-5">
+            <input class="form-check-input" type="checkbox" role="switch" id="newsletterToggle"
+                   [(ngModel)]="newsletterSubscribed" name="newsletterToggle" />
+            <label class="form-check-label fs-6" for="newsletterToggle">
+              <span class="fw-bold">Weekly deals &amp; new arrivals</span><br />
+              <span class="text-muted small">A handpicked edit and members-only deals, once a week.</span>
+            </label>
+          </div>
+
+          <div class="d-flex gap-2 mt-4">
+            <button type="button" class="btn btn-primary" (click)="save()" [disabled]="saving()">
+              @if (saving()) { <i class="fa-solid fa-spinner fa-spin me-1"></i> } @else { <i class="fa-solid fa-floppy-disk me-1"></i> }
+              Save changes
+            </button>
+            <a routerLink="/members/orders" class="btn btn-outline-secondary">
+              <i class="fa-solid fa-box me-1"></i> My orders
+            </a>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+
+  <div class="col-12 col-lg-4">
+    <div class="card">
+      <div class="card-body">
+        <h6 class="fw-bold"><i class="fa-solid fa-circle-info me-2 text-primary"></i>About your data</h6>
+        <p class="small text-muted mb-2">
+          We only email what you opt into. Turn off weekly deals anytime here, or use the unsubscribe
+          link at the bottom of any marketing email.
+        </p>
+        <p class="small text-muted mb-0">Order confirmations are always sent so you can track purchases.</p>
+      </div>
+    </div>
+  </div>
+</div>

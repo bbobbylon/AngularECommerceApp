@@ -9,4 +9,6 @@ export class Purchase {
   billingAddress!: Address;
   order!: Order;
   orderItems!: OrderItem[];
+  /** Checkout opt-in: create the account on the weekly-deals list. */
+  subscribeToNewsletter = true;
 }

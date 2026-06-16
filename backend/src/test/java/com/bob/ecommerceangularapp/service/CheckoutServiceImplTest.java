@@ -3,6 +3,7 @@ package com.bob.ecommerceangularapp.service;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dto.Purchase;
 import com.bob.ecommerceangularapp.dto.PurchaseResponse;
+import com.bob.ecommerceangularapp.email.EmailService;
 import com.bob.ecommerceangularapp.entity.Address;
 import com.bob.ecommerceangularapp.entity.Customer;
 import com.bob.ecommerceangularapp.entity.Order;
@@ -25,7 +26,8 @@ import static org.mockito.Mockito.when;
 class CheckoutServiceImplTest {
 
     private final CustomerRepository customerRepository = mock(CustomerRepository.class);
-    private final CheckoutServiceImpl service = new CheckoutServiceImpl(customerRepository, "");
+    private final EmailService emailService = mock(EmailService.class);
+    private final CheckoutServiceImpl service = new CheckoutServiceImpl(customerRepository, emailService, "");
 
     @Test
     void placeOrder_generatesTrackingNumberAndLinksEntities() {

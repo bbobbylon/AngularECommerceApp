@@ -18,4 +18,7 @@ public class Purchase {
     private Address billingAddress;
     private Order order;
     private Set<OrderItem> orderItems;
+
+    /** Checkout opt-in: create the account on the weekly-deals list (defaults to opted-in). */
+    private boolean subscribeToNewsletter = true;
 }

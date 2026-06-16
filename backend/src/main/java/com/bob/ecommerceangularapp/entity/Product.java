@@ -45,6 +45,13 @@ public class Product {
     @Column(name = "unit_price")
     private BigDecimal unitPrice;
 
+    /**
+     * Pre-sale ("was") price. Null for full-price items. When set and greater than
+     * {@link #unitPrice}, the product is on sale and the UI shows a strikethrough + % off.
+     */
+    @Column(name = "original_price")
+    private BigDecimal originalPrice;
+
     @Column(name = "image_url")
     private String imageUrl;
 
