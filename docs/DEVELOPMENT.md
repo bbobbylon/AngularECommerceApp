@@ -28,8 +28,12 @@ ecommerceAngularApp/
 
 ## Build & test
 ```bash
-# Backend — compiles, runs tests against in-memory H2 (no Docker needed), packages a jar
+# Backend — compiles, runs the H2 unit/slice tests (no Docker needed) + a Testcontainers MySQL
+# integration test (runs when Docker is available, auto-skips otherwise), packages a jar
 cd backend && ./mvnw clean package
+
+# Run with the production profile (quieter logs, Swagger off, ECS JSON logs, health details hidden):
+cd backend && SPRING_PROFILES_ACTIVE=prod ./mvnw spring-boot:run
 
 # Frontend — production build + unit tests (Vitest)
 cd frontend/angular-ecommerce && npx ng build

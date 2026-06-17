@@ -98,6 +98,13 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   PRs); CI **security** job: `actions/dependency-review-action` (PRs, fail-on high+, both ecosystems) +
   `npm audit --omit=dev --audit-level=high` (shipped deps; green today). Closes the last `SECURITY.md`
   TODO. See `docs/SECURITY.md` → Dependency & CVE scanning.
+- ✅ **Real-MySQL integration test + prod config** — `MySqlIntegrationTest` (`@SpringBootTest` +
+  Testcontainers `mysql:8.4`, `@ServiceConnection`, `disabledWithoutDocker`) boots the app the way prod
+  does (**Flyway enabled + `ddl-auto=validate`**), so it actually exercises the V1/V2 migrations +
+  entity↔schema match on real MySQL (the H2 slice tests can't). Production config in
+  `application.properties` (graceful shutdown, gzip, HikariCP pool, swallow-size cap) + an
+  `application-prod.properties` profile (`SPRING_PROFILES_ACTIVE=prod`: SQL logging off, Swagger off,
+  ECS JSON logs, health details hidden). Testcontainers BOM 2.0.5 imported (Boot 4.1's BOM doesn't pin it).
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
@@ -107,7 +114,7 @@ boots and the catalog/cart/checkout flow works with placeholder config, so they 
 - `frontend/angular-ecommerce/` — Angular 21 standalone app.
 
 ## Commands
-- Backend build + tests: `cd backend && ./mvnw clean package` (tests run against in-memory H2 — no Docker needed)
+- Backend build + tests: `cd backend && ./mvnw clean package` (unit/slice tests run on in-memory H2 — no Docker needed; the **Testcontainers MySQL integration test** runs when Docker is available and auto-skips otherwise)
 - Backend run (needs Docker for MySQL on :3307): `cd backend && ./mvnw spring-boot:run` (→ http://localhost:8585)
 - Frontend build: `cd frontend/angular-ecommerce && npm install && npx ng build`
 - Frontend tests: `cd frontend/angular-ecommerce && CI=true npx ng test --watch=false`

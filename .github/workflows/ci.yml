@@ -26,7 +26,9 @@ jobs:
       - name: Build + test
         run: |
           chmod +x ./mvnw
-          ./mvnw -B clean package   # tests run against in-memory H2, no DB needed
+          # H2 slice/unit tests need no DB; the Testcontainers MySQL integration test uses the
+          # Docker preinstalled on the runner (it auto-skips where Docker is absent).
+          ./mvnw -B clean package
 
   frontend:
     name: Frontend (Angular build + unit tests)
