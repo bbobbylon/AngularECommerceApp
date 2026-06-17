@@ -127,6 +127,18 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   (`fullstackecommerce` — RDS rejects hyphens in the initial DB), polls App Runner status (no `wait`
   verb), and its setup opens RDS 3306 (VPC connector recommended for prod); Azure uses `sslMode=REQUIRED`.
   These cloud workflows/scripts are **not runtime-verified** (need the respective cloud accounts).
+- ✅ **Security hardening pass + sessions/tokens model** — the app is **stateless** server-side:
+  `SessionCreationPolicy.STATELESS` on both chains (no `HttpSession`/`JSESSIONID`/app cookie); the
+  "session" is the Okta token set in the browser (okta-auth-js, Authorization Code + PKCE). Secured
+  chain now also gates `/api/account/**` + `POST /api/newsletter/send-now` and scopes actuator
+  (health public, metrics/info/prometheus authenticated); a startup `ApplicationRunner` logs a loud
+  warning if the `prod` profile runs without an Okta issuer. The **SPA is hardened at the nginx edge**:
+  CSP (own bundles + Stripe + Google Fonts; `connect-src` for the API/Okta/Stripe), HSTS, X-Frame-Options,
+  nosniff, Referrer/Permissions-Policy. Build disables Angular `inlineCritical` (its inline `onload`
+  handler would be CSP-blocked, unstyling the page). `docs/SECURITY.md` gained a "Sessions, tokens &
+  cookies" section (incl. the BFF upgrade path + why CSRF is N/A). **Runtime-verified** via
+  `docker compose up --build`: all security headers present, **0 CSP violations**, 12 products render,
+  Flyway migrates + seeds the empty DB, prod warning fires. 45 backend tests + 17 frontend tests green.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
