@@ -1,14 +1,19 @@
 package com.bob.ecommerceangularapp.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
@@ -42,6 +47,8 @@ import java.util.stream.Collectors;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     /** JWT claim that carries the user's group/role memberships (Okta default: "groups"). */
     @Value("${app.security.admin-claim:groups}")
@@ -83,8 +90,18 @@ public class SecurityConfig {
     @ConditionalOnProperty(prefix = "spring.security.oauth2.resourceserver.jwt", name = "issuer-uri")
     SecurityFilterChain securedFilterChain(HttpSecurity http) throws Exception {
         http
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
+                        // Health/liveness/readiness probes stay public for load balancers & orchestrators;
+                        // metrics/info/prometheus require auth so operational detail isn't exposed publicly.
+                        .requestMatchers("/actuator/health/**").permitAll()
+                        .requestMatchers("/actuator/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/orders/**").authenticated()
+                        // Account settings handle a specific user's data; the manual newsletter blast is an
+                        // operator action — both require a valid token (defense in depth alongside any
+                        // controller-level checks).
+                        .requestMatchers("/api/account/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/newsletter/send-now").authenticated()
                         // Back-office requires the admin role (not just any authenticated user).
                         .requestMatchers("/api/admin/**").hasAuthority(adminRole)
                         .anyRequest().permitAll())
@@ -99,11 +116,35 @@ public class SecurityConfig {
     @ConditionalOnMissingBean(SecurityFilterChain.class)
     SecurityFilterChain openFilterChain(HttpSecurity http) throws Exception {
         http
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable());
         applyHardening(http);
         return http.build();
+    }
+
+    /**
+     * Refuses to let a deployment <i>silently</i> run wide open. The open chain (no Okta issuer) is a
+     * deliberate dev convenience, but in production it means orders/account/admin are unauthenticated.
+     * When the {@code prod} profile is active without an issuer URI, log a prominent warning at startup
+     * so it's a conscious choice, not an accident. (We warn rather than fail-fast so the prod profile
+     * still boots for a credential-free demo.)
+     */
+    @Bean
+    ApplicationRunner securityPostureAudit(Environment env) {
+        return args -> {
+            boolean prod = List.of(env.getActiveProfiles()).contains("prod");
+            String issuer = env.getProperty("spring.security.oauth2.resourceserver.jwt.issuer-uri");
+            if (prod && (issuer == null || issuer.isBlank())) {
+                log.warn("================ SECURITY NOTICE ================");
+                log.warn("Running the 'prod' profile WITHOUT an OIDC issuer URI: the API is OPEN — "
+                        + "/api/orders, /api/account and /api/admin require NO authentication.");
+                log.warn("Set spring.security.oauth2.resourceserver.jwt.issuer-uri (Okta) to enforce auth. "
+                        + "See docs/SECURITY.md.");
+                log.warn("=================================================");
+            }
+        };
     }
 
     /**

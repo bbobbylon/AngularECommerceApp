@@ -17,7 +17,40 @@ Angular ──Authorization: Bearer <JWT>──► Spring Boot (validates JWT) �
   a **secured** chain (active only when `spring.security.oauth2.resourceserver.jwt.issuer-uri` is set)
   that requires auth for `GET /api/orders/**`, and an **open** chain otherwise so local dev needs no IdP.
 - Gating means: **no Okta configured → app runs fully open for development**; configure Okta → order
-  history (and anything else you protect) requires a valid token.
+  history (and anything else you protect) requires a valid token. Running the **`prod` profile without
+  an issuer** logs a loud startup warning (the API would be open) — see `SecurityConfig`.
+
+## Sessions, tokens & cookies
+
+**There is no server-side session and no application cookie.** This is the deliberate design of a
+token-based SPA + stateless resource-server, and it's worth being precise about because it changes which
+classic risks apply.
+
+- **Stateless backend.** `SecurityConfig` sets `SessionCreationPolicy.STATELESS` on **both** filter
+  chains, so Spring **never creates an `HttpSession` and never issues a `JSESSIONID`**. There is no
+  server session store to secure, expire, replicate, or pin — every request is authenticated solely from
+  its `Authorization: Bearer <JWT>` header. (This also means horizontal scaling needs no sticky sessions.)
+- **Where the "session" actually lives.** The only session state is the **OIDC token set** (id/access
+  tokens) held by the browser, managed by `@okta/okta-auth-js` using the **Authorization Code flow with
+  PKCE** (`pkce: true` in `okta-config.ts`). By default okta-auth-js keeps the token set in
+  `localStorage`. The Angular `authInterceptor` attaches the access token **only** to the secured
+  prefixes (`/api/orders`, `/api/account`, `/api/admin`) — never to public catalog/cart/checkout calls,
+  and never cross-site.
+- **Threat model for browser-stored tokens.** Because the token is readable by JavaScript, the relevant
+  risk is **XSS** (not CSRF). Mitigations that ship: a **strict Content-Security-Policy on the SPA**
+  (nginx — `script-src 'self' https://js.stripe.com`, no `unsafe-eval`), Angular's built-in contextual
+  auto-escaping/sanitization (the app never binds untrusted HTML via `innerHTML`/bypass APIs), and
+  short-lived access tokens rotated by Okta. **Upgrade path for the highest assurance:** a
+  *backend-for-frontend (BFF)* that holds tokens server-side and exposes them to the SPA only via an
+  `HttpOnly; Secure; SameSite=Strict` cookie, proxying API calls — this removes tokens from JS entirely.
+  It's intentionally not built here (it adds a stateful tier and only matters once Okta is live).
+- **Why CSRF is disabled and safe.** CSRF exploits *ambient* credentials the browser sends
+  automatically (i.e. cookies). This API has **no auth cookie** and authenticates with a Bearer header
+  that the browser does **not** attach on cross-site requests, so CSRF doesn't apply — hence
+  `csrf().disable()`. ⚠️ If you ever switch to cookie-based auth (e.g. the BFF above), you **must**
+  re-enable CSRF protection and set `SameSite` on the cookie.
+- **Logout** is therefore client-side: okta-auth-js clears the stored token set and ends the Okta
+  session; there's no server session to invalidate.
 
 ## Do we have MFA / OTP / passkeys?
 
@@ -52,8 +85,25 @@ After enabling, set the backend issuer + the Angular `okta-config.ts` (`issuer`/
 
 ## Hardening applied in app code
 
-Three defense-in-depth measures ship in the backend. All of them **preserve graceful degradation** —
-the app still builds and runs fully open with no Okta/IdP for local development.
+Several defense-in-depth measures ship in the backend and the SPA. All of them **preserve graceful
+degradation** — the app still builds and runs fully open with no Okta/IdP for local development.
+
+### Endpoint authorization & stateless sessions
+
+The secured chain (active once an issuer is set) authorizes by path, most-specific first:
+
+| Path | Rule |
+|---|---|
+| `/actuator/health/**` | public (load-balancer / k8s probes) |
+| `/actuator/**` (metrics, info, prometheus) | `authenticated()` |
+| `GET /api/orders/**`, `/api/account/**` | `authenticated()` |
+| `POST /api/newsletter/send-now` | `authenticated()` |
+| `/api/admin/**` | `hasAuthority(adminRole)` |
+| everything else (catalog, cart, checkout, reviews, public newsletter) | public |
+
+Both chains are `STATELESS` (no session/cookie — see [Sessions, tokens & cookies](#sessions-tokens--cookies)).
+The matching frontend `authInterceptor` sends the Bearer token only to `/api/orders`, `/api/account`,
+and `/api/admin`.
 
 ### Role-based admin access
 
@@ -77,6 +127,13 @@ chain** applies and `/api/admin/**` is reachable for development, exactly as bef
 `X-Frame-Options: DENY`, a strict `Referrer-Policy`, and a `Permissions-Policy` that denies
 geolocation/microphone/camera.
 
+The **SPA is also hardened at the edge**: the frontend's `nginx.conf` sends a Content-Security-Policy
+tuned for the app (own bundles + Stripe.js; `style-src 'unsafe-inline'` for Angular's injected component
+styles; `img-src https:` for product images; `connect-src 'self' https:` for the API/Okta/Stripe XHR;
+`frame-src` for Stripe Elements), plus `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy`, `Permissions-Policy`, and HSTS. Tighten `connect-src`/`frame-src` to your exact
+backend + Okta origins for an even stricter production policy.
+
 ### Rate limiting + body-size caps
 
 `RateLimitFilter` guards the public, unauthenticated **write** endpoints (`/api/reviews`,
@@ -93,23 +150,32 @@ Redis/Bucket4j.
 |---|---|---|
 | Payment data (PCI) | ✅ Delegated to Stripe | Card data is entered into Stripe Elements; it never reaches our server. |
 | Secrets | ✅ Env vars | Stripe/Gmail/Okta values come from `.env`/env vars, never committed (`.env` is gitignored). |
-| Transport (HTTPS/TLS) | 📄 Opt-in | Documented in BUILD_PLAN.md (M4). **Required in production** — terminate TLS at the proxy/LB or enable the Boot keystore. |
+| Transport (HTTPS/TLS) | 📄 Opt-in | Documented in BUILD_PLAN.md (M4). **Required in production** — terminate TLS at the proxy/LB or enable the Boot keystore. The cloud deploys terminate TLS at the platform; `server.forward-headers-strategy=framework` makes the app honor `X-Forwarded-Proto`. |
 | Input validation | ✅ Added | Bean Validation on public DTOs + a global error handler (no stack traces leaked). |
-| CORS | ✅ Locked | Only `localhost:4200/4250` allowed — **change to your real origin(s) for production.** |
-| CSRF | ✅ N/A for the API | Disabled deliberately: the API is stateless/token-based, not cookie-session based. |
+| Sessions / cookies | ✅ Stateless | `SessionCreationPolicy.STATELESS` — no `HttpSession`, no `JSESSIONID`, no app cookie. The "session" is the Okta token set in the browser. See [Sessions, tokens & cookies](#sessions-tokens--cookies). |
+| Token storage (SPA) | ✅ PKCE + CSP | okta-auth-js (Authorization Code + PKCE); browser-stored token defended by the SPA's strict CSP + Angular auto-escaping. BFF is the documented upgrade. |
+| CORS | ✅ Config-driven | `app.cors.allowed-origins` (one `CorsConfigurationSource` bean governs SDR + all controllers). Defaults to localhost; the deploy sets `APP_CORS_ALLOWED_ORIGINS` to the live frontend origin automatically. |
+| CSRF | ✅ N/A for the API | Disabled deliberately: Bearer-token auth, no auth cookie → no CSRF vector. Re-enable if you adopt cookie-based auth. |
+| Frontend headers | ✅ Hardened | nginx sends CSP, HSTS, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, Referrer-Policy, Permissions-Policy on the SPA. |
+| Actuator exposure | ✅ Scoped | Health/liveness/readiness public (for probes); metrics/info/prometheus require auth on the secured chain. |
 | Admin authorization | ✅ Role-gated | When Okta is configured, `/api/admin/**` requires the **admin role** (a JWT groups claim), not just any logged-in user. See [Role-based admin access](#role-based-admin-access). |
 | Response headers | ✅ Hardened | CSP, HSTS, `X-Frame-Options: DENY`, Referrer-Policy, Permissions-Policy on every chain. See [Hardening applied in app code](#hardening-applied-in-app-code). |
 | Rate limiting | ✅ Added | Per-IP fixed-window limit + body-size cap on public write endpoints (`reviews`/`coupons`/`newsletter`). For multi-instance deployments, also limit at the gateway/CDN or swap in Redis/Bucket4j for shared state. |
-| Account/newsletter APIs | ⚠️ Trust the email | Course-faithful simplicity. Gate behind the JWT before handling real users (see below). |
+| Account/newsletter APIs | ✅ JWT-gated | `/api/account/**` and `POST /api/newsletter/send-now` require authentication on the secured chain (the SPA tokens them via the interceptor). Public newsletter subscribe/unsubscribe stay open. |
 | Dependency CVEs | ✅ Automated | Dependabot (Maven + npm + actions) raises security/update PRs; CI gates on CVEs (see [Dependency & CVE scanning](#dependency--cve-scanning)). |
 
 ### Production hardening checklist
-- [ ] Configure Okta (issuer + clientId) and **require MFA**; enable passkeys.
+- [ ] Configure Okta (issuer + clientId) and **require MFA**; enable passkeys. *(Without it the `prod`
+  profile logs a loud "API is OPEN" warning at startup.)*
+- [x] **Stateless sessions** — `SessionCreationPolicy.STATELESS`; no `HttpSession`/`JSESSIONID`/app cookie.
 - [x] **Role-gate the admin back-office** — `/api/admin/**` requires the admin role once Okta is on.
-- [x] **Security response headers** — CSP / HSTS / frame / referrer / permissions on every chain.
+- [x] **JWT-gate account + newsletter-send** — `/api/account/**` and `POST /api/newsletter/send-now`.
+- [x] **Scope actuator** — only health probes are public; metrics/info/prometheus require auth.
+- [x] **Security response headers** — backend (every chain) **and** the SPA (nginx): CSP / HSTS / frame /
+  referrer / permissions / nosniff.
 - [x] **Rate limiting + body-size caps** on public POST endpoints (in-app; add gateway/CDN limits too).
-- [ ] Protect `/api/account/**` and `/api/newsletter/send-now` with the JWT chain (not just the email).
-- [ ] Enforce HTTPS everywhere; set real CORS origins.
+- [x] **Config-driven CORS** — `app.cors.allowed-origins`; the deploy sets it to the live frontend origin.
+- [ ] Enforce HTTPS everywhere (terminate TLS at the proxy/LB — the cloud deploys do).
 - [ ] Rotate secrets; store them in a managed secrets manager (not a flat `.env`) in cloud.
 - [x] **Dependency / CVE scanning + patch cadence** — Dependabot + a CI gate (see below).
 
