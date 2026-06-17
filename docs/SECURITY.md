@@ -128,11 +128,18 @@ chain** applies and `/api/admin/**` is reachable for development, exactly as bef
 geolocation/microphone/camera.
 
 The **SPA is also hardened at the edge**: the frontend's `nginx.conf` sends a Content-Security-Policy
-tuned for the app (own bundles + Stripe.js; `style-src 'unsafe-inline'` for Angular's injected component
-styles; `img-src https:` for product images; `connect-src 'self' https:` for the API/Okta/Stripe XHR;
-`frame-src` for Stripe Elements), plus `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
-`Referrer-Policy`, `Permissions-Policy`, and HSTS. Tighten `connect-src`/`frame-src` to your exact
-backend + Okta origins for an even stricter production policy.
+tuned for the app — own bundles + Stripe.js; `style-src 'unsafe-inline'` + Google Fonts
+(`fonts.googleapis.com`) for Angular's injected styles and the brand fonts; `font-src` for
+`fonts.gstatic.com`; `img-src https:` for product images; `connect-src 'self' https:` for the
+API/Okta/Stripe XHR (plus `http://localhost:8585` so the local `docker compose` backend works); and
+`frame-src` for Stripe Elements — plus `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy`, `Permissions-Policy`, and HSTS. The policy was verified at runtime against the live
+container (0 violations). Tighten `connect-src`/`frame-src` to your exact backend + Okta origins (and
+drop the localhost entry) for an even stricter production policy.
+
+> **Build note:** the build disables Angular's `inlineCritical` CSS optimization, which would otherwise
+> emit an inline `onload` handler on the stylesheet link that `script-src 'self'` blocks — leaving the
+> page unstyled. Disabling it yields a plain render-blocking `<link>` and keeps the strict CSP.
 
 ### Rate limiting + body-size caps
 
