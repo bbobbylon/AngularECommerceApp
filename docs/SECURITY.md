@@ -126,6 +126,9 @@ Three layers keep dependencies patched and known-vulnerable versions out:
 3. **`npm audit` gate** (CI) — `npm audit --omit=dev --audit-level=high` on every push/PR. It scans
    **shipped (production) dependencies**; dev-tooling advisories are left to Dependabot since they
    never reach users. Today the production tree is clean of high+ advisories, so this gate is green.
+4. **SBOM** — the backend build generates a CycloneDX Software Bill of Materials
+   (`cyclonedx-maven-plugin` → `target/bom.json`, also embedded in the jar under `META-INF/sbom`).
+   Feed it to a scanner (Grype/Trivy) or Dependency-Track for continuous supply-chain monitoring.
 
 > **Deeper / offline scanning (optional):** for an air-gapped or compliance-grade Maven scan, add the
 > [OWASP `dependency-check-maven`](https://jeremylong.github.io/DependencyCheck/) plugin (needs an NVD
