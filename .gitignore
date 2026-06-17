@@ -22,3 +22,6 @@ diag-*.png
 # secrets + generated runtime config (never commit your keys)
 .env
 frontend/angular-ecommerce/public/config.json
+# GCP service-account key emitted by deploy/gcp-setup.sh (paste into a GitHub secret, then delete)
+key.json
+**/key.json

@@ -10,7 +10,6 @@ import com.bob.ecommerceangularapp.entity.NewsletterSubscriber;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,7 +22,6 @@ import org.springframework.web.bind.annotation.RestController;
  * email preferences, keyed by email. Identity is enforced on the frontend via the same dev/Okta
  * guard used for order history; this API trusts the supplied email (course-faithful simplicity).
  */
-@CrossOrigin({"http://localhost:4200", "http://localhost:4250"})
 @RestController
 @RequestMapping("/api/account")
 public class AccountController {

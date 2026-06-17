@@ -18,6 +18,9 @@ import org.springframework.security.web.header.writers.DelegatingRequestMatcherH
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.header.writers.StaticHeadersWriter;
 import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Collection;
 import java.util.List;
@@ -47,6 +50,14 @@ public class SecurityConfig {
     /** Membership value required to reach the admin back-office. */
     @Value("${app.security.admin-role:Admin}")
     private String adminRole;
+
+    /**
+     * Browser origins allowed to call the API cross-origin. Comma-separated; defaults to the two
+     * local dev/compose origins. In a cloud deploy set {@code APP_CORS_ALLOWED_ORIGINS} to the
+     * deployed frontend's URL (e.g. the Cloud Run frontend URL) — see docs/DEPLOYMENT.md.
+     */
+    @Value("${app.cors.allowed-origins:http://localhost:4200,http://localhost:4250}")
+    private List<String> allowedOrigins;
 
     /** Strict CSP for the JSON API: no scripts at all, locked to same-origin. */
     private static final String STRICT_CSP =
@@ -93,6 +104,30 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable());
         applyHardening(http);
         return http.build();
+    }
+
+    /**
+     * Single source of truth for CORS. Spring Security's {@code .cors(withDefaults())} (on both the
+     * open and secured chains) picks this bean up by name and applies it via a servlet-level
+     * {@code CorsFilter} that runs <i>before</i> the dispatcher — so it governs <b>every</b> endpoint
+     * uniformly: the Spring Data REST catalog resources <i>and</i> the custom {@code @RestController}s
+     * (checkout, catalog search, admin, reviews, …). This replaces the previous scattered, hardcoded
+     * {@code @CrossOrigin} annotations + the SDR CORS mapping, which would otherwise reject (403) a
+     * request from the deployed frontend's origin at the MVC layer even after the filter allowed it.
+     */
+    @Bean
+    CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration cfg = new CorsConfiguration();
+        cfg.setAllowedOrigins(allowedOrigins);
+        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        cfg.setAllowedHeaders(List.of("*"));
+        // Bearer tokens travel in the Authorization header (not cookies), so credentialed CORS isn't
+        // needed; keeping it off lets the allowlist stay explicit without the wildcard restrictions.
+        cfg.setAllowCredentials(false);
+        cfg.setMaxAge(3600L);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", cfg);
+        return source;
     }
 
     /**

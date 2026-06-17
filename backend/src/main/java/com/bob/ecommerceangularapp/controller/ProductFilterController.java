@@ -5,7 +5,6 @@ import com.bob.ecommerceangularapp.dto.ProductCardView;
 import com.bob.ecommerceangularapp.service.ProductQueryService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -17,7 +16,6 @@ import java.math.BigDecimal;
  * Faceted catalog search. Separate path from the Spring Data REST /api/products resource so the
  * two don't collide. Returns the stable {@link PageResponse} envelope.
  */
-@CrossOrigin({"http://localhost:4200", "http://localhost:4250"})
 @RestController
 @RequestMapping("/api/catalog")
 public class ProductFilterController {

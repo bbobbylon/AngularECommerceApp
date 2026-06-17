@@ -12,9 +12,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 
 /**
- * Locks the Spring Data REST endpoints down to read-only and wires up CORS for the
- * Angular dev server. POST/PUT/PATCH/DELETE are disabled on both domain types so the
- * auto-generated REST API only exposes safe read operations for the catalog.
+ * Locks the Spring Data REST endpoints down to read-only: POST/PUT/PATCH/DELETE are disabled on the
+ * exposed domain types so the auto-generated REST API only offers safe read operations for the
+ * catalog. (CORS for the whole API is centralized in {@link SecurityConfig}.)
  */
 @Configuration
 public class MyDataRestConfig implements RepositoryRestConfigurer {
@@ -35,9 +35,10 @@ public class MyDataRestConfig implements RepositoryRestConfigurer {
         // expose entity ids in the JSON responses (off by default in Spring Data REST)
         config.exposeIdsFor(Product.class, ProductCategory.class, Country.class, State.class, Order.class);
 
-        // allow the Angular dev server to call the API
-        cors.addMapping(config.getBasePath() + "/**")
-                .allowedOrigins("http://localhost:4200", "http://localhost:4250");
+        // NOTE: CORS is centralized in SecurityConfig#corsConfigurationSource (a servlet-level
+        // CorsFilter that governs SDR + custom controllers uniformly and is driven by the
+        // app.cors.allowed-origins property). Configuring it here too would create a second,
+        // localhost-only policy that rejects the deployed frontend's origin. See docs/DEPLOYMENT.md.
     }
 
     private void disableHttpMethods(Class<?> domainType, RepositoryRestConfiguration config,

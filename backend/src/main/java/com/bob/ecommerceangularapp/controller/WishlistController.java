@@ -5,7 +5,6 @@ import com.bob.ecommerceangularapp.dto.WishlistSyncRequest;
 import com.bob.ecommerceangularapp.entity.WishlistItem;
 import jakarta.validation.Valid;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,7 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /** Account wishlist, keyed by email so favorites sync across devices. */
-@CrossOrigin({"http://localhost:4200", "http://localhost:4250"})
 @RestController
 @RequestMapping("/api/wishlist")
 public class WishlistController {

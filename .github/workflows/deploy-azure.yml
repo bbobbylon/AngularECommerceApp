@@ -1,16 +1,17 @@
 # =====================================================================
-#  MANUAL deploy template · Azure (ACR + Container Apps)
-#  Local `./run.sh` is the primary dev path — this is opt-in (workflow_dispatch).
+#  MANUAL deploy · Azure (ACR + Container Apps + Azure DB for MySQL)
+#  Local `./run.sh` / `docker compose up` stay the primary dev paths — this is opt-in
+#  (workflow_dispatch).
 #
-#  One-time setup in Azure:
-#    - a resource group + an Azure Container Registry (ACR)
-#    - a Container Apps Environment with two apps: luv2shop-backend (port 8585),
-#      luv2shop-frontend (port 80)
-#    - an Azure Database for MySQL + `full-stack-ecommerce` database
-#    - set the backend's DB env vars (SPRING_DATASOURCE_*) on its container app
-#    - a service principal with AcrPush + Container Apps Contributor
-#  Add these GitHub secrets:  AZURE_CREDENTIALS (sp JSON)
-#  Add this GitHub variable:   BACKEND_URL  (the backend container app URL)
+#  ONE-TIME SETUP: run `deploy/azure-setup.sh` (creates the resource group, ACR, the Container Apps
+#  environment + the two apps, and an Azure Database for MySQL flexible server + database + admin).
+#  Then add the GitHub secrets it prints:
+#    Secrets:   AZURE_CREDENTIALS (service-principal JSON), DB_USER, DB_PASS
+#  Finally edit the `env:` block below.
+#
+#  SINGLE-PASS (no chicken-and-egg): deploys the backend, reads its ingress FQDN, builds the frontend
+#  against it, deploys it, then points the backend's CORS allowlist + email links at the live frontend.
+#  See docs/DEPLOYMENT.md.
 # =====================================================================
 name: Deploy · Azure (Container Apps)
 
@@ -20,6 +21,8 @@ on:
 env:
   ACR_NAME: youracr                     # <-- EDIT (without .azurecr.io)
   RESOURCE_GROUP: luv2shop-rg           # <-- EDIT
+  MYSQL_SERVER: luv2shop-db             # <-- EDIT (MySQL flexible-server name, no domain)
+  DB_NAME: full-stack-ecommerce
 
 jobs:
   deploy:
@@ -30,20 +33,71 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Build & push to ACR
+      - name: Build & push backend image
         run: |
           az acr login --name ${{ env.ACR_NAME }}
           REG="${{ env.ACR_NAME }}.azurecr.io"
           docker build -t "$REG/luv2shop-backend:${{ github.sha }}" ./backend
           docker push "$REG/luv2shop-backend:${{ github.sha }}"
-          docker build --build-arg API_URL="${{ vars.BACKEND_URL }}/api" \
+
+      # Azure DB for MySQL flexible server enforces TLS; sslMode=REQUIRED encrypts using the JVM's
+      # default trust store (no custom cert needed). The empty DB is migrated by Flyway on first boot.
+      - name: Deploy backend (prod profile + Azure MySQL)
+        run: |
+          REG="${{ env.ACR_NAME }}.azurecr.io"
+          DB_URL="jdbc:mysql://${{ env.MYSQL_SERVER }}.mysql.database.azure.com:3306/${{ env.DB_NAME }}?sslMode=REQUIRED"
+          az containerapp update -n luv2shop-backend -g ${{ env.RESOURCE_GROUP }} \
+            --image "$REG/luv2shop-backend:${{ github.sha }}" \
+            --set-env-vars \
+              "SPRING_PROFILES_ACTIVE=prod" \
+              "SPRING_DOCKER_COMPOSE_ENABLED=false" \
+              "SPRING_DATASOURCE_URL=$DB_URL" \
+              "SPRING_DATASOURCE_USERNAME=${{ secrets.DB_USER }}" \
+              "SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASS }}"
+
+      - name: Capture backend URL
+        id: be
+        run: |
+          FQDN=$(az containerapp show -n luv2shop-backend -g ${{ env.RESOURCE_GROUP }} \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          echo "url=https://$FQDN" >> "$GITHUB_OUTPUT"
+          echo "Backend deployed at https://$FQDN"
+
+      - name: Build & push frontend image (API baked to the live backend)
+        run: |
+          REG="${{ env.ACR_NAME }}.azurecr.io"
+          docker build --build-arg API_URL="${{ steps.be.outputs.url }}/api" \
             -t "$REG/luv2shop-frontend:${{ github.sha }}" ./frontend/angular-ecommerce
           docker push "$REG/luv2shop-frontend:${{ github.sha }}"
 
-      - name: Update Container Apps
+      - name: Deploy frontend
         run: |
           REG="${{ env.ACR_NAME }}.azurecr.io"
-          az containerapp update -n luv2shop-backend -g ${{ env.RESOURCE_GROUP }} \
-            --image "$REG/luv2shop-backend:${{ github.sha }}"
           az containerapp update -n luv2shop-frontend -g ${{ env.RESOURCE_GROUP }} \
             --image "$REG/luv2shop-frontend:${{ github.sha }}"
+
+      - name: Capture frontend URL
+        id: fe
+        run: |
+          FQDN=$(az containerapp show -n luv2shop-frontend -g ${{ env.RESOURCE_GROUP }} \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          echo "url=https://$FQDN" >> "$GITHUB_OUTPUT"
+          echo "Frontend deployed at https://$FQDN"
+
+      - name: Point backend CORS + email links at the live frontend
+        run: |
+          az containerapp update -n luv2shop-backend -g ${{ env.RESOURCE_GROUP }} \
+            --set-env-vars \
+              "APP_CORS_ALLOWED_ORIGINS=${{ steps.fe.outputs.url }}" \
+              "APP_FRONTEND_URL=${{ steps.fe.outputs.url }}" \
+              "APP_API_URL=${{ steps.be.outputs.url }}"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Deployed to Azure Container Apps 🚀"
+            echo "- **Frontend:** ${{ steps.fe.outputs.url }}"
+            echo "- **Backend:**  ${{ steps.be.outputs.url }}"
+            echo ""
+            echo "_The empty MySQL database is migrated by Flyway on the backend's first boot and seeded by the DataLoader._"
+          } >> "$GITHUB_STEP_SUMMARY"

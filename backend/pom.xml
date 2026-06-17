@@ -110,6 +110,18 @@
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- Cloud SQL connector: lets the backend reach a managed Cloud SQL (MySQL) instance from
+             Cloud Run securely (IAM-authenticated, mutually-TLS encrypted) without exposing the DB on
+             a public, password-only port. INERT everywhere except the cloud deploy — it only engages
+             when the JDBC URL names `socketFactory=com.google.cloud.sql.mysql.SocketFactory` (which
+             deploy-gcp.yml sets); the normal `jdbc:mysql://host:3306/...` URL used locally and in
+             compose never touches it. See docs/DEPLOYMENT.md. -->
+        <dependency>
+            <groupId>com.google.cloud.sql</groupId>
+            <artifactId>mysql-socket-factory-connector-j-8</artifactId>
+            <version>1.28.4</version>
+            <scope>runtime</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-devtools</artifactId>

@@ -125,11 +125,13 @@ runs in the cloud.** Two things carry straight over:
 ## Cloud deployments
 
 All three follow the same shape — **build images → push to the cloud's registry → roll out to a
-serverless container service → talk to a managed MySQL.** Pick whichever cloud you like; they're
-independent.
+serverless container service → talk to a managed MySQL.** Each has an idempotent one-time setup script
+under [`deploy/`](../deploy) and a **single-pass** workflow (deploy backend → read its URL → build/deploy
+frontend against it → point the backend's CORS allowlist + email links at the live frontend). Pick
+whichever cloud you like; they're independent.
 
 ### Google Cloud (Cloud Run)
-`.github/workflows/deploy-gcp.yml`
+`.github/workflows/deploy-gcp.yml` · setup: [`deploy/gcp-setup.sh`](../deploy/gcp-setup.sh)
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'fontFamily':'DM Sans, system-ui, sans-serif','lineColor':'#9aa3b8'}}}%%
@@ -149,14 +151,14 @@ flowchart LR
 ```
 
 ### AWS (App Runner)
-`.github/workflows/deploy-aws.yml`
+`.github/workflows/deploy-aws.yml` · setup: [`deploy/aws-setup.sh`](../deploy/aws-setup.sh)
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'fontFamily':'DM Sans, system-ui, sans-serif','lineColor':'#9aa3b8'}}}%%
 flowchart LR
   gha["GitHub Actions<br/>deploy-aws.yml (manual)"]:::accent -->|docker push| ecr["ECR"]:::ext
-  ecr -->|auto-deploy| arf["App Runner<br/>frontend :80"]:::fe
-  ecr -->|auto-deploy| arb["App Runner<br/>backend :8585"]:::be
+  ecr -->|create/update| arf["App Runner<br/>frontend :80"]:::fe
+  ecr -->|create/update| arb["App Runner<br/>backend :8585"]:::be
   user([🌍 User]):::user --> arf
   arf -->|"/api"| arb
   arb -->|JDBC| rds[("RDS<br/>MySQL 8")]:::db
@@ -169,7 +171,7 @@ flowchart LR
 ```
 
 ### Azure (Container Apps)
-`.github/workflows/deploy-azure.yml`
+`.github/workflows/deploy-azure.yml` · setup: [`deploy/azure-setup.sh`](../deploy/azure-setup.sh)
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'fontFamily':'DM Sans, system-ui, sans-serif','lineColor':'#9aa3b8'}}}%%
@@ -192,75 +194,76 @@ flowchart LR
 
 ## Walkthrough: GCP Cloud Run, end to end
 
-A concrete, copy-pasteable run-through of the **one-time setup** behind `deploy-gcp.yml`. (AWS App
-Runner and Azure Container Apps follow the same shape with their own CLIs.) Replace the CAPITALISED
-values with your own.
+The GCP path is **two commands + three secrets + one workflow run**. (AWS App Runner and Azure
+Container Apps follow the same shape with their own CLIs.)
 
-**1 — Project, APIs, registry**
+**1 — One-time setup: run the script.** In [Google Cloud Shell](https://shell.cloud.google.com) (or
+anywhere `gcloud` is authenticated), from the repo root:
 ```bash
-gcloud config set project YOUR_PROJECT_ID
-gcloud services enable run.googleapis.com artifactregistry.googleapis.com sqladmin.googleapis.com
-gcloud artifacts repositories create luv2shop --repository-format=docker --location=us-central1
+GCP_PROJECT=YOUR_PROJECT_ID bash deploy/gcp-setup.sh
 ```
+[`deploy/gcp-setup.sh`](../deploy/gcp-setup.sh) is **idempotent** and does everything the deploy needs:
+enables the APIs; creates the Artifact Registry repo, the **Cloud SQL (MySQL 8)** instance + an empty
+`full-stack-ecommerce` database + a user; creates the GitHub-Actions **deployer** service account with
+`run.admin` + `artifactregistry.writer` + `iam.serviceAccountUser`; and grants the Cloud Run **runtime**
+service account `roles/cloudsql.client` (so the app's Cloud SQL connector can reach the instance). It
+writes the deployer key to `./key.json` and prints the exact secret values to add. **No schema script —
+Flyway migrates the empty DB on the backend's first boot.**
 
-**2 — Managed MySQL (Cloud SQL), started empty**
-```bash
-gcloud sql instances create luv2shop-db --database-version=MYSQL_8_0 --tier=db-f1-micro --region=us-central1
-gcloud sql databases create full-stack-ecommerce --instance=luv2shop-db
-gcloud sql users create ecommerceapp --instance=luv2shop-db --password=CHOOSE_A_PASSWORD
-```
-No schema script — **Flyway migrates the empty DB on the backend's first boot.** (For connectivity,
-use the Cloud SQL connector or an authorized network; see the Cloud Run + Cloud SQL docs.)
+**2 — Add the secrets** it prints, under repo *Settings → Secrets and variables → Actions → Secrets*:
+`GCP_SA_KEY` (the contents of `key.json`), `DB_USER`, `DB_PASS`. Then `rm key.json`.
 
-**3 — Service account for GitHub Actions**
-```bash
-PROJ=YOUR_PROJECT_ID; SA="gh-deployer@$PROJ.iam.gserviceaccount.com"
-gcloud iam service-accounts create gh-deployer
-for r in roles/run.admin roles/artifactregistry.writer roles/iam.serviceAccountUser; do
-  gcloud projects add-iam-policy-binding $PROJ --member="serviceAccount:$SA" --role="$r"
-done
-gcloud iam service-accounts keys create key.json --iam-account="$SA"   # paste contents -> GCP_SA_KEY
-```
+**3 — Edit the workflow `env:`** in [`deploy-gcp.yml`](../.github/workflows/deploy-gcp.yml) to your
+`GCP_PROJECT` / `GCP_REGION` / `AR_REPO` / `CLOUD_SQL_INSTANCE`, and commit.
 
-**4 — GitHub secrets & variables** (repo *Settings → Secrets and variables → Actions*)
-- Secrets: `GCP_SA_KEY` (the `key.json`), `DB_URL` (`jdbc:mysql://HOST:3306/full-stack-ecommerce`),
-  `DB_USER`, `DB_PASS`.
-- Variable: `BACKEND_URL` — leave empty for now.
+**4 — Deploy:** *Actions → "Deploy · GCP (Cloud Run)" → Run workflow.* **One run** does it all — no
+chicken-and-egg:
+1. builds + pushes the backend image, deploys it (**`prod` profile**, Cloud SQL connector, DB creds);
+2. reads the live backend URL and **builds the frontend against it** (the SPA bakes its API URL in at
+   build time);
+3. deploys the frontend, then **points the backend's CORS allowlist + email links at the live frontend
+   URL** (`APP_CORS_ALLOWED_ORIGINS` / `APP_FRONTEND_URL`).
 
-**5 — First deploy (two passes — the chicken-and-egg)**
-1. Edit `deploy-gcp.yml`'s `env:` (`GCP_PROJECT`, `GCP_REGION`, `AR_REPO`); commit.
-2. **Actions → Deploy · GCP → Run workflow.** The backend deploys and migrates the DB.
-3. Copy the backend's Cloud Run URL into the `BACKEND_URL` variable.
-4. **Run the workflow again** — the frontend now builds against the live API. Subsequent deploys are a
-   single run.
+The job summary prints both URLs. Open the frontend URL — the store is live, catalog seeded.
 
-> Add `SPRING_PROFILES_ACTIVE=prod` to the backend's `--set-env-vars` for production logging + locked
-> API docs, and point Cloud Run's health check at `/actuator/health/readiness`.
+> **DB connectivity.** The backend talks to Cloud SQL through the **Cloud SQL JDBC Socket Factory**
+> (bundled in the jar, version-pinned in `backend/pom.xml`): IAM-authenticated + mTLS, so the database
+> is never exposed on a public password-only port. It's inert locally/in compose — it only engages when
+> the JDBC URL names `socketFactory=…` (which the workflow sets). The runtime SA's `roles/cloudsql.client`
+> (granted by the setup script) is what authorizes it.
+> **Payments / auth (optional):** add `STRIPE_SECRET_KEY` and the Okta issuer env vars to the backend
+> service to light those up; without them the app runs in demo/open mode.
 
 ---
 
 ## What you configure
 
-Each deploy workflow has an `env:` block with `# <-- EDIT` markers, plus secrets/variables to add
-under **repo Settings → Secrets and variables → Actions**.
+Each deploy workflow has an `env:` block with `# <-- EDIT` markers, plus secrets to add under
+**repo Settings → Secrets and variables → Actions**.
 
-| Cloud | Edit in the workflow | Secrets | Variables |
-|---|---|---|---|
-| **GCP** | `GCP_PROJECT`, `GCP_REGION`, `AR_REPO` | `GCP_SA_KEY`, `DB_URL`, `DB_USER`, `DB_PASS` | `BACKEND_URL` |
-| **AWS** | `AWS_REGION` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ACCOUNT_ID` | `BACKEND_URL` |
-| **Azure** | `ACR_NAME`, `RESOURCE_GROUP` | `AZURE_CREDENTIALS` | `BACKEND_URL` |
+All three are now **single-pass** with an idempotent setup script under `deploy/`. Run the script, add
+the secrets it prints, edit the workflow `env:`, then run the workflow once.
 
-**Common steps for any cloud:**
-1. Create the registry + the two container services + a managed MySQL (an **empty**
-   `full-stack-ecommerce` database — no schema script needed).
-2. Set the backend's env vars on its service: `SPRING_DATASOURCE_URL/USERNAME/PASSWORD`,
-   `SPRING_DOCKER_COMPOSE_ENABLED=false`, and `SPRING_PROFILES_ACTIVE=prod`.
-3. On first boot the backend **migrates the empty DB with Flyway** (V1→V2) and the `DataLoader` seeds
-   the catalog — there is **no manual SQL step**. Point the platform's health check at
-   `/actuator/health/readiness`.
-4. Deploy the **backend first**, copy its public URL into the `BACKEND_URL` repo variable, then deploy
-   the frontend (so the SPA is built pointing at the live API).
-5. (Optional) set `STRIPE_SECRET_KEY` and the Okta issuer env vars to light up payments / auth.
+| Cloud | Setup script | Edit in the workflow | Secrets | Repo variable |
+|---|---|---|---|---|
+| **GCP** | `deploy/gcp-setup.sh` | `GCP_PROJECT`, `GCP_REGION`, `AR_REPO`, `CLOUD_SQL_INSTANCE` | `GCP_SA_KEY`, `DB_USER`, `DB_PASS` | — |
+| **AWS** | `deploy/aws-setup.sh` | `AWS_REGION` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ACCOUNT_ID`, `DB_USER`, `DB_PASS` | `RDS_ENDPOINT` |
+| **Azure** | `deploy/azure-setup.sh` | `ACR_NAME`, `RESOURCE_GROUP`, `MYSQL_SERVER` | `AZURE_CREDENTIALS`, `DB_USER`, `DB_PASS` | — |
 
-> **Chicken-and-egg note:** the frontend bakes in `BACKEND_URL` at build time, so the very first
-> deploy is two passes (backend → set variable → frontend). After that, a single run does both.
+**What every workflow does (same for all three):**
+1. Builds + pushes the backend image and deploys it with `SPRING_PROFILES_ACTIVE=prod`,
+   `SPRING_DOCKER_COMPOSE_ENABLED=false`, and `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` (GCP via the
+   Cloud SQL connector; AWS/Azure via a plain JDBC URL to RDS / Azure DB for MySQL).
+2. Reads the live backend URL and **builds the frontend against it** (the SPA bakes its API URL in at
+   build time), then deploys the frontend.
+3. Re-points the backend's **`APP_CORS_ALLOWED_ORIGINS`** (+ `APP_FRONTEND_URL` / `APP_API_URL`) at the
+   live frontend URL — the deployed SPA calls the API cross-origin, and the backend rejects other origins.
+4. On the backend's first boot, **Flyway migrates the empty DB** (V1→V2) and the `DataLoader` seeds the
+   catalog — **no manual SQL step**. Health checks target `/actuator/health/readiness`.
+
+> **Trade-offs to know.** **GCP/Azure** scale to zero (cheapest idle) and the Container Apps/Cloud Run
+> ingress URLs are known up front, so the single pass is clean. **AWS App Runner** is the most
+> CLI-heavy (no `wait` verb → the workflow polls service status; env vars are replaced wholesale on each
+> update) and its setup opens RDS `3306` to the internet for turnkey connectivity — for production,
+> move RDS to a private subnet behind an **App Runner VPC connector**. (Okta/Stripe/email stay optional
+> on every cloud — add their env vars to the backend service to enable them.)

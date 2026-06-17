@@ -105,6 +105,28 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   `application.properties` (graceful shutdown, gzip, HikariCP pool, swallow-size cap) + an
   `application-prod.properties` profile (`SPRING_PROFILES_ACTIVE=prod`: SQL logging off, Swagger off,
   ECS JSON logs, health details hidden). Testcontainers BOM 2.0.5 imported (Boot 4.1's BOM doesn't pin it).
+- ✅ **Cloud deploy hardened (GCP Cloud Run)** — made the GCP path genuinely deployable. **CORS is now
+  centralized + config-driven**: a single `CorsConfigurationSource` bean in `SecurityConfig` (applied by
+  the `.cors()` servlet filter on both chains, so it governs SDR *and* every custom controller) reads
+  `app.cors.allowed-origins` (`APP_CORS_ALLOWED_ORIGINS`, default localhost). This **replaced the 12
+  hardcoded `@CrossOrigin` annotations + the SDR CORS mapping**, which would have rejected (403) the
+  deployed frontend's origin at the MVC layer. Added the **Cloud SQL JDBC Socket Factory**
+  (`mysql-socket-factory-connector-j-8`, runtime, inert unless the JDBC URL names `socketFactory=…`) for
+  IAM-auth'd/mTLS DB access without a public password port, and `server.forward-headers-strategy=framework`
+  (https links behind Cloud Run's TLS termination). `deploy-gcp.yml` is now **single-pass** (deploy backend →
+  read live URL → build/deploy frontend against it → auto-update backend `APP_CORS_ALLOWED_ORIGINS`/links —
+  no chicken-and-egg) with the `prod` profile, memory/scaling flags, and `--add-cloudsql-instances`.
+  `deploy/gcp-setup.sh` is an idempotent one-time provisioner (registry, Cloud SQL, deployer SA + roles,
+  runtime SA `cloudsql.client`). 41 backend tests green incl. the real-MySQL IT. See `docs/DEPLOYMENT.md`.
+- ✅ **AWS + Azure brought to the same standard** — `deploy-aws.yml` (App Runner + RDS + ECR) and
+  `deploy-azure.yml` (Container Apps + Azure DB for MySQL + ACR) are now also **single-pass** (deploy
+  backend → read live URL → build/deploy frontend → re-point backend `APP_CORS_ALLOWED_ORIGINS`/links),
+  with `prod` profile + plain JDBC URLs (no socket factory needed off-GCP) + idempotent
+  `deploy/aws-setup.sh` / `deploy/azure-setup.sh`. **No backend changes** — the centralized CORS +
+  forwarded-headers work cloud-agnostically. Caveats: AWS uses a hyphen-free RDS DB name
+  (`fullstackecommerce` — RDS rejects hyphens in the initial DB), polls App Runner status (no `wait`
+  verb), and its setup opens RDS 3306 (VPC connector recommended for prod); Azure uses `sslMode=REQUIRED`.
+  These cloud workflows/scripts are **not runtime-verified** (need the respective cloud accounts).
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
