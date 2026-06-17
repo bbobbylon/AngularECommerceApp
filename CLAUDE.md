@@ -121,6 +121,7 @@ boots and the catalog/cart/checkout flow works with placeholder config, so they 
 - Frontend E2E (Playwright, hermetic — stubs the API, starts `ng serve` itself): `cd frontend/angular-ecommerce && npx playwright install chromium` (one-time) then `npm run e2e`
 - Frontend dev server: `cd frontend/angular-ecommerce && npm start` (→ http://localhost:4250)
 - One-shot build + launch + open browser (Git Bash): `./run.sh` — Ctrl+C stops both servers
+- Full-stack local deploy (all 3 tiers in containers, prod-shaped — mirrors cloud): `docker compose up --build` (repo-root `compose.yaml`) → http://localhost:4250. See `docs/DEPLOYMENT.md`.
 - Stripe setup (optional, for real card payments): see `docs/STRIPE.md`. Without it, checkout runs in demo mode.
 
 Ports are non-default on purpose: backend **8585**, frontend **4250**, MySQL **3307** (avoids 8080/4200/3306).
