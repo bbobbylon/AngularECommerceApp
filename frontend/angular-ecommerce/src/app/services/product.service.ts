@@ -5,6 +5,7 @@ import { Observable, catchError, forkJoin, map, of, switchMap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Product } from '../common/product';
 import { ProductCategory } from '../common/product-category';
+import { ProductVariant } from '../common/product-variant';
 
 export interface CatalogFilters {
   categoryId?: number;
@@ -82,6 +83,13 @@ export class ProductService {
 
   getProduct(productId: number): Observable<Product> {
     return this.httpClient.get<Product>(`${this.baseUrl}/products/${productId}`);
+  }
+
+  /** Active, purchasable variants for a product (empty for single-SKU products). */
+  getVariants(productId: number): Observable<ProductVariant[]> {
+    return this.httpClient
+      .get<ProductVariant[]>(`${this.baseUrl}/catalog/products/${productId}/variants`)
+      .pipe(catchError(() => of([])));
   }
 
   /** Fetches several products by id (for the wishlist); skips any that fail to load. */

@@ -5,6 +5,7 @@ import com.bob.ecommerceangularapp.dao.CouponRepository;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dao.ProductCategoryRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
+import com.bob.ecommerceangularapp.dao.ProductVariantRepository;
 import com.bob.ecommerceangularapp.dao.ReviewRepository;
 import com.bob.ecommerceangularapp.dao.StateRepository;
 import com.bob.ecommerceangularapp.entity.Country;
@@ -12,6 +13,7 @@ import com.bob.ecommerceangularapp.entity.Coupon;
 import com.bob.ecommerceangularapp.entity.Customer;
 import com.bob.ecommerceangularapp.entity.Product;
 import com.bob.ecommerceangularapp.entity.ProductCategory;
+import com.bob.ecommerceangularapp.entity.ProductVariant;
 import com.bob.ecommerceangularapp.entity.Review;
 import com.bob.ecommerceangularapp.entity.State;
 import org.slf4j.Logger;
@@ -41,6 +43,7 @@ public class DataLoader implements CommandLineRunner {
 
     private final ProductRepository productRepository;
     private final ProductCategoryRepository productCategoryRepository;
+    private final ProductVariantRepository variantRepository;
     private final CountryRepository countryRepository;
     private final StateRepository stateRepository;
     private final CustomerRepository customerRepository;
@@ -50,6 +53,7 @@ public class DataLoader implements CommandLineRunner {
 
     public DataLoader(ProductRepository productRepository,
                       ProductCategoryRepository productCategoryRepository,
+                      ProductVariantRepository variantRepository,
                       CountryRepository countryRepository,
                       StateRepository stateRepository,
                       CustomerRepository customerRepository,
@@ -58,6 +62,7 @@ public class DataLoader implements CommandLineRunner {
                       PlatformTransactionManager transactionManager) {
         this.productRepository = productRepository;
         this.productCategoryRepository = productCategoryRepository;
+        this.variantRepository = variantRepository;
         this.countryRepository = countryRepository;
         this.stateRepository = stateRepository;
         this.customerRepository = customerRepository;
@@ -74,8 +79,80 @@ public class DataLoader implements CommandLineRunner {
         backfillSalePrices();
         backfillGalleryImages();
         backfillStockVariety();
+        seedVariants();
         seedReviews();
         seedCoupons();
+    }
+
+    /**
+     * Seeds SKU-level variants on the categories where they make sense (mugs/mouse-pads get sizes,
+     * luggage gets colours); Books stay single-SKU to demonstrate a mixed catalog. Idempotent + safe
+     * to run on an existing DB (it only seeds when there are products and no variants yet). Defensive.
+     */
+    private void seedVariants() {
+        try {
+            if (productRepository.count() == 0 || variantRepository.count() > 0) {
+                return;
+            }
+            List<ProductVariant> variants = new ArrayList<>();
+            for (Product p : productRepository.findAll()) {
+                String category = p.getCategory() == null ? "" : p.getCategory().getCategoryName();
+                switch (category) {
+                    case "Coffee Mugs" -> {
+                        variants.add(variant(p, "11OZ", null, "11oz", null, 0));
+                        variants.add(variant(p, "15OZ", null, "15oz", plus(p, "2.00"), 1));
+                    }
+                    case "Mouse Pads" -> {
+                        variants.add(variant(p, "M", null, "M", null, 0));
+                        variants.add(variant(p, "L", null, "L", null, 1));
+                        variants.add(variant(p, "XL", null, "XL", plus(p, "4.00"), 2));
+                    }
+                    case "Luggage" -> {
+                        variants.add(variant(p, "BLK", "Black", null, null, 0));
+                        variants.add(variant(p, "NVY", "Navy", null, null, 1));
+                        variants.add(variant(p, "RED", "Red", null, null, 2));
+                    }
+                    default -> { /* Books: single-SKU */ }
+                }
+            }
+            if (!variants.isEmpty()) {
+                variantRepository.saveAll(variants);
+                log.info("Seeded {} product variants.", variants.size());
+            }
+        } catch (Exception e) {
+            log.warn("Skipped variant seeding (non-fatal): {}", e.getMessage());
+        }
+    }
+
+    private ProductVariant variant(Product p, String suffix, String color, String size,
+                                   BigDecimal priceOverride, int idx) {
+        return ProductVariant.builder()
+                .product(p)
+                .sku(p.getSku() + "-" + suffix)
+                .color(color)
+                .size(size)
+                .unitPrice(priceOverride)
+                .unitsInStock(variantStock(p, idx))
+                .sortOrder(idx)
+                .active(true)
+                .build();
+    }
+
+    private BigDecimal plus(Product p, String delta) {
+        return p.getUnitPrice().add(new BigDecimal(delta));
+    }
+
+    /** Deterministic per-variant stock spread: most healthy, some low, the odd out-of-stock. */
+    private int variantStock(Product p, int idx) {
+        long id = p.getId() == null ? 0 : p.getId();
+        int seed = (int) ((id * 7 + idx * 13) % 20);
+        if (seed == 0) {
+            return 0;            // out of stock
+        }
+        if (seed < 4) {
+            return seed;         // low (1–3)
+        }
+        return 8 + seed;         // healthy
     }
 
     private void seedCoupons() {

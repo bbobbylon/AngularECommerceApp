@@ -2,15 +2,19 @@ package com.bob.ecommerceangularapp.controller;
 
 import com.bob.ecommerceangularapp.dto.PageResponse;
 import com.bob.ecommerceangularapp.dto.ProductCardView;
+import com.bob.ecommerceangularapp.dto.ProductVariantView;
 import com.bob.ecommerceangularapp.service.ProductQueryService;
+import com.bob.ecommerceangularapp.service.ProductVariantService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * Faceted catalog search. Separate path from the Spring Data REST /api/products resource so the
@@ -21,9 +25,18 @@ import java.math.BigDecimal;
 public class ProductFilterController {
 
     private final ProductQueryService productQueryService;
+    private final ProductVariantService productVariantService;
 
-    public ProductFilterController(ProductQueryService productQueryService) {
+    public ProductFilterController(ProductQueryService productQueryService,
+                                   ProductVariantService productVariantService) {
         this.productQueryService = productQueryService;
+        this.productVariantService = productVariantService;
+    }
+
+    /** Active, purchasable variants for a product (price/image already resolved). Empty for single-SKU items. */
+    @GetMapping("/products/{id}/variants")
+    public List<ProductVariantView> variants(@PathVariable Long id) {
+        return productVariantService.viewsForProduct(id);
     }
 
     @GetMapping("/search")

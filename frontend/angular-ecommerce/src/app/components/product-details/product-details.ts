@@ -4,7 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { CartItem } from '../../common/cart-item';
-import { Product, discountPercent, galleryImages, isLowStock, isOnSale } from '../../common/product';
+import { Product, LOW_STOCK_THRESHOLD, discountPercent, galleryImages, isLowStock, isOnSale } from '../../common/product';
+import { ProductVariant } from '../../common/product-variant';
 import { CartService } from '../../services/cart.service';
 import { FavoritesService } from '../../services/favorites.service';
 import { ProductService } from '../../services/product.service';
@@ -24,6 +25,10 @@ export class ProductDetails implements OnInit {
   product?: Product;
   quantity = 1;
   relatedProducts: Product[] = [];
+
+  // variants (SKU-level inventory). Empty for single-SKU products.
+  readonly variants = signal<ProductVariant[]>([]);
+  readonly selectedVariant = signal<ProductVariant | null>(null);
 
   /** The large image currently shown in the gallery (defaults to the main image). */
   readonly selectedImage = signal('');
@@ -54,12 +59,53 @@ export class ProductDetails implements OnInit {
     private route: ActivatedRoute,
   ) {}
 
-  addToCart(): void {
-    if (this.product) {
-      this.cartService.addToCart(new CartItem(this.product), this.quantity);
-      this.toast.success(`${this.quantity} × ${this.product.name} added to cart`);
-      this.quantity = 1;
+  /** True when this product is sold by variant (color/size) rather than as a single SKU. */
+  hasVariants(): boolean {
+    return this.variants().length > 0;
+  }
+
+  /** Price for the current selection: the chosen variant's price, else the product's. */
+  effectivePrice(): number {
+    return this.selectedVariant()?.unitPrice ?? this.product?.unitPrice ?? 0;
+  }
+
+  /** Stock for the current selection (the chosen variant's, else the product's). */
+  availableStock(): number {
+    if (this.hasVariants()) {
+      return this.selectedVariant()?.unitsInStock ?? 0;
     }
+    return this.product?.unitsInStock ?? 0;
+  }
+
+  lowStock(): boolean {
+    const s = this.availableStock();
+    return s > 0 && s <= LOW_STOCK_THRESHOLD;
+  }
+
+  selectVariant(variant: ProductVariant): void {
+    if (!variant.inStock) {
+      return;
+    }
+    this.selectedVariant.set(variant);
+    this.quantity = 1;
+    if (variant.imageUrl) {
+      this.selectedImage.set(variant.imageUrl);
+    }
+  }
+
+  addToCart(): void {
+    if (!this.product) {
+      return;
+    }
+    if (this.hasVariants() && !this.selectedVariant()) {
+      this.toast.error('Please choose an option first.');
+      return;
+    }
+    const variant = this.selectedVariant() ?? undefined;
+    this.cartService.addToCart(new CartItem(this.product, variant), this.quantity);
+    const label = variant ? `${this.product.name} (${variant.label})` : this.product.name;
+    this.toast.success(`${this.quantity} × ${label} added to cart`);
+    this.quantity = 1;
   }
 
   addProductToCart(product: Product): void {
@@ -68,7 +114,7 @@ export class ProductDetails implements OnInit {
   }
 
   increaseQuantity(): void {
-    if (this.product && this.quantity < this.product.unitsInStock) {
+    if (this.quantity < this.availableStock()) {
       this.quantity++;
     }
   }
@@ -91,10 +137,23 @@ export class ProductDetails implements OnInit {
     const productId = Number(this.route.snapshot.paramMap.get('id'));
     this.quantity = 1;
     this.selectedImage.set('');
+    this.variants.set([]);
+    this.selectedVariant.set(null);
     this.recentlyViewed.record(productId);
     this.productService.getProduct(productId).subscribe(data => {
       this.product = data;
-      this.selectedImage.set(data.imageUrl);
+      if (!this.selectedVariant()?.imageUrl) {
+        this.selectedImage.set(data.imageUrl);
+      }
+    });
+
+    this.productService.getVariants(productId).subscribe(variants => {
+      this.variants.set(variants);
+      const firstInStock = variants.find(v => v.inStock) ?? null;
+      this.selectedVariant.set(firstInStock);
+      if (firstInStock?.imageUrl) {
+        this.selectedImage.set(firstInStock.imageUrl);
+      }
     });
 
     this.relatedProducts = [];

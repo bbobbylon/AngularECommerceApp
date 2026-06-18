@@ -41,11 +41,11 @@
         }
       }
 
-      @if (product.unitsInStock === 0) {
+      @if (availableStock() === 0) {
         <span class="badge bg-danger-subtle text-danger-emphasis mb-3">Out of stock</span>
-      } @else if (isLowStock(product)) {
+      } @else if (lowStock()) {
         <span class="badge bg-warning-subtle text-warning-emphasis mb-3">
-          <i class="fa-solid fa-fire me-1"></i>Only {{ product.unitsInStock }} left — order soon!
+          <i class="fa-solid fa-fire me-1"></i>Only {{ availableStock() }} left — order soon!
         </span>
       } @else {
         <span class="badge bg-success-subtle text-success-emphasis mb-3">
@@ -54,15 +54,36 @@
       }
 
       <div class="d-flex align-items-baseline flex-wrap gap-2 mb-3">
-        <span class="display-6 fw-bold text-primary">{{ product.unitPrice | currency:'USD' }}</span>
-        @if (isOnSale(product)) {
+        <span class="display-6 fw-bold text-primary">{{ effectivePrice() | currency:'USD' }}</span>
+        @if (isOnSale(product) && !hasVariants()) {
           <span class="fs-4 text-muted text-decoration-line-through">{{ product.originalPrice | currency:'USD' }}</span>
           <span class="badge bg-danger-subtle text-danger-emphasis align-self-center">Save {{ discountPercent(product) }}%</span>
         }
       </div>
       <p class="text-secondary">{{ product.description }}</p>
 
-      @if (product.unitsInStock > 0) {
+      @if (hasVariants()) {
+        <div class="mb-3">
+          <span class="fw-semibold d-block mb-2">
+            Options
+            @if (selectedVariant(); as sv) { <span class="text-muted small ms-1">· {{ sv.label }}</span> }
+          </span>
+          <div class="d-flex flex-wrap gap-2" role="group" aria-label="Product options">
+            @for (v of variants(); track v.id) {
+              <button type="button" class="btn btn-sm"
+                      [class.btn-primary]="selectedVariant()?.id === v.id"
+                      [class.btn-outline-secondary]="selectedVariant()?.id !== v.id"
+                      [disabled]="!v.inStock"
+                      [attr.aria-pressed]="selectedVariant()?.id === v.id"
+                      (click)="selectVariant(v)">
+                {{ v.label }}@if (!v.inStock) { <span class="ms-1 small text-muted">(out)</span> }
+              </button>
+            }
+          </div>
+        </div>
+      }
+
+      @if (availableStock() > 0) {
         <div class="d-flex align-items-center gap-3 mt-4">
           <span class="fw-semibold">Quantity</span>
           <div class="btn-group" role="group" aria-label="Quantity selector">
@@ -72,7 +93,7 @@
             </button>
             <span class="btn btn-outline-secondary disabled text-center" style="min-width: 3.25rem;">{{ quantity }}</span>
             <button type="button" class="btn btn-outline-secondary" (click)="increaseQuantity()"
-                    [disabled]="quantity >= product.unitsInStock" aria-label="Increase quantity">
+                    [disabled]="quantity >= availableStock()" aria-label="Increase quantity">
               <i class="fa-solid fa-plus"></i>
             </button>
           </div>
@@ -81,7 +102,7 @@
 
       <div class="mt-3 d-flex gap-2">
         <button type="button" class="btn btn-primary btn-lg"
-                [disabled]="product.unitsInStock === 0" (click)="addToCart()">
+                [disabled]="availableStock() === 0 || (hasVariants() && !selectedVariant())" (click)="addToCart()">
           <i class="fa-solid fa-cart-plus me-1"></i> Add to cart
         </button>
         <button type="button" class="btn btn-lg"

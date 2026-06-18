@@ -26,7 +26,7 @@
         </tr>
       </thead>
       <tbody>
-        @for (item of cartItems; track item.id) {
+        @for (item of cartItems; track item.id + '::' + (item.variantSku || '')) {
           <tr>
             <td>
               <div class="d-flex align-items-center gap-3">
@@ -64,7 +64,7 @@
 
   <!-- Mobile: one tidy card per item -->
   <div class="d-md-none vstack gap-3 mb-4">
-    @for (item of cartItems; track item.id) {
+    @for (item of cartItems; track item.id + '::' + (item.variantSku || '')) {
       <div class="card cart-mini shadow-sm reveal">
         <div class="card-body d-flex gap-3">
           <img [src]="item.imageUrl" [alt]="item.name" width="64" height="64"

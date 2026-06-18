@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 
-import { CartItem } from '../common/cart-item';
+import { CartItem, cartItemKey } from '../common/cart-item';
 
 @Injectable({ providedIn: 'root' })
 export class CartService {
@@ -22,7 +22,8 @@ export class CartService {
   }
 
   addToCart(theCartItem: CartItem, quantity = 1): void {
-    const existing = this.cartItems.find(item => item.id === theCartItem.id);
+    const key = cartItemKey(theCartItem);
+    const existing = this.cartItems.find(item => cartItemKey(item) === key);
     if (existing) {
       existing.quantity += quantity;
     } else {
@@ -42,7 +43,8 @@ export class CartService {
   }
 
   remove(theCartItem: CartItem): void {
-    this.cartItems = this.cartItems.filter(item => item.id !== theCartItem.id);
+    const key = cartItemKey(theCartItem);
+    this.cartItems = this.cartItems.filter(item => cartItemKey(item) !== key);
     this.computeCartTotals();
   }
 

@@ -36,6 +36,14 @@ public class OrderItem {
     @Column(name = "product_id")
     private Long productId;
 
+    /** SKU of the chosen variant, if the product was bought by variant (null for single-SKU products). */
+    @Column(name = "variant_sku")
+    private String variantSku;
+
+    /** Human label of the chosen variant (e.g. "Black / M") — kept on the line for fulfilment + history. */
+    @Column(name = "variant_label")
+    private String variantLabel;
+
     @ManyToOne
     @JoinColumn(name = "order_id")
     private Order order;

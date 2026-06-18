@@ -29,14 +29,17 @@ public class CheckoutServiceImpl implements CheckoutService {
     private final CustomerRepository customerRepository;
     private final EmailService emailService;
     private final CouponService couponService;
+    private final ProductVariantService productVariantService;
 
     public CheckoutServiceImpl(CustomerRepository customerRepository,
                                EmailService emailService,
                                CouponService couponService,
+                               ProductVariantService productVariantService,
                                @Value("${stripe.key.secret}") String secretKey) {
         this.customerRepository = customerRepository;
         this.emailService = emailService;
         this.couponService = couponService;
+        this.productVariantService = productVariantService;
         // Stripe is keyed globally via a static field.
         Stripe.apiKey = secretKey;
     }
@@ -53,6 +56,9 @@ public class CheckoutServiceImpl implements CheckoutService {
         // populate order with its items (maintains the bidirectional link)
         Set<OrderItem> orderItems = purchase.getOrderItems();
         orderItems.forEach(order::add);
+
+        // Draw down SKU-level inventory for any lines bought by variant (no-op for single-SKU items).
+        productVariantService.decrementForOrderItems(orderItems);
 
         // populate order with its addresses
         order.setShippingAddress(purchase.getShippingAddress());

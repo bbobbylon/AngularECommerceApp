@@ -1,9 +1,11 @@
 package com.bob.ecommerceangularapp.controller;
 
 import com.bob.ecommerceangularapp.dto.AdminProductRequest;
+import com.bob.ecommerceangularapp.dto.AdminVariantRequest;
 import com.bob.ecommerceangularapp.dto.PageResponse;
 import com.bob.ecommerceangularapp.entity.Product;
 import com.bob.ecommerceangularapp.service.AdminService;
+import com.bob.ecommerceangularapp.service.ProductVariantService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -19,15 +21,19 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /** Admin product CRUD. Custom endpoints because Spring Data REST writes are disabled on Product. */
 @RestController
 @RequestMapping("/api/admin/products")
 public class AdminProductController {
 
     private final AdminService adminService;
+    private final ProductVariantService variantService;
 
-    public AdminProductController(AdminService adminService) {
+    public AdminProductController(AdminService adminService, ProductVariantService variantService) {
         this.adminService = adminService;
+        this.variantService = variantService;
     }
 
     @GetMapping
@@ -55,5 +61,19 @@ public class AdminProductController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         adminService.deleteProduct(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // ----- variants (SKU-level inventory) -----
+
+    @GetMapping("/{id}/variants")
+    public List<AdminVariantRequest> listVariants(@PathVariable Long id) {
+        return variantService.adminListForProduct(id);
+    }
+
+    /** Replaces the product's full variant set (upsert by id, delete omitted). */
+    @PutMapping("/{id}/variants")
+    public List<AdminVariantRequest> replaceVariants(@PathVariable Long id,
+                                                     @RequestBody List<@Valid AdminVariantRequest> variants) {
+        return variantService.replaceVariants(id, variants);
     }
 }

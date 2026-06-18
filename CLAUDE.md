@@ -60,6 +60,19 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
     of stock" badges on cards + details. `DataLoader.stockFor()` + `backfillStockVariety()` seed a realistic
     spread (most healthy, some 1–4, the odd 0).
   - "You might also like" related products already existed (`ProductService.getRelatedProducts`).
+- ✅ **Product variants + SKU-level inventory** — `ProductVariant` entity (own SKU, optional color/size,
+  price override, per-variant stock, side `product_variant` table — never ALTERs `product`; FK + LAZY
+  `@ManyToOne`). `V3__add_product_variants.sql` creates it + adds nullable `variant_sku`/`variant_label`
+  to `order_item` (safe ALTER); **validated on real MySQL by the Testcontainers IT** (Flyway V1→V2→V3,
+  `ddl-auto=validate` green). Repo is `@RepositoryRestResource(exported=false)` (not an SDR surface).
+  `ProductVariantService` owns reads (public `GET /api/catalog/products/{id}/variants` — price/image
+  resolved), admin upsert (`GET`/`PUT /api/admin/products/{id}/variants`, replace-by-list) and the
+  **checkout stock decrement** (`CheckoutServiceImpl` draws down variant stock per order line; clamped;
+  legacy product-level stock stays a display figure). Frontend: variant chips on product-details (price/
+  stock/image reflect selection; add-to-cart requires a choice), cart lines keyed by `id+variantSku`
+  (`cartItemKey`), `OrderItem` carries the variant, admin product form has a variant editor (FormArray).
+  `DataLoader.seedVariants()` seeds mugs/pads (sizes) + luggage (colours); Books stay single-SKU.
+  Tests: `ProductVariantServiceTest` (price resolution + decrement clamp). 48 backend + 17 frontend green.
 - ✅ **Observability & ops** — `spring-boot-starter-actuator` + `micrometer-registry-prometheus`:
   health (+ liveness/readiness **probes**), `/actuator/info` (build version/time via the `build-info`
   goal), metrics, `/actuator/prometheus`. `RequestIdFilter` adds an `X-Request-Id` correlation id

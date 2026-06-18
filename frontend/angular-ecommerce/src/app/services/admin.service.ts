@@ -56,6 +56,19 @@ export interface AdminProduct extends Product {
   category?: { id: number; categoryName: string };
 }
 
+/** Variant create/update shape — mirrors the backend AdminVariantRequest (id null for new ones). */
+export interface AdminVariant {
+  id?: number | null;
+  sku: string;
+  color?: string | null;
+  size?: string | null;
+  unitPrice?: number | null;
+  unitsInStock: number;
+  imageUrl?: string | null;
+  sortOrder: number;
+  active: boolean;
+}
+
 export interface AdminProductPayload {
   sku: string;
   name: string;
@@ -103,6 +116,17 @@ export class AdminService {
 
   deleteProduct(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/products/${id}`);
+  }
+
+  // ----- variants (SKU-level inventory) -----
+
+  getVariants(productId: number): Observable<AdminVariant[]> {
+    return this.http.get<AdminVariant[]>(`${this.baseUrl}/products/${productId}/variants`);
+  }
+
+  /** Replaces a product's full variant set (upsert by id, delete omitted). */
+  replaceVariants(productId: number, variants: AdminVariant[]): Observable<AdminVariant[]> {
+    return this.http.put<AdminVariant[]>(`${this.baseUrl}/products/${productId}/variants`, variants);
   }
 
   getOrders(page: number, size: number): Observable<PageResponse<AdminOrderView>> {
