@@ -31,7 +31,7 @@
             </div>
             <div class="col-12">
               <label class="form-label">Email</label>
-              <input type="email" class="form-control" formControlName="email" />
+              <input type="email" class="form-control" formControlName="email" (blur)="captureAbandonedCart()" />
               @if (email?.invalid && (email?.dirty || email?.touched)) {
                 <div class="text-danger small">A valid email is required.</div>
               }

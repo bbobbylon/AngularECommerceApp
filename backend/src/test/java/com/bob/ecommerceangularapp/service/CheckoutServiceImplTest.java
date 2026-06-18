@@ -34,8 +34,10 @@ class CheckoutServiceImplTest {
     private final GiftCardService giftCardService = mock(GiftCardService.class);
     private final LoyaltyService loyaltyService = mock(LoyaltyService.class);
     private final ReferralService referralService = mock(ReferralService.class);
+    private final AbandonedCartService abandonedCartService = mock(AbandonedCartService.class);
     private final CheckoutServiceImpl service = new CheckoutServiceImpl(customerRepository, emailService,
-            taxShippingService, productVariantService, giftCardService, loyaltyService, referralService, "");
+            taxShippingService, productVariantService, giftCardService, loyaltyService, referralService,
+            abandonedCartService, "");
 
     @BeforeEach
     void stubSave() {

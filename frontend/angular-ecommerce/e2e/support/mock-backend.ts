@@ -98,6 +98,9 @@ export async function mockBackend(page: Page): Promise<void> {
     }));
   });
 
+  // Abandoned-cart snapshot (captured on email blur) — accept and ignore.
+  await page.route(/\/api\/abandoned-cart/, route => route.fulfill({ status: 202, body: '' }));
+
   // Place order — demo mode (no Stripe key) posts straight here.
   await page.route(/\/api\/checkout\/purchase/, route =>
     route.fulfill(json({ orderTrackingNumber: TRACKING_NUMBER })),

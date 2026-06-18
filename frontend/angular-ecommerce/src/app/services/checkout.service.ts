@@ -35,6 +35,11 @@ export class CheckoutService {
     return this.httpClient.post<QuoteResponse>(this.quoteUrl, request);
   }
 
+  /** Snapshot the cart by email at checkout so it can be recovered if the order isn't completed. */
+  captureAbandonedCart(request: { email: string; itemCount: number; total: number; summary: string }): Observable<void> {
+    return this.httpClient.post<void>(`${environment.apiUrl}/abandoned-cart`, request);
+  }
+
   /** Check a gift card's available balance before applying it. */
   checkGiftCard(code: string): Observable<GiftCardCheck> {
     return this.httpClient.get<GiftCardCheck>(`${this.giftCardUrl}`, {

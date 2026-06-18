@@ -139,6 +139,15 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   "Email me when it's back" form whenever the selected product/variant is out of stock
   (`ProductService.notifyWhenInStock`). Tests: `StockNotificationServiceTest` (subscribe dedup, notify +
   mark, OOS no-op).
+- ✅ **Abandoned-cart recovery** — `AbandonedCart` entity (email + item count/total/summary,
+  `recovered`/`reminded` flags); `V10` creates the table (IT-validated). Checkout POSTs a cart snapshot
+  on email blur (`POST /api/abandoned-cart`, upsert-by-email, resets the reminder on each change);
+  `AbandonedCartScheduler` (`@Scheduled`, cron `app.abandoned-cart.cron`, default every 15 min) calls
+  `AbandonedCartService.remindStale()` → emails carts idle past `app.abandoned-cart.after-minutes`
+  (default 60) via the **gated** `EmailService.sendAbandonedCart` (new `EmailTemplates.abandonedCart`),
+  marking them reminded. Placing an order calls `markRecovered(email)` so no reminder fires. Tests:
+  `AbandonedCartServiceTest` (capture upsert, skip empty, mark recovered, remind + flag). E2E mock stubs
+  the new endpoint.
 - ✅ **Observability & ops** — `spring-boot-starter-actuator` + `micrometer-registry-prometheus`:
   health (+ liveness/readiness **probes**), `/actuator/info` (build version/time via the `build-info`
   goal), metrics, `/actuator/prometheus`. `RequestIdFilter` adds an `X-Request-Id` correlation id

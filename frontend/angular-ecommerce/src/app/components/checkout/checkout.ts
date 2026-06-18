@@ -174,6 +174,19 @@ export class Checkout implements OnInit, AfterViewInit {
     this.recomputeQuote();
   }
 
+  /** Snapshot the cart (by email) so it can be recovered if checkout isn't completed. */
+  captureAbandonedCart(): void {
+    const email = (this.email?.value ?? '').trim();
+    if (!email || !email.includes('@') || this.totalQuantity === 0) {
+      return;
+    }
+    const summary = this.cartService.cartItems
+      .map(i => `${i.quantity}× ${i.name}`).join(', ').slice(0, 900);
+    this.checkoutService.captureAbandonedCart({
+      email, itemCount: this.totalQuantity, total: this.totalPrice, summary,
+    }).subscribe({ next: () => { /* best-effort */ }, error: () => { /* best-effort */ } });
+  }
+
   async ngAfterViewInit(): Promise<void> {
     if (!this.stripeConfigured) {
       return; // demo mode: no card element to mount

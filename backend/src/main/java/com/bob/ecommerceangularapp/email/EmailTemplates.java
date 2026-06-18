@@ -100,6 +100,20 @@ public final class EmailTemplates {
         return layout("The item you wanted is back in stock.", content, null);
     }
 
+    /** Nudge to come back and finish a cart that was left at checkout. */
+    public static String abandonedCart(int itemCount, String total, String cartUrl) {
+        String items = itemCount == 1 ? "1 item" : itemCount + " items";
+        String content = """
+                <h1 style="font-size:26px;margin:0 0 12px;">You left something behind &#128722;</h1>
+                <p style="font-size:16px;line-height:1.6;color:#515a73;margin:0 0 18px;">
+                  Your cart still has <strong>%s</strong> (%s) waiting. We saved it for you — pick up right
+                  where you left off before it's gone.
+                </p>
+                <p style="margin:0 0 8px;">%s</p>
+                """.formatted(items, esc(total), button(cartUrl, "Return to my cart"));
+        return layout("Your cart is waiting for you.", content, null);
+    }
+
     /** Confirmation that account/email preferences were updated. */
     public static String settingsUpdated(String name, boolean subscribed, String accountUrl) {
         String status = subscribed

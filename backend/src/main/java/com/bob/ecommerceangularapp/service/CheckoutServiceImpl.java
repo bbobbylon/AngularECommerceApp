@@ -35,6 +35,7 @@ public class CheckoutServiceImpl implements CheckoutService {
     private final GiftCardService giftCardService;
     private final LoyaltyService loyaltyService;
     private final ReferralService referralService;
+    private final AbandonedCartService abandonedCartService;
 
     public CheckoutServiceImpl(CustomerRepository customerRepository,
                                EmailService emailService,
@@ -43,6 +44,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                                GiftCardService giftCardService,
                                LoyaltyService loyaltyService,
                                ReferralService referralService,
+                               AbandonedCartService abandonedCartService,
                                @Value("${stripe.key.secret}") String secretKey) {
         this.customerRepository = customerRepository;
         this.emailService = emailService;
@@ -51,6 +53,7 @@ public class CheckoutServiceImpl implements CheckoutService {
         this.giftCardService = giftCardService;
         this.loyaltyService = loyaltyService;
         this.referralService = referralService;
+        this.abandonedCartService = abandonedCartService;
         // Stripe is keyed globally via a static field.
         Stripe.apiKey = secretKey;
     }
@@ -137,6 +140,9 @@ public class CheckoutServiceImpl implements CheckoutService {
         if (saved.getOrders().size() == 1) {
             referralService.recordReferral(saved, purchase.getReferralCode(), order.getId());
         }
+
+        // The order completed — clear any abandoned-cart reminder queued for this email.
+        abandonedCartService.markRecovered(saved.getEmail());
 
         // Email is gated inside EmailService — these are safe no-ops when SMTP isn't configured.
         emailService.sendOrderConfirmation(saved.getEmail(), saved.getFirstName(),
