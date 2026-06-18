@@ -148,6 +148,16 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   marking them reminded. Placing an order calls `markRecovered(email)` so no reminder fires. Tests:
   `AbandonedCartServiceTest` (capture upsert, skip empty, mark recovered, remind + flag). E2E mock stubs
   the new endpoint.
+- ✅ **Address book + saved payment methods** — `SavedAddress` + `SavedPaymentMethod` entities (email-keyed;
+  cards store **only** Stripe references + brand/last4/expiry, never raw card data — PCI); `V11` creates
+  both tables (IT-validated). `AddressBookService` (CRUD, exactly-one-default, ownership-checked deletes)
+  and `PaymentMethodService` (Stripe **SetupIntent** to add a card + record-from-PaymentMethod + list +
+  remove-with-detach) — both **gated/graceful** without Stripe. Endpoints under the (Okta-)gated
+  `/api/account/addresses` + `/api/account/payment-methods`. Account page gains **Address book** (full
+  CRUD) + **Saved cards** (list/remove + Stripe-Elements "Add a card", disabled w/o Stripe) cards;
+  checkout shows a **"Use a saved address"** picker (autofills shipping, matching country/state objects)
+  loaded on email blur. Tests: `AddressBookServiceTest` (one-default, owner-only delete),
+  `PaymentMethodServiceTest` (graceful no-Stripe). E2E mock stubs `/account/addresses`.
 - ✅ **Observability & ops** — `spring-boot-starter-actuator` + `micrometer-registry-prometheus`:
   health (+ liveness/readiness **probes**), `/actuator/info` (build version/time via the `build-info`
   goal), metrics, `/actuator/prometheus`. `RequestIdFilter` adds an `X-Request-Id` correlation id

@@ -31,7 +31,7 @@
             </div>
             <div class="col-12">
               <label class="form-label">Email</label>
-              <input type="email" class="form-control" formControlName="email" (blur)="captureAbandonedCart()" />
+              <input type="email" class="form-control" formControlName="email" (blur)="onEmailBlur()" />
               @if (email?.invalid && (email?.dirty || email?.touched)) {
                 <div class="text-danger small">A valid email is required.</div>
               }
@@ -54,6 +54,19 @@
       <div class="card mb-4">
         <div class="card-header fw-semibold"><i class="fa-solid fa-truck-fast me-2 text-primary"></i>Shipping Address</div>
         <div class="card-body" formGroupName="shippingAddress">
+          @if (savedAddresses.length) {
+            <div class="mb-3">
+              <label class="form-label small text-muted">Use a saved address</label>
+              <div class="d-flex flex-wrap gap-2">
+                @for (a of savedAddresses; track a.id) {
+                  <button type="button" class="btn btn-sm btn-outline-secondary" (click)="applySavedAddress(a)">
+                    <i class="fa-solid fa-location-dot me-1"></i>{{ a.label || a.city }}
+                    @if (a.defaultAddress) { <span class="badge bg-primary-subtle text-primary-emphasis ms-1">Default</span> }
+                  </button>
+                }
+              </div>
+            </div>
+          }
           <div class="row g-3">
             <div class="col-12">
               <label class="form-label">Street</label>

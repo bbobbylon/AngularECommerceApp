@@ -12,6 +12,7 @@ import { OrderItem } from '../../common/order-item';
 import { PaymentInfo } from '../../common/payment-info';
 import { Purchase } from '../../common/purchase';
 import { State } from '../../common/state';
+import { AccountService, SavedAddress } from '../../services/account.service';
 import { CartService } from '../../services/cart.service';
 import { CheckoutService, ShippingMethodView } from '../../services/checkout.service';
 import { LoyaltyService } from '../../services/loyalty.service';
@@ -58,6 +59,10 @@ export class Checkout implements OnInit, AfterViewInit {
   // loyalty / rewards points (store credit; 1 point = $0.01)
   private loyalty = inject(LoyaltyService);
   private referral = inject(ReferralService);
+
+  // saved addresses (loaded once the customer enters their email)
+  private accountService = inject(AccountService);
+  savedAddresses: SavedAddress[] = [];
   useLoyalty = false;
   loyaltyBalance = 0;
   loyaltyTier = '';
@@ -172,6 +177,33 @@ export class Checkout implements OnInit, AfterViewInit {
   selectShipping(code: string): void {
     this.selectedShippingCode = code;
     this.recomputeQuote();
+  }
+
+  /** On email blur: snapshot the cart for recovery + load any saved addresses for that email. */
+  onEmailBlur(): void {
+    this.captureAbandonedCart();
+    const email = (this.email?.value ?? '').trim();
+    if (email.includes('@')) {
+      this.accountService.getAddresses(email).subscribe({
+        next: list => (this.savedAddresses = list),
+        error: () => (this.savedAddresses = []),
+      });
+    }
+  }
+
+  /** Autofills the shipping form from a saved address (matching country/state objects). */
+  applySavedAddress(addr: SavedAddress): void {
+    const group = this.checkoutFormGroup.get('shippingAddress');
+    group?.patchValue({ street: addr.street, city: addr.city, zipCode: addr.zipCode });
+    const country = this.countries.find(c => c.name === addr.country);
+    if (country) {
+      group?.get('country')?.setValue(country);
+      this.formService.getStates(country.code).subscribe(states => {
+        this.shippingAddressStates = states;
+        group?.get('state')?.setValue(states.find(s => s.name === addr.state) ?? '');
+        this.recomputeQuote();
+      });
+    }
   }
 
   /** Snapshot the cart (by email) so it can be recovered if checkout isn't completed. */

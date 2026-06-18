@@ -72,6 +72,83 @@
         </div>
       </div>
     }
+
+    @if (prefs()) {
+      <!-- Address book -->
+      <div class="card mt-4">
+        <div class="card-body">
+          <h5 class="mb-3"><i class="fa-solid fa-location-dot me-2 text-primary"></i>Address book</h5>
+          @if (addresses().length) {
+            <div class="vstack gap-2 mb-3">
+              @for (a of addresses(); track a.id) {
+                <div class="border rounded p-2 d-flex justify-content-between align-items-start gap-2">
+                  <div class="small">
+                    @if (a.defaultAddress) { <span class="badge bg-primary-subtle text-primary-emphasis mb-1">Default</span> }
+                    <div class="fw-semibold">{{ a.label || a.recipientName || 'Address' }}</div>
+                    <div class="text-muted">{{ a.street }}, {{ a.city }}, {{ a.state }} {{ a.zipCode }}, {{ a.country }}</div>
+                  </div>
+                  <div class="text-nowrap">
+                    <button class="btn btn-sm btn-outline-secondary me-1" (click)="editAddress(a)" aria-label="Edit"><i class="fa-solid fa-pen"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" (click)="deleteAddress(a)" aria-label="Delete"><i class="fa-solid fa-trash"></i></button>
+                  </div>
+                </div>
+              }
+            </div>
+          } @else {
+            <p class="text-muted small">No saved addresses yet.</p>
+          }
+          <h6 class="fw-bold">{{ editingAddress() ? 'Edit address' : 'Add an address' }}</h6>
+          <div class="row g-2">
+            <div class="col-md-6"><input class="form-control form-control-sm" placeholder="Label (Home/Work)" [(ngModel)]="addressForm.label" name="aLabel" /></div>
+            <div class="col-md-6"><input class="form-control form-control-sm" placeholder="Recipient name" [(ngModel)]="addressForm.recipientName" name="aRecipient" /></div>
+            <div class="col-12"><input class="form-control form-control-sm" placeholder="Street" [(ngModel)]="addressForm.street" name="aStreet" /></div>
+            <div class="col-md-6"><input class="form-control form-control-sm" placeholder="City" [(ngModel)]="addressForm.city" name="aCity" /></div>
+            <div class="col-md-3"><input class="form-control form-control-sm" placeholder="State" [(ngModel)]="addressForm.state" name="aState" /></div>
+            <div class="col-md-3"><input class="form-control form-control-sm" placeholder="Zip" [(ngModel)]="addressForm.zipCode" name="aZip" /></div>
+            <div class="col-md-6"><input class="form-control form-control-sm" placeholder="Country" [(ngModel)]="addressForm.country" name="aCountry" /></div>
+            <div class="col-md-6 d-flex align-items-center gap-3">
+              <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="aDefault" [(ngModel)]="addressForm.defaultAddress" name="aDefault" />
+                <label class="form-check-label small" for="aDefault">Default</label>
+              </div>
+              <button class="btn btn-primary btn-sm ms-auto" (click)="saveAddress()" [disabled]="savingAddress()">{{ editingAddress() ? 'Save' : 'Add' }}</button>
+              @if (editingAddress()) { <button class="btn btn-outline-secondary btn-sm" (click)="cancelAddress()">Cancel</button> }
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Saved cards -->
+      <div class="card mt-4">
+        <div class="card-body">
+          <h5 class="mb-3"><i class="fa-solid fa-credit-card me-2 text-primary"></i>Saved cards</h5>
+          @if (cards().length) {
+            <div class="vstack gap-2 mb-3">
+              @for (c of cards(); track c.id) {
+                <div class="border rounded p-2 d-flex justify-content-between align-items-center">
+                  <span>
+                    <i class="fa-solid fa-credit-card me-2 text-muted"></i>{{ (c.brand || 'Card') | titlecase }} •••• {{ c.last4 }}
+                    @if (c.expMonth) { <span class="text-muted small">exp {{ c.expMonth }}/{{ c.expYear }}</span> }
+                  </span>
+                  <button class="btn btn-sm btn-outline-danger" (click)="removeCard(c)">Remove</button>
+                </div>
+              }
+            </div>
+          } @else {
+            <p class="text-muted small">No saved cards.</p>
+          }
+          @if (cardSetupOpen()) {
+            <label class="form-label small">Card details</label>
+            <div id="card-setup-element" class="form-control mb-2" style="padding: 12px;"></div>
+            @if (cardSetupError) { <div class="text-danger small mb-2">{{ cardSetupError }}</div> }
+            <button class="btn btn-primary btn-sm me-2" (click)="saveCard()" [disabled]="savingCard()">Save card</button>
+            <button class="btn btn-outline-secondary btn-sm" (click)="cancelAddCard()">Cancel</button>
+          } @else {
+            <button class="btn btn-outline-primary btn-sm" (click)="startAddCard()"><i class="fa-solid fa-plus me-1"></i> Add a card</button>
+          }
+        </div>
+      </div>
+    }
   </div>
 
   <div class="col-12 col-lg-4">
