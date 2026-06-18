@@ -118,6 +118,17 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   no chicken-and-egg) with the `prod` profile, memory/scaling flags, and `--add-cloudsql-instances`.
   `deploy/gcp-setup.sh` is an idempotent one-time provisioner (registry, Cloud SQL, deployer SA + roles,
   runtime SA `cloudsql.client`). 41 backend tests green incl. the real-MySQL IT. See `docs/DEPLOYMENT.md`.
+- ✅ **GCP deploy is plug & play (config-file driven)** — all GCP settings live in one committed file,
+  `deploy/gcp.env` (`GCP_PROJECT`/region/repo/instance/tier/DB/service-names/sizing), read by **both**
+  `gcp-setup.sh` (sources it; inline env vars still override) **and** `deploy-gcp.yml` (a "Load deploy
+  config" step greps the `KEY=value` lines into `$GITHUB_ENV`, so the YAML has **no `<-- EDIT`
+  placeholders** — every step uses `$GCP_PROJECT` etc.). Set `GCP_PROJECT` once = done. Secrets shrank
+  to **two** (`GCP_SA_KEY`, `DB_PASS`; `DB_USER` moved into `gcp.env` as non-secret), and the setup
+  script **auto-pushes them via the `gh` CLI** (`gh secret set`, then deletes `key.json`) when `gh` is
+  authenticated, else prints them to paste (honors `GH_REPO=owner/repo`). `gcp.env` is committed by
+  design (project id isn't secret); gitignore it + use repo Variables if you'd rather not. AWS/Azure
+  still use their workflow `env:` block. Verified: both config-load paths parse `gcp.env` correctly and
+  inline overrides win.
 - ✅ **AWS + Azure brought to the same standard** — `deploy-aws.yml` (App Runner + RDS + ECR) and
   `deploy-azure.yml` (Container Apps + Azure DB for MySQL + ACR) are now also **single-pass** (deploy
   backend → read live URL → build/deploy frontend → re-point backend `APP_CORS_ALLOWED_ORIGINS`/links),
@@ -127,6 +138,18 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   (`fullstackecommerce` — RDS rejects hyphens in the initial DB), polls App Runner status (no `wait`
   verb), and its setup opens RDS 3306 (VPC connector recommended for prod); Azure uses `sslMode=REQUIRED`.
   These cloud workflows/scripts are **not runtime-verified** (need the respective cloud accounts).
+- ✅ **AWS + Azure are plug & play too (config-file driven)** — same pattern as GCP: all settings live
+  in one committed file (`deploy/aws.env` / `deploy/azure.env`), read by **both** the setup script
+  (sources it) **and** the workflow (a "Load deploy config" step greps `KEY=value` → `$GITHUB_ENV`), so
+  **no `<-- EDIT` `env:` blocks** remain in any workflow. Setup scripts **auto-push the secrets via the
+  `gh` CLI** (fallback: print; honors `GH_REPO=owner/repo`); `DB_USER` moved into the config as
+  non-secret. **AWS is now repo-variable-free**: the workflow discovers the **account id** (`aws sts
+  get-caller-identity`) and **RDS endpoint** (`describe-db-instances` on `DB_INSTANCE`) at runtime, so
+  `AWS_ACCOUNT_ID` + the `RDS_ENDPOINT` var are gone (secrets: just the 2 access keys + `DB_PASS`).
+  Azure: set `ACR_NAME` + `MYSQL_SERVER` (globally-unique) in `azure.env` — the old `$RANDOM` name
+  generation is gone, and both the setup script and the workflow fast-fail on the unedited
+  `your-unique-*` placeholders. Still **not runtime-verified** (need the cloud accounts). All three
+  config files are committed by design (no secrets in them); gitignore + repo Variables if preferred.
 - ✅ **Security hardening pass + sessions/tokens model** — the app is **stateless** server-side:
   `SessionCreationPolicy.STATELESS` on both chains (no `HttpSession`/`JSESSIONID`/app cookie); the
   "session" is the Okta token set in the browser (okta-auth-js, Authorization Code + PKCE). Secured

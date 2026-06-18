@@ -3,11 +3,11 @@
 #  Local `./run.sh` / `docker compose up` stay the primary dev paths — this is opt-in
 #  (workflow_dispatch).
 #
-#  ONE-TIME SETUP: run `deploy/azure-setup.sh` (creates the resource group, ACR, the Container Apps
-#  environment + the two apps, and an Azure Database for MySQL flexible server + database + admin).
-#  Then add the GitHub secrets it prints:
-#    Secrets:   AZURE_CREDENTIALS (service-principal JSON), DB_USER, DB_PASS
-#  Finally edit the `env:` block below.
+#  PLUG & PLAY: all config is read from `deploy/azure.env` (the one file you edit) — nothing to
+#  change in this YAML. ONE-TIME SETUP: set ACR_NAME + MYSQL_SERVER (globally-unique) in
+#  deploy/azure.env, then run `bash deploy/azure-setup.sh` (provisions the RG / ACR / MySQL /
+#  Container Apps env + apps and, if `gh` is authenticated, pushes the two secrets below).
+#    Secrets needed:  AZURE_CREDENTIALS (service-principal JSON), DB_PASS
 #
 #  SINGLE-PASS (no chicken-and-egg): deploys the backend, reads its ingress FQDN, builds the frontend
 #  against it, deploys it, then points the backend's CORS allowlist + email links at the live frontend.
@@ -18,75 +18,79 @@ name: Deploy · Azure (Container Apps)
 on:
   workflow_dispatch:
 
-env:
-  ACR_NAME: youracr                     # <-- EDIT (without .azurecr.io)
-  RESOURCE_GROUP: luv2shop-rg           # <-- EDIT
-  MYSQL_SERVER: luv2shop-db             # <-- EDIT (MySQL flexible-server name, no domain)
-  DB_NAME: full-stack-ecommerce
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Single source of truth: load deploy/azure.env into the job environment.
+      - name: Load deploy config (deploy/azure.env)
+        run: |
+          grep -E '^[A-Z_]+=' deploy/azure.env | sed 's/\r$//' >> "$GITHUB_ENV"
+          if grep -qE '^(ACR_NAME|MYSQL_SERVER)=your-unique-' deploy/azure.env; then
+            echo "::error::Set ACR_NAME and MYSQL_SERVER to globally-unique names in deploy/azure.env."; exit 1
+          fi
+          echo "Loaded deploy/azure.env"
+
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Build & push backend image
         run: |
-          az acr login --name ${{ env.ACR_NAME }}
-          REG="${{ env.ACR_NAME }}.azurecr.io"
-          docker build -t "$REG/luv2shop-backend:${{ github.sha }}" ./backend
-          docker push "$REG/luv2shop-backend:${{ github.sha }}"
+          az acr login --name "$ACR_NAME"
+          REG="$ACR_NAME.azurecr.io"
+          docker build -t "$REG/$BACKEND_SERVICE:${{ github.sha }}" ./backend
+          docker push "$REG/$BACKEND_SERVICE:${{ github.sha }}"
 
       # Azure DB for MySQL flexible server enforces TLS; sslMode=REQUIRED encrypts using the JVM's
       # default trust store (no custom cert needed). The empty DB is migrated by Flyway on first boot.
       - name: Deploy backend (prod profile + Azure MySQL)
         run: |
-          REG="${{ env.ACR_NAME }}.azurecr.io"
-          DB_URL="jdbc:mysql://${{ env.MYSQL_SERVER }}.mysql.database.azure.com:3306/${{ env.DB_NAME }}?sslMode=REQUIRED"
-          az containerapp update -n luv2shop-backend -g ${{ env.RESOURCE_GROUP }} \
-            --image "$REG/luv2shop-backend:${{ github.sha }}" \
+          REG="$ACR_NAME.azurecr.io"
+          DB_URL="jdbc:mysql://$MYSQL_SERVER.mysql.database.azure.com:3306/$DB_NAME?sslMode=REQUIRED"
+          az containerapp update -n "$BACKEND_SERVICE" -g "$RESOURCE_GROUP" \
+            --image "$REG/$BACKEND_SERVICE:${{ github.sha }}" \
             --set-env-vars \
               "SPRING_PROFILES_ACTIVE=prod" \
               "SPRING_DOCKER_COMPOSE_ENABLED=false" \
               "SPRING_DATASOURCE_URL=$DB_URL" \
-              "SPRING_DATASOURCE_USERNAME=${{ secrets.DB_USER }}" \
+              "SPRING_DATASOURCE_USERNAME=$DB_USER" \
               "SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASS }}"
 
       - name: Capture backend URL
         id: be
         run: |
-          FQDN=$(az containerapp show -n luv2shop-backend -g ${{ env.RESOURCE_GROUP }} \
+          FQDN=$(az containerapp show -n "$BACKEND_SERVICE" -g "$RESOURCE_GROUP" \
             --query properties.configuration.ingress.fqdn -o tsv)
           echo "url=https://$FQDN" >> "$GITHUB_OUTPUT"
           echo "Backend deployed at https://$FQDN"
 
       - name: Build & push frontend image (API baked to the live backend)
         run: |
-          REG="${{ env.ACR_NAME }}.azurecr.io"
+          REG="$ACR_NAME.azurecr.io"
           docker build --build-arg API_URL="${{ steps.be.outputs.url }}/api" \
-            -t "$REG/luv2shop-frontend:${{ github.sha }}" ./frontend/angular-ecommerce
-          docker push "$REG/luv2shop-frontend:${{ github.sha }}"
+            -t "$REG/$FRONTEND_SERVICE:${{ github.sha }}" ./frontend/angular-ecommerce
+          docker push "$REG/$FRONTEND_SERVICE:${{ github.sha }}"
 
       - name: Deploy frontend
         run: |
-          REG="${{ env.ACR_NAME }}.azurecr.io"
-          az containerapp update -n luv2shop-frontend -g ${{ env.RESOURCE_GROUP }} \
-            --image "$REG/luv2shop-frontend:${{ github.sha }}"
+          REG="$ACR_NAME.azurecr.io"
+          az containerapp update -n "$FRONTEND_SERVICE" -g "$RESOURCE_GROUP" \
+            --image "$REG/$FRONTEND_SERVICE:${{ github.sha }}"
 
       - name: Capture frontend URL
         id: fe
         run: |
-          FQDN=$(az containerapp show -n luv2shop-frontend -g ${{ env.RESOURCE_GROUP }} \
+          FQDN=$(az containerapp show -n "$FRONTEND_SERVICE" -g "$RESOURCE_GROUP" \
             --query properties.configuration.ingress.fqdn -o tsv)
           echo "url=https://$FQDN" >> "$GITHUB_OUTPUT"
           echo "Frontend deployed at https://$FQDN"
 
       - name: Point backend CORS + email links at the live frontend
         run: |
-          az containerapp update -n luv2shop-backend -g ${{ env.RESOURCE_GROUP }} \
+          az containerapp update -n "$BACKEND_SERVICE" -g "$RESOURCE_GROUP" \
             --set-env-vars \
               "APP_CORS_ALLOWED_ORIGINS=${{ steps.fe.outputs.url }}" \
               "APP_FRONTEND_URL=${{ steps.fe.outputs.url }}" \

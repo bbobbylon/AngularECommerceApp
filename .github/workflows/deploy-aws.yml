@@ -3,12 +3,12 @@
 #  Local `./run.sh` / `docker compose up` stay the primary dev paths — this is opt-in
 #  (workflow_dispatch).
 #
-#  ONE-TIME SETUP: run `deploy/aws-setup.sh` (creates the ECR repos, the RDS MySQL instance +
-#  database, the App Runner ECR-access role, and a deployer IAM user). Then add the GitHub secrets it
-#  prints and set the RDS_ENDPOINT repo variable:
-#    Secrets:   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ACCOUNT_ID, DB_USER, DB_PASS
-#    Variable:  RDS_ENDPOINT  (the RDS instance endpoint host)
-#  Finally edit the `env:` block below.
+#  PLUG & PLAY: all config is read from `deploy/aws.env` (the one file you edit) — nothing to change
+#  in this YAML, and no repo variables to manage (the workflow discovers your AWS account id and the
+#  live RDS endpoint at runtime). ONE-TIME SETUP: edit AWS_REGION in deploy/aws.env, then run
+#  `bash deploy/aws-setup.sh` (provisions ECR / RDS / IAM and, if `gh` is authenticated, pushes the
+#  three secrets below).
+#    Secrets needed:  AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, DB_PASS
 #
 #  SINGLE-PASS: creates-or-updates the backend service, polls until RUNNING, reads its URL, builds
 #  the frontend against it, deploys it, then re-deploys the backend with the frontend's origin in the
@@ -20,41 +20,54 @@ name: Deploy · AWS (App Runner)
 on:
   workflow_dispatch:
 
-env:
-  AWS_REGION: us-east-1                  # <-- EDIT
-  # RDS rejects hyphens in the initial DB name, so AWS uses a hyphen-free schema (the app reads the
-  # schema from the JDBC URL — the name is arbitrary). aws-setup.sh creates this same name.
-  DB_NAME: fullstackecommerce
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Single source of truth: load deploy/aws.env into the job environment.
+      - name: Load deploy config (deploy/aws.env)
+        run: |
+          grep -E '^[A-Z_]+=' deploy/aws.env | sed 's/\r$//' >> "$GITHUB_ENV"
+          echo "Loaded deploy/aws.env"
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+
+      # Discover the account id (from the creds) and the live RDS endpoint (from DB_INSTANCE),
+      # so neither has to be a secret or a repo variable.
+      - name: Discover AWS account + RDS endpoint
+        run: |
+          echo "ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> "$GITHUB_ENV"
+          EP=$(aws rds describe-db-instances --db-instance-identifier "$DB_INSTANCE" \
+            --query 'DBInstances[0].Endpoint.Address' --output text --region "$AWS_REGION")
+          echo "RDS_ENDPOINT=$EP" >> "$GITHUB_ENV"
+          echo "RDS endpoint: $EP"
+
       - uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build & push backend image
         run: |
-          REG="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
-          docker build -t "$REG/luv2shop-backend:${{ github.sha }}" -t "$REG/luv2shop-backend:latest" ./backend
-          docker push "$REG/luv2shop-backend:${{ github.sha }}"
-          docker push "$REG/luv2shop-backend:latest"
+          REG="$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+          docker build -t "$REG/$BACKEND_SERVICE:${{ github.sha }}" -t "$REG/$BACKEND_SERVICE:latest" ./backend
+          docker push "$REG/$BACKEND_SERVICE:${{ github.sha }}"
+          docker push "$REG/$BACKEND_SERVICE:latest"
 
       - name: Deploy backend (prod profile + RDS)
         id: be
         run: |
-          REG="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
-          ROLE="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/AppRunnerECRAccessRole"
-          DB_URL="jdbc:mysql://${{ vars.RDS_ENDPOINT }}:3306/${{ env.DB_NAME }}"
+          REG="$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+          ROLE="arn:aws:iam::$ACCOUNT_ID:role/AppRunnerECRAccessRole"
+          DB_URL="jdbc:mysql://$RDS_ENDPOINT:3306/$DB_NAME"
+          INSTANCE_CFG="{\"Cpu\":\"$BACKEND_CPU\",\"Memory\":\"$BACKEND_MEMORY\"}"
           cat > src.json <<JSON
           {
             "ImageRepository": {
-              "ImageIdentifier": "$REG/luv2shop-backend:latest",
+              "ImageIdentifier": "$REG/$BACKEND_SERVICE:latest",
               "ImageRepositoryType": "ECR",
               "ImageConfiguration": {
                 "Port": "8585",
@@ -62,7 +75,7 @@ jobs:
                   "SPRING_PROFILES_ACTIVE": "prod",
                   "SPRING_DOCKER_COMPOSE_ENABLED": "false",
                   "SPRING_DATASOURCE_URL": "$DB_URL",
-                  "SPRING_DATASOURCE_USERNAME": "${{ secrets.DB_USER }}",
+                  "SPRING_DATASOURCE_USERNAME": "$DB_USER",
                   "SPRING_DATASOURCE_PASSWORD": "${{ secrets.DB_PASS }}"
                 }
               }
@@ -71,11 +84,11 @@ jobs:
             "AuthenticationConfiguration": { "AccessRoleArn": "$ROLE" }
           }
           JSON
-          BE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='luv2shop-backend'].ServiceArn | [0]" --output text)
+          BE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$BACKEND_SERVICE'].ServiceArn | [0]" --output text)
           if [ "$BE_ARN" = "None" ] || [ -z "$BE_ARN" ]; then
-            BE_ARN=$(aws apprunner create-service --service-name luv2shop-backend \
+            BE_ARN=$(aws apprunner create-service --service-name "$BACKEND_SERVICE" \
               --source-configuration file://src.json \
-              --instance-configuration '{"Cpu":"1024","Memory":"2048"}' \
+              --instance-configuration "$INSTANCE_CFG" \
               --health-check-configuration '{"Protocol":"HTTP","Path":"/actuator/health/readiness","Interval":10,"Timeout":5,"HealthyThreshold":1,"UnhealthyThreshold":5}' \
               --query 'Service.ServiceArn' --output text)
           else
@@ -99,21 +112,22 @@ jobs:
 
       - name: Build & push frontend image (API baked to the live backend)
         run: |
-          REG="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+          REG="$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
           docker build --build-arg API_URL="${{ steps.beurl.outputs.url }}/api" \
-            -t "$REG/luv2shop-frontend:${{ github.sha }}" -t "$REG/luv2shop-frontend:latest" ./frontend/angular-ecommerce
-          docker push "$REG/luv2shop-frontend:${{ github.sha }}"
-          docker push "$REG/luv2shop-frontend:latest"
+            -t "$REG/$FRONTEND_SERVICE:${{ github.sha }}" -t "$REG/$FRONTEND_SERVICE:latest" ./frontend/angular-ecommerce
+          docker push "$REG/$FRONTEND_SERVICE:${{ github.sha }}"
+          docker push "$REG/$FRONTEND_SERVICE:latest"
 
       - name: Deploy frontend + capture URL
         id: feurl
         run: |
-          REG="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
-          ROLE="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/AppRunnerECRAccessRole"
+          REG="$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+          ROLE="arn:aws:iam::$ACCOUNT_ID:role/AppRunnerECRAccessRole"
+          INSTANCE_CFG="{\"Cpu\":\"$FRONTEND_CPU\",\"Memory\":\"$FRONTEND_MEMORY\"}"
           cat > fe.json <<JSON
           {
             "ImageRepository": {
-              "ImageIdentifier": "$REG/luv2shop-frontend:latest",
+              "ImageIdentifier": "$REG/$FRONTEND_SERVICE:latest",
               "ImageRepositoryType": "ECR",
               "ImageConfiguration": { "Port": "80" }
             },
@@ -121,11 +135,11 @@ jobs:
             "AuthenticationConfiguration": { "AccessRoleArn": "$ROLE" }
           }
           JSON
-          FE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='luv2shop-frontend'].ServiceArn | [0]" --output text)
+          FE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$FRONTEND_SERVICE'].ServiceArn | [0]" --output text)
           if [ "$FE_ARN" = "None" ] || [ -z "$FE_ARN" ]; then
-            FE_ARN=$(aws apprunner create-service --service-name luv2shop-frontend \
+            FE_ARN=$(aws apprunner create-service --service-name "$FRONTEND_SERVICE" \
               --source-configuration file://fe.json \
-              --instance-configuration '{"Cpu":"512","Memory":"1024"}' \
+              --instance-configuration "$INSTANCE_CFG" \
               --query 'Service.ServiceArn' --output text)
           else
             aws apprunner update-service --service-arn "$FE_ARN" --source-configuration file://fe.json
@@ -144,13 +158,13 @@ jobs:
       # plus the now-known frontend origin for CORS + email links.
       - name: Re-deploy backend with CORS pointed at the live frontend
         run: |
-          REG="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
-          ROLE="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/AppRunnerECRAccessRole"
-          DB_URL="jdbc:mysql://${{ vars.RDS_ENDPOINT }}:3306/${{ env.DB_NAME }}"
+          REG="$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+          ROLE="arn:aws:iam::$ACCOUNT_ID:role/AppRunnerECRAccessRole"
+          DB_URL="jdbc:mysql://$RDS_ENDPOINT:3306/$DB_NAME"
           cat > src2.json <<JSON
           {
             "ImageRepository": {
-              "ImageIdentifier": "$REG/luv2shop-backend:latest",
+              "ImageIdentifier": "$REG/$BACKEND_SERVICE:latest",
               "ImageRepositoryType": "ECR",
               "ImageConfiguration": {
                 "Port": "8585",
@@ -158,7 +172,7 @@ jobs:
                   "SPRING_PROFILES_ACTIVE": "prod",
                   "SPRING_DOCKER_COMPOSE_ENABLED": "false",
                   "SPRING_DATASOURCE_URL": "$DB_URL",
-                  "SPRING_DATASOURCE_USERNAME": "${{ secrets.DB_USER }}",
+                  "SPRING_DATASOURCE_USERNAME": "$DB_USER",
                   "SPRING_DATASOURCE_PASSWORD": "${{ secrets.DB_PASS }}",
                   "APP_CORS_ALLOWED_ORIGINS": "${{ steps.feurl.outputs.url }}",
                   "APP_FRONTEND_URL": "${{ steps.feurl.outputs.url }}",

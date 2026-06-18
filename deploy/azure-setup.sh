@@ -4,31 +4,54 @@
 #  Idempotent — safe to re-run. Run in Azure Cloud Shell (bash) or anywhere `az` is logged in
 #  (`az login`) against the target subscription.
 #
+#  CONFIG lives in ONE place: deploy/azure.env (this script reads it; so does the workflow).
+#  Set ACR_NAME + MYSQL_SERVER (globally-unique) there, then just run this script. Any value can
+#  still be overridden inline, e.g.:  RESOURCE_GROUP=my-rg LOCATION=westus ./deploy/azure-setup.sh
+#
 #  Creates: resource group, ACR, an Azure Database for MySQL flexible server + empty database +
 #  admin user, a Container Apps environment, and the two container apps (seeded with a placeholder
 #  image — the workflow swaps in the real images). Creates a service principal scoped to the resource
-#  group for GitHub Actions, and prints the secrets to add. No schema script — Flyway migrates the
-#  empty DB on the backend's first boot.
-#
-#  Override via env vars, e.g.:
-#    RESOURCE_GROUP=luv2shop-rg LOCATION=eastus DB_PASS='s3cret!' ./deploy/azure-setup.sh
+#  group for GitHub Actions; if the `gh` CLI is authenticated it pushes the secrets for you, else it
+#  prints them. No schema script — Flyway migrates the empty DB on the backend's first boot.
 # =====================================================================
 set -euo pipefail
 
+# --- Load deploy/azure.env as defaults (inline env vars still win) -----------
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="${ENV_FILE:-${SCRIPT_DIR}/azure.env}"
+if [[ -f "${ENV_FILE}" ]]; then
+  echo "==> Loading config from ${ENV_FILE}"
+  while IFS='=' read -r key val; do
+    [[ "${key}" =~ ^[A-Z_]+$ ]] || continue
+    val="${val%$'\r'}"
+    [[ -z "${!key:-}" ]] && export "${key}=${val}"
+  done < "${ENV_FILE}"
+fi
+
 RESOURCE_GROUP="${RESOURCE_GROUP:-luv2shop-rg}"
 LOCATION="${LOCATION:-eastus}"
-ACR_NAME="${ACR_NAME:-luv2shop$RANDOM}"     # must be globally unique + alphanumeric
+ACR_NAME="${ACR_NAME:-}"
 ENVIRONMENT="${ENVIRONMENT:-luv2shop-env}"
-MYSQL_SERVER="${MYSQL_SERVER:-luv2shop-db-$RANDOM}"   # must be globally unique
+MYSQL_SERVER="${MYSQL_SERVER:-}"
 DB_NAME="${DB_NAME:-full-stack-ecommerce}"
 DB_USER="${DB_USER:-ecommerceapp}"
 DB_PASS="${DB_PASS:-}"
+BACKEND_SERVICE="${BACKEND_SERVICE:-luv2shop-backend}"
+FRONTEND_SERVICE="${FRONTEND_SERVICE:-luv2shop-frontend}"
+MIN_REPLICAS="${MIN_REPLICAS:-0}"
+MAX_REPLICAS="${MAX_REPLICAS:-3}"
 PLACEHOLDER="mcr.microsoft.com/k8se/quickstart:latest"
 
+for v in ACR_NAME MYSQL_SERVER; do
+  if [[ -z "${!v}" || "${!v}" == your-unique-* ]]; then
+    echo "ERROR: set ${v} to a globally-unique name in deploy/azure.env first." >&2
+    exit 1
+  fi
+done
 if [[ -z "${DB_PASS}" ]]; then
   # Azure MySQL requires 8-128 chars incl. 3 of {upper,lower,digit,special}.
   DB_PASS="Lv2$(openssl rand -base64 15 | tr -d '/+=' | cut -c1-16)!"
-  echo ">> Generated a random DB password (shown at the end)."
+  echo ">> Generated a random DB password (handled below)."
 fi
 
 SUB_ID="$(az account show --query id -o tsv)"
@@ -70,12 +93,12 @@ create_app () {  # name  target-port
     az containerapp create -n "${NAME}" -g "${RESOURCE_GROUP}" --environment "${ENVIRONMENT}" \
       --image "${PLACEHOLDER}" --target-port "${PORT}" --ingress external \
       --registry-server "${ACR_SERVER}" --registry-username "${ACR_USER}" --registry-password "${ACR_PASS}" \
-      --min-replicas 0 --max-replicas 3 >/dev/null
+      --min-replicas "${MIN_REPLICAS}" --max-replicas "${MAX_REPLICAS}" >/dev/null
   fi
 }
 echo "==> Container apps (placeholder image; the workflow deploys the real ones)…"
-create_app luv2shop-backend 8585
-create_app luv2shop-frontend 80
+create_app "${BACKEND_SERVICE}" 8585
+create_app "${FRONTEND_SERVICE}" 80
 
 echo "==> Service principal for GitHub Actions (Contributor on the resource group)…"
 SP_JSON="$(az ad sp create-for-rbac --name "luv2shop-gh-${RESOURCE_GROUP}" \
@@ -83,28 +106,50 @@ SP_JSON="$(az ad sp create-for-rbac --name "luv2shop-gh-${RESOURCE_GROUP}" \
   --scopes "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP}" \
   --sdk-auth)"
 
-cat <<EOF
+# --- Wire up the GitHub secrets automatically if `gh` is available -----------
+GH_ARGS=(); [[ -n "${GH_REPO:-}" ]] && GH_ARGS=(-R "${GH_REPO}")
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  echo "==> gh CLI detected — pushing GitHub Actions secrets (AZURE_CREDENTIALS, DB_PASS)…"
+  printf '%s' "${SP_JSON}" | gh secret set AZURE_CREDENTIALS "${GH_ARGS[@]}"
+  printf '%s' "${DB_PASS}" | gh secret set DB_PASS           "${GH_ARGS[@]}"
+  SECRETS_DONE=1
+else
+  SECRETS_DONE=0
+fi
 
-=====================================================================
-✅ Azure setup complete.
+echo ""
+echo "====================================================================="
+echo "✅ Azure setup complete."
+echo ""
+if [[ "${SECRETS_DONE}" == "1" ]]; then
+  cat <<EOF
+✅ GitHub secrets pushed (AZURE_CREDENTIALS, DB_PASS).
 
-Add these under  GitHub repo → Settings → Secrets and variables → Actions → Secrets:
+Nothing else to configure — deploy/azure.env is the single source of truth the workflow reads.
+Just run:
+
+    Actions → "Deploy · Azure (Container Apps)" → Run workflow.
+EOF
+else
+  cat <<EOF
+The 'gh' CLI isn't authenticated here, so add these secrets by hand under
+GitHub repo → Settings → Secrets and variables → Actions → Secrets:
 
   AZURE_CREDENTIALS = (the JSON below, verbatim)
-  DB_USER           = ${DB_USER}
   DB_PASS           = ${DB_PASS}
 
   AZURE_CREDENTIALS JSON:
 ${SP_JSON}
 
-Then edit .github/workflows/deploy-azure.yml 'env:' to:
-    ACR_NAME       = ${ACR_NAME}
-    RESOURCE_GROUP = ${RESOURCE_GROUP}
-    MYSQL_SERVER   = ${MYSQL_SERVER}
+(Or set GH_REPO=owner/repo and re-run where 'gh auth login' is done to push them automatically.)
 
-Finally: Actions → "Deploy · Azure (Container Apps)" → Run workflow.
+Everything else (ACR, resource group, MySQL server, DB name/user) already lives in deploy/azure.env,
+which the workflow reads — no YAML editing needed.
 
-NOTE: ACR admin user is enabled for simplicity. For production, disable it and assign the container
-apps' managed identity the AcrPull role instead.
-=====================================================================
+Then: Actions → "Deploy · Azure (Container Apps)" → Run workflow.
 EOF
+fi
+echo ""
+echo "NOTE: ACR admin user is enabled for simplicity. For production, disable it and assign the"
+echo "      container apps' managed identity the AcrPull role instead."
+echo "====================================================================="

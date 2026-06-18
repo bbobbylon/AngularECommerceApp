@@ -3,11 +3,11 @@
 #  Local `./run.sh` / `docker compose up` stay the primary dev paths — this is opt-in.
 #  Run it from the GitHub "Actions" tab (workflow_dispatch).
 #
-#  ONE-TIME SETUP: run `deploy/gcp-setup.sh` (it creates the registry, Cloud SQL instance +
-#  database + user, the GitHub-Actions deployer service account, and grants the Cloud Run runtime
-#  service account `roles/cloudsql.client`). Then add the GitHub secrets/variable it prints:
-#    Secrets:   GCP_SA_KEY (deployer SA JSON), DB_USER, DB_PASS
-#  Finally edit the `env:` block below to match your project/region/repo/instance.
+#  PLUG & PLAY: all config is read from `deploy/gcp.env` (the one file you edit) — there is
+#  nothing to change in this YAML. ONE-TIME SETUP: edit GCP_PROJECT in deploy/gcp.env, then run
+#  `bash deploy/gcp-setup.sh` (it provisions the registry / Cloud SQL / service accounts and, if
+#  the `gh` CLI is authenticated, pushes the two secrets below for you).
+#    Secrets needed:  GCP_SA_KEY (deployer SA JSON), DB_PASS
 #
 #  This workflow is SINGLE-PASS (no chicken-and-egg): it deploys the backend, reads its live URL,
 #  builds the frontend against that URL, deploys it, then points the backend's CORS allowlist +
@@ -18,28 +18,32 @@ name: Deploy · GCP (Cloud Run)
 on:
   workflow_dispatch:
 
-env:
-  GCP_PROJECT: your-project-id          # <-- EDIT
-  GCP_REGION: us-central1               # <-- EDIT
-  AR_REPO: luv2shop                     # <-- EDIT (Artifact Registry docker repo)
-  CLOUD_SQL_INSTANCE: luv2shop-db       # <-- EDIT (Cloud SQL instance name, not the connection name)
-  DB_NAME: full-stack-ecommerce
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Single source of truth: load deploy/gcp.env into the job environment so every
+      # subsequent step sees $GCP_PROJECT, $GCP_REGION, $AR_REPO, $CLOUD_SQL_INSTANCE, etc.
+      - name: Load deploy config (deploy/gcp.env)
+        run: |
+          grep -E '^[A-Z_]+=' deploy/gcp.env | sed 's/\r$//' >> "$GITHUB_ENV"
+          if grep -q '^GCP_PROJECT=your-project-id' deploy/gcp.env; then
+            echo "::error::Edit GCP_PROJECT in deploy/gcp.env (still 'your-project-id')."; exit 1
+          fi
+          echo "Loaded deploy/gcp.env"
+
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
       - uses: google-github-actions/setup-gcloud@v2
       - name: Configure Docker auth
-        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+        run: gcloud auth configure-docker "$GCP_REGION-docker.pkg.dev" --quiet
 
       - name: Build & push backend image
         run: |
-          REG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}"
+          REG="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT/$AR_REPO"
           docker build -t "$REG/backend:${{ github.sha }}" ./backend
           docker push "$REG/backend:${{ github.sha }}"
 
@@ -48,20 +52,20 @@ jobs:
       # (gcp-setup.sh grants it). The empty DB is migrated by Flyway on first boot — no SQL script.
       - name: Deploy backend (prod profile + Cloud SQL connector)
         run: |
-          CONN="${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:${{ env.CLOUD_SQL_INSTANCE }}"
-          DB_URL="jdbc:mysql:///${{ env.DB_NAME }}?cloudSqlInstance=${CONN}&socketFactory=com.google.cloud.sql.mysql.SocketFactory&ipTypes=PUBLIC"
-          gcloud run deploy luv2shop-backend \
-            --image "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}/backend:${{ github.sha }}" \
-            --region ${{ env.GCP_REGION }} --platform managed \
+          CONN="$GCP_PROJECT:$GCP_REGION:$CLOUD_SQL_INSTANCE"
+          DB_URL="jdbc:mysql:///$DB_NAME?cloudSqlInstance=${CONN}&socketFactory=com.google.cloud.sql.mysql.SocketFactory&ipTypes=PUBLIC"
+          gcloud run deploy "$BACKEND_SERVICE" \
+            --image "$GCP_REGION-docker.pkg.dev/$GCP_PROJECT/$AR_REPO/backend:${{ github.sha }}" \
+            --region "$GCP_REGION" --platform managed \
             --port 8585 --allow-unauthenticated \
-            --memory 1Gi --cpu 1 --min-instances 0 --max-instances 4 \
+            --memory "$BACKEND_MEMORY" --cpu 1 --min-instances 0 --max-instances "$BACKEND_MAX_INSTANCES" \
             --add-cloudsql-instances "$CONN" \
-            --set-env-vars "^@@^SPRING_PROFILES_ACTIVE=prod@@SPRING_DOCKER_COMPOSE_ENABLED=false@@SPRING_DATASOURCE_URL=${DB_URL}@@SPRING_DATASOURCE_USERNAME=${{ secrets.DB_USER }}@@SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASS }}"
+            --set-env-vars "^@@^SPRING_PROFILES_ACTIVE=prod@@SPRING_DOCKER_COMPOSE_ENABLED=false@@SPRING_DATASOURCE_URL=${DB_URL}@@SPRING_DATASOURCE_USERNAME=${DB_USER}@@SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASS }}"
 
       - name: Capture backend URL
         id: be
         run: |
-          URL=$(gcloud run services describe luv2shop-backend --region ${{ env.GCP_REGION }} --format='value(status.url)')
+          URL=$(gcloud run services describe "$BACKEND_SERVICE" --region "$GCP_REGION" --format='value(status.url)')
           echo "url=$URL" >> "$GITHUB_OUTPUT"
           echo "Backend deployed at $URL"
 
@@ -69,23 +73,23 @@ jobs:
       # point it at the live backend. No empty-URL footgun: the previous step guarantees a real URL.
       - name: Build & push frontend image (API baked to the live backend)
         run: |
-          REG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}"
+          REG="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT/$AR_REPO"
           docker build --build-arg API_URL="${{ steps.be.outputs.url }}/api" \
             -t "$REG/frontend:${{ github.sha }}" ./frontend/angular-ecommerce
           docker push "$REG/frontend:${{ github.sha }}"
 
       - name: Deploy frontend
         run: |
-          gcloud run deploy luv2shop-frontend \
-            --image "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}/frontend:${{ github.sha }}" \
-            --region ${{ env.GCP_REGION }} --platform managed \
+          gcloud run deploy "$FRONTEND_SERVICE" \
+            --image "$GCP_REGION-docker.pkg.dev/$GCP_PROJECT/$AR_REPO/frontend:${{ github.sha }}" \
+            --region "$GCP_REGION" --platform managed \
             --port 80 --allow-unauthenticated \
-            --memory 256Mi --cpu 1 --min-instances 0 --max-instances 4
+            --memory "$FRONTEND_MEMORY" --cpu 1 --min-instances 0 --max-instances "$FRONTEND_MAX_INSTANCES"
 
       - name: Capture frontend URL
         id: fe
         run: |
-          URL=$(gcloud run services describe luv2shop-frontend --region ${{ env.GCP_REGION }} --format='value(status.url)')
+          URL=$(gcloud run services describe "$FRONTEND_SERVICE" --region "$GCP_REGION" --format='value(status.url)')
           echo "url=$URL" >> "$GITHUB_OUTPUT"
           echo "Frontend deployed at $URL"
 
@@ -93,7 +97,7 @@ jobs:
       # origin (APP_CORS_ALLOWED_ORIGINS) — and email links should point at it (APP_FRONTEND_URL).
       - name: Point backend CORS + email links at the live frontend
         run: |
-          gcloud run services update luv2shop-backend --region ${{ env.GCP_REGION }} \
+          gcloud run services update "$BACKEND_SERVICE" --region "$GCP_REGION" \
             --update-env-vars "APP_CORS_ALLOWED_ORIGINS=${{ steps.fe.outputs.url }},APP_FRONTEND_URL=${{ steps.fe.outputs.url }},APP_API_URL=${{ steps.be.outputs.url }}"
 
       - name: Summary

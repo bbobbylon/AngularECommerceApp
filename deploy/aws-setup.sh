@@ -4,37 +4,53 @@
 #  Idempotent — safe to re-run. Run in AWS CloudShell or anywhere the AWS CLI is configured
 #  (`aws configure`) for the target account/region.
 #
+#  CONFIG lives in ONE place: deploy/aws.env (this script reads it; so does the workflow).
+#  Edit AWS_REGION there, then just run this script — no flags needed. Any value can still be
+#  overridden inline, e.g.:  AWS_REGION=us-west-2 DB_PASS='s3cret!' ./deploy/aws-setup.sh
+#
 #  Creates: two ECR repos, the App Runner ECR-access role, an RDS MySQL instance (publicly
 #  accessible, in a security group that allows 3306) + an empty database, and a deployer IAM user
 #  with access keys. The App Runner SERVICES themselves are created by the workflow on its first run
-#  (App Runner can't create an ECR service before the image exists). No schema script — Flyway
+#  (App Runner can't create an ECR service before the image exists). If the `gh` CLI is authenticated
+#  it pushes the three GitHub secrets for you; otherwise it prints them. No schema script — Flyway
 #  migrates the empty DB on the backend's first boot.
-#
-#  Override via env vars, e.g.:
-#    AWS_REGION=us-west-2 DB_PASS='s3cret!' ./deploy/aws-setup.sh
 #
 #  ⚠️  SECURITY: for turnkey demo connectivity this opens RDS 3306 to 0.0.0.0/0. For production, put
 #      RDS in a private subnet and reach it via an App Runner VPC connector instead (see DEPLOYMENT.md).
 # =====================================================================
 set -euo pipefail
 
+# --- Load deploy/aws.env as defaults (inline env vars still win) -------------
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="${ENV_FILE:-${SCRIPT_DIR}/aws.env}"
+if [[ -f "${ENV_FILE}" ]]; then
+  echo "==> Loading config from ${ENV_FILE}"
+  while IFS='=' read -r key val; do
+    [[ "${key}" =~ ^[A-Z_]+$ ]] || continue
+    val="${val%$'\r'}"
+    [[ -z "${!key:-}" ]] && export "${key}=${val}"
+  done < "${ENV_FILE}"
+fi
+
 AWS_REGION="${AWS_REGION:-us-east-1}"
 DB_INSTANCE="${DB_INSTANCE:-luv2shop-db}"
 DB_NAME="${DB_NAME:-fullstackecommerce}"     # RDS initial DB name — no hyphens allowed
 DB_USER="${DB_USER:-ecommerceapp}"
 DB_PASS="${DB_PASS:-}"
+BACKEND_SERVICE="${BACKEND_SERVICE:-luv2shop-backend}"
+FRONTEND_SERVICE="${FRONTEND_SERVICE:-luv2shop-frontend}"
 DEPLOYER_USER="${DEPLOYER_USER:-luv2shop-gh-deployer}"
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 export AWS_PAGER=""
 
 if [[ -z "${DB_PASS}" ]]; then
   DB_PASS="$(openssl rand -base64 18 | tr -d '/+=@"' | cut -c1-20)"
-  echo ">> Generated a random DB password (shown at the end)."
+  echo ">> Generated a random DB password (handled below)."
 fi
 echo "==> Account=${ACCOUNT_ID}  Region=${AWS_REGION}"
 
 echo "==> ECR repositories…"
-for REPO in luv2shop-backend luv2shop-frontend; do
+for REPO in "${BACKEND_SERVICE}" "${FRONTEND_SERVICE}"; do
   aws ecr describe-repositories --repository-names "$REPO" --region "$AWS_REGION" >/dev/null 2>&1 \
     || aws ecr create-repository --repository-name "$REPO" --region "$AWS_REGION" >/dev/null
 done
@@ -82,29 +98,51 @@ aws iam put-user-policy --user-name "$DEPLOYER_USER" --policy-name luv2shop-pass
 KEY_JSON="$(aws iam create-access-key --user-name "$DEPLOYER_USER" --query 'AccessKey.[AccessKeyId,SecretAccessKey]' --output text)"
 AK="$(echo "$KEY_JSON" | awk '{print $1}')"; SK="$(echo "$KEY_JSON" | awk '{print $2}')"
 
-cat <<EOF
+# --- Wire up the GitHub secrets automatically if `gh` is available -----------
+GH_ARGS=(); [[ -n "${GH_REPO:-}" ]] && GH_ARGS=(-R "${GH_REPO}")
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  echo "==> gh CLI detected — pushing GitHub Actions secrets (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, DB_PASS)…"
+  printf '%s' "$AK"      | gh secret set AWS_ACCESS_KEY_ID     "${GH_ARGS[@]}"
+  printf '%s' "$SK"      | gh secret set AWS_SECRET_ACCESS_KEY "${GH_ARGS[@]}"
+  printf '%s' "$DB_PASS" | gh secret set DB_PASS               "${GH_ARGS[@]}"
+  SECRETS_DONE=1
+else
+  SECRETS_DONE=0
+fi
 
-=====================================================================
-✅ AWS setup complete.
+echo ""
+echo "====================================================================="
+echo "✅ AWS setup complete.  (RDS endpoint: ${RDS_ENDPOINT} — the workflow discovers this automatically.)"
+echo ""
+if [[ "${SECRETS_DONE}" == "1" ]]; then
+  cat <<EOF
+✅ GitHub secrets pushed (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, DB_PASS).
 
-Add these under  GitHub repo → Settings → Secrets and variables → Actions:
+Nothing else to configure — deploy/aws.env is the single source of truth the workflow reads, and it
+discovers your account id + RDS endpoint at runtime. Just run:
 
-  Secrets
-    AWS_ACCESS_KEY_ID     = ${AK}
-    AWS_SECRET_ACCESS_KEY = ${SK}
-    AWS_ACCOUNT_ID        = ${ACCOUNT_ID}
-    DB_USER               = ${DB_USER}
-    DB_PASS               = ${DB_PASS}
+    Actions → "Deploy · AWS (App Runner)" → Run workflow.
 
-  Variable
-    RDS_ENDPOINT          = ${RDS_ENDPOINT}
-
-Then edit .github/workflows/deploy-aws.yml 'env:' AWS_REGION = ${AWS_REGION}.
-
-Finally: Actions → "Deploy · AWS (App Runner)" → Run workflow. The first run CREATES the App Runner
-services (subsequent runs update them).
-
-⚠️  The access key above is a credential — store it in the GitHub secret and don't keep it lying around.
-⚠️  RDS is open on 3306 to the internet for turnkey access; lock it down (VPC connector) for production.
-=====================================================================
+The first run CREATES the App Runner services (subsequent runs update them).
 EOF
+else
+  cat <<EOF
+The 'gh' CLI isn't authenticated here, so add these three secrets by hand under
+GitHub repo → Settings → Secrets and variables → Actions → Secrets:
+
+  AWS_ACCESS_KEY_ID     = ${AK}
+  AWS_SECRET_ACCESS_KEY = ${SK}
+  DB_PASS               = ${DB_PASS}
+
+(Or set GH_REPO=owner/repo and re-run where 'gh auth login' is done to push them automatically.)
+
+Everything else (region, DB name/user, service names) already lives in deploy/aws.env, and the
+workflow discovers your account id + RDS endpoint at runtime — no YAML edits, no repo variables.
+
+Then: Actions → "Deploy · AWS (App Runner)" → Run workflow.
+EOF
+fi
+echo ""
+echo "⚠️  The access key above is a credential — keep it only in the GitHub secret."
+echo "⚠️  RDS is open on 3306 to the internet for turnkey access; lock it down (VPC connector) for production."
+echo "====================================================================="

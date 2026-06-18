@@ -92,7 +92,7 @@ Both apps ship as containers (used by every cloud target):
 
 > The frontend's API URL is baked in at build time. Pass it per environment:
 > `docker build --build-arg API_URL=https://your-backend-host/api ...` (the deploy workflows do this
-> from the `BACKEND_URL` repo variable).
+> automatically — they deploy the backend first, read its live URL, then build the frontend against it).
 
 ---
 
@@ -194,27 +194,32 @@ flowchart LR
 
 ## Walkthrough: GCP Cloud Run, end to end
 
-The GCP path is **two commands + three secrets + one workflow run**. (AWS App Runner and Azure
-Container Apps follow the same shape with their own CLIs.)
+The GCP path is **plug & play: edit one config file → run one script → run one workflow.** All
+settings live in [`deploy/gcp.env`](../deploy/gcp.env) — the *only* file you touch — and **both** the
+setup script and the workflow read it, so there is nothing to hand-edit in the YAML. (AWS App Runner
+and Azure Container Apps follow the same shape with their own CLIs.)
 
-**1 — One-time setup: run the script.** In [Google Cloud Shell](https://shell.cloud.google.com) (or
+**1 — Edit the config file.** In [`deploy/gcp.env`](../deploy/gcp.env), set `GCP_PROJECT` to your
+Google Cloud project id (the only required change; region/repo/instance/tier/DB/service-names/sizing
+all have sensible defaults you can tweak).
+
+**2 — One-time setup: run the script.** In [Google Cloud Shell](https://shell.cloud.google.com) (or
 anywhere `gcloud` is authenticated), from the repo root:
 ```bash
-GCP_PROJECT=YOUR_PROJECT_ID bash deploy/gcp-setup.sh
+bash deploy/gcp-setup.sh        # reads deploy/gcp.env — no flags needed
 ```
 [`deploy/gcp-setup.sh`](../deploy/gcp-setup.sh) is **idempotent** and does everything the deploy needs:
 enables the APIs; creates the Artifact Registry repo, the **Cloud SQL (MySQL 8)** instance + an empty
 `full-stack-ecommerce` database + a user; creates the GitHub-Actions **deployer** service account with
 `run.admin` + `artifactregistry.writer` + `iam.serviceAccountUser`; and grants the Cloud Run **runtime**
-service account `roles/cloudsql.client` (so the app's Cloud SQL connector can reach the instance). It
-writes the deployer key to `./key.json` and prints the exact secret values to add. **No schema script —
-Flyway migrates the empty DB on the backend's first boot.**
+service account `roles/cloudsql.client` (so the app's Cloud SQL connector can reach the instance).
+**No schema script — Flyway migrates the empty DB on the backend's first boot.**
 
-**2 — Add the secrets** it prints, under repo *Settings → Secrets and variables → Actions → Secrets*:
-`GCP_SA_KEY` (the contents of `key.json`), `DB_USER`, `DB_PASS`. Then `rm key.json`.
-
-**3 — Edit the workflow `env:`** in [`deploy-gcp.yml`](../.github/workflows/deploy-gcp.yml) to your
-`GCP_PROJECT` / `GCP_REGION` / `AR_REPO` / `CLOUD_SQL_INSTANCE`, and commit.
+**3 — Secrets — pushed for you, or pasted in.** The script writes the deployer key to `./key.json`.
+If the [`gh` CLI](https://cli.github.com) is authenticated (`gh auth status` ok), it **pushes the two
+secrets automatically** (`GCP_SA_KEY`, `DB_PASS`) and deletes `key.json`. Otherwise it prints them to
+add by hand under *Settings → Secrets and variables → Actions → Secrets* — then `rm key.json`. (Set
+`GH_REPO=owner/repo` to target a specific repo when running from outside a clone.)
 
 **4 — Deploy:** *Actions → "Deploy · GCP (Cloud Run)" → Run workflow.* **One run** does it all — no
 chicken-and-egg:
@@ -238,17 +243,25 @@ The job summary prints both URLs. Open the frontend URL — the store is live, c
 
 ## What you configure
 
-Each deploy workflow has an `env:` block with `# <-- EDIT` markers, plus secrets to add under
-**repo Settings → Secrets and variables → Actions**.
+All three clouds are **single-pass** with an idempotent setup script under `deploy/`, plus secrets
+under **repo Settings → Secrets and variables → Actions**.
 
-All three are now **single-pass** with an idempotent setup script under `deploy/`. Run the script, add
-the secrets it prints, edit the workflow `env:`, then run the workflow once.
+**All three are now fully plug & play:** each cloud's config lives in **one committed file**
+([`deploy/gcp.env`](../deploy/gcp.env) · [`deploy/aws.env`](../deploy/aws.env) ·
+[`deploy/azure.env`](../deploy/azure.env)) read by **both** the setup script and the workflow — so the
+workflow YAML needs **no edits**, and the setup script **auto-pushes the secrets for you** via the
+`gh` CLI (falling back to printing them if `gh` isn't authenticated; set `GH_REPO=owner/repo` to
+target a repo when running outside a clone). No repo variables to manage.
 
-| Cloud | Setup script | Edit in the workflow | Secrets | Repo variable |
-|---|---|---|---|---|
-| **GCP** | `deploy/gcp-setup.sh` | `GCP_PROJECT`, `GCP_REGION`, `AR_REPO`, `CLOUD_SQL_INSTANCE` | `GCP_SA_KEY`, `DB_USER`, `DB_PASS` | — |
-| **AWS** | `deploy/aws-setup.sh` | `AWS_REGION` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ACCOUNT_ID`, `DB_USER`, `DB_PASS` | `RDS_ENDPOINT` |
-| **Azure** | `deploy/azure-setup.sh` | `ACR_NAME`, `RESOURCE_GROUP`, `MYSQL_SERVER` | `AZURE_CREDENTIALS`, `DB_USER`, `DB_PASS` | — |
+| Cloud | Setup script | Edit (one file) | Secrets (auto-pushed by the script) |
+|---|---|---|---|
+| **GCP** | `deploy/gcp-setup.sh` | `deploy/gcp.env` — set `GCP_PROJECT` | `GCP_SA_KEY`, `DB_PASS` |
+| **AWS** | `deploy/aws-setup.sh` | `deploy/aws.env` — set `AWS_REGION` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `DB_PASS` |
+| **Azure** | `deploy/azure-setup.sh` | `deploy/azure.env` — set `ACR_NAME` + `MYSQL_SERVER` (globally-unique) | `AZURE_CREDENTIALS`, `DB_PASS` |
+
+> AWS got simpler still: the workflow **discovers the AWS account id + the live RDS endpoint at
+> runtime** (from the creds and `DB_INSTANCE`), so `AWS_ACCOUNT_ID` and the `RDS_ENDPOINT` repo
+> variable are gone, and `DB_USER` moved into `aws.env` as non-secret.
 
 **What every workflow does (same for all three):**
 1. Builds + pushes the backend image and deploys it with `SPRING_PROFILES_ACTIVE=prod`,
