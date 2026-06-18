@@ -193,6 +193,37 @@ export class AdminService {
   deleteShippingMethod(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/shipping-methods/${id}`);
   }
+
+  // ----- gift cards -----
+
+  getGiftCards(): Observable<AdminGiftCard[]> {
+    return this.http.get<AdminGiftCard[]>(`${this.baseUrl}/gift-cards`);
+  }
+
+  issueGiftCard(payload: AdminGiftCardPayload): Observable<AdminGiftCard> {
+    return this.http.post<AdminGiftCard>(`${this.baseUrl}/gift-cards`, payload);
+  }
+
+  deactivateGiftCard(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/gift-cards/${id}`);
+  }
+}
+
+export interface AdminGiftCard {
+  id: number;
+  code: string;
+  initialBalance: number;
+  balance: number;
+  recipientEmail?: string | null;
+  active: boolean;
+  dateCreated: string;
+}
+
+export interface AdminGiftCardPayload {
+  code?: string;
+  initialBalance: number;
+  recipientEmail?: string | null;
+  active: boolean;
 }
 
 export interface AdminTaxRate {

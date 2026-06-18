@@ -32,16 +32,19 @@ public class CheckoutServiceImpl implements CheckoutService {
     private final EmailService emailService;
     private final TaxShippingService taxShippingService;
     private final ProductVariantService productVariantService;
+    private final GiftCardService giftCardService;
 
     public CheckoutServiceImpl(CustomerRepository customerRepository,
                                EmailService emailService,
                                TaxShippingService taxShippingService,
                                ProductVariantService productVariantService,
+                               GiftCardService giftCardService,
                                @Value("${stripe.key.secret}") String secretKey) {
         this.customerRepository = customerRepository;
         this.emailService = emailService;
         this.taxShippingService = taxShippingService;
         this.productVariantService = productVariantService;
+        this.giftCardService = giftCardService;
         // Stripe is keyed globally via a static field.
         Stripe.apiKey = secretKey;
     }
@@ -86,6 +89,15 @@ public class CheckoutServiceImpl implements CheckoutService {
             order.setShippingMethod(quote.shippingMethodCode());
             order.setTaxAmount(quote.taxAmount());
             order.setTotalPrice(quote.total());
+
+            // Redeem any gift card as store credit against the order total (clamped to its balance).
+            if (purchase.getGiftCardCode() != null && !purchase.getGiftCardCode().isBlank()) {
+                java.math.BigDecimal applied = giftCardService.redeem(purchase.getGiftCardCode(), quote.total());
+                if (applied.signum() > 0) {
+                    order.setGiftCardCode(purchase.getGiftCardCode());
+                    order.setGiftCardAmount(applied);
+                }
+            }
         }
 
         // populate customer with the order, reusing an existing customer if the email matches

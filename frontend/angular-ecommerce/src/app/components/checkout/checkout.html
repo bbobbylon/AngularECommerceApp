@@ -258,6 +258,16 @@
             <span>Total:</span>
             <span>{{ grandTotal | currency:'USD' }}</span>
           </div>
+          @if (appliedGiftCode) {
+            <div class="d-flex justify-content-between mt-1 text-success-emphasis">
+              <span>Gift card:</span>
+              <span class="fw-semibold">&minus;{{ giftApplied | currency:'USD' }}</span>
+            </div>
+            <div class="d-flex justify-content-between fw-bold mt-1">
+              <span>Amount due:</span>
+              <span>{{ amountDue | currency:'USD' }}</span>
+            </div>
+          }
 
           <!-- Promo code -->
           <div class="mt-3">
@@ -278,6 +288,28 @@
               </div>
               @if (couponError) { <div class="text-danger small mt-1">{{ couponError }}</div> }
               <div class="form-text">Try <code>WELCOME10</code> or <code>SUMMER20</code>.</div>
+            }
+          </div>
+
+          <!-- Gift card -->
+          <div class="mt-3">
+            @if (appliedGiftCode) {
+              <div class="d-flex justify-content-between align-items-center small">
+                <span class="text-success-emphasis"><i class="fa-solid fa-gift me-1"></i>{{ appliedGiftCode }} ({{ giftCardBalance | currency:'USD' }})</span>
+                <button type="button" class="btn btn-link btn-sm p-0" (click)="removeGiftCard()">Remove</button>
+              </div>
+            } @else {
+              <label for="gift" class="form-label small mb-1">Gift card</label>
+              <div class="input-group input-group-sm">
+                <input id="gift" type="text" class="form-control text-uppercase" placeholder="e.g. GIFT25"
+                       [(ngModel)]="giftCardCode" name="giftCardCode" [ngModelOptions]="{ standalone: true }"
+                       (keyup.enter)="applyGiftCard()" />
+                <button type="button" class="btn btn-outline-primary" (click)="applyGiftCard()" [disabled]="applyingGift">
+                  Apply
+                </button>
+              </div>
+              @if (giftCardError) { <div class="text-danger small mt-1">{{ giftCardError }}</div> }
+              <div class="form-text">Try <code>GIFT25</code> or <code>GIFT50</code>.</div>
             }
           </div>
 

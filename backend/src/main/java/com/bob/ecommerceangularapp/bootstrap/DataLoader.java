@@ -3,6 +3,7 @@ package com.bob.ecommerceangularapp.bootstrap;
 import com.bob.ecommerceangularapp.dao.CountryRepository;
 import com.bob.ecommerceangularapp.dao.CouponRepository;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
+import com.bob.ecommerceangularapp.dao.GiftCardRepository;
 import com.bob.ecommerceangularapp.dao.ProductCategoryRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
 import com.bob.ecommerceangularapp.dao.ProductVariantRepository;
@@ -13,6 +14,7 @@ import com.bob.ecommerceangularapp.dao.TaxRateRepository;
 import com.bob.ecommerceangularapp.entity.Country;
 import com.bob.ecommerceangularapp.entity.Coupon;
 import com.bob.ecommerceangularapp.entity.Customer;
+import com.bob.ecommerceangularapp.entity.GiftCard;
 import com.bob.ecommerceangularapp.entity.Product;
 import com.bob.ecommerceangularapp.entity.ProductCategory;
 import com.bob.ecommerceangularapp.entity.ProductVariant;
@@ -55,6 +57,7 @@ public class DataLoader implements CommandLineRunner {
     private final CouponRepository couponRepository;
     private final ShippingMethodRepository shippingMethodRepository;
     private final TaxRateRepository taxRateRepository;
+    private final GiftCardRepository giftCardRepository;
     private final TransactionTemplate txTemplate;
 
     public DataLoader(ProductRepository productRepository,
@@ -67,6 +70,7 @@ public class DataLoader implements CommandLineRunner {
                       CouponRepository couponRepository,
                       ShippingMethodRepository shippingMethodRepository,
                       TaxRateRepository taxRateRepository,
+                      GiftCardRepository giftCardRepository,
                       PlatformTransactionManager transactionManager) {
         this.productRepository = productRepository;
         this.productCategoryRepository = productCategoryRepository;
@@ -78,6 +82,7 @@ public class DataLoader implements CommandLineRunner {
         this.couponRepository = couponRepository;
         this.shippingMethodRepository = shippingMethodRepository;
         this.taxRateRepository = taxRateRepository;
+        this.giftCardRepository = giftCardRepository;
         this.txTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -91,6 +96,7 @@ public class DataLoader implements CommandLineRunner {
         backfillStockVariety();
         seedVariants();
         seedTaxAndShipping();
+        seedGiftCards();
         seedReviews();
         seedCoupons();
     }
@@ -214,6 +220,31 @@ public class DataLoader implements CommandLineRunner {
                 .country(country)
                 .state(state)
                 .ratePercent(new BigDecimal(ratePercent))
+                .active(true)
+                .build();
+    }
+
+    /** Seeds two demo gift cards (GIFT25 / GIFT50). Idempotent + defensive. */
+    private void seedGiftCards() {
+        try {
+            if (giftCardRepository.count() > 0) {
+                return;
+            }
+            giftCardRepository.saveAll(List.of(
+                    giftCard("GIFT25", "25.00"),
+                    giftCard("GIFT50", "50.00")));
+            log.info("Seeded 2 gift cards (GIFT25, GIFT50).");
+        } catch (Exception e) {
+            log.warn("Skipped gift-card seeding (non-fatal): {}", e.getMessage());
+        }
+    }
+
+    private GiftCard giftCard(String code, String balance) {
+        BigDecimal amount = new BigDecimal(balance);
+        return GiftCard.builder()
+                .code(code)
+                .initialBalance(amount)
+                .balance(amount)
                 .active(true)
                 .build();
     }

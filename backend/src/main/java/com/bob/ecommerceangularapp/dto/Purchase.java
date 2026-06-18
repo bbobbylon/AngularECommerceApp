@@ -31,4 +31,7 @@ public class Purchase {
 
     /** Stripe PaymentIntent id when paid by card — recorded on the order so a return can refund it. */
     private String paymentIntentId;
+
+    /** Gift card code to redeem as store credit against the order total (optional). */
+    private String giftCardCode;
 }

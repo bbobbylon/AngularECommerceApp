@@ -98,6 +98,17 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   order-history gains a "Request a return" inline form + status badge (`return.service.ts`); new admin
   **Returns** queue (`/admin/returns`) with approve/deny + refund amount/note. Tests: `ReturnServiceTest`
   (email-match, duplicate guard, approve-without-Stripe, deny). 57 backend + 17 frontend tests green.
+- ✅ **Gift cards / store credit** — `GiftCard` entity (unique code, initial + remaining balance,
+  recipient, active); `V6` migration creates `gift_card` + adds nullable `gift_card_code`/`gift_card_amount`
+  to `orders` (MySQL IT-validated). `GiftCardService`: `check()` previews balance (non-mutating);
+  `redeem()` draws down store credit atomically inside the order tx, **clamped to the balance** (never
+  negative/over-applied); admin issue (auto-generates `GIFT-XXXX-XXXX` when code blank)/list/deactivate.
+  Public `GET /api/checkout/gift-card?code=`; admin `AdminGiftCardController` `/api/admin/gift-cards`.
+  Checkout applies a card like a second discount: shows **Gift card** + **Amount due** lines; Stripe is
+  charged the `amountDue` and the card step is **skipped when store credit covers the order** (avoids a
+  $0 PaymentIntent). `CheckoutServiceImpl` redeems server-side after the quote and records it on the
+  order. `DataLoader` seeds GIFT25/GIFT50. Tests: `GiftCardServiceTest` (check active/inactive/empty,
+  redeem cap + partial + unknown). New admin **Gift Cards** page (`/admin/gift-cards`).
 - ✅ **Observability & ops** — `spring-boot-starter-actuator` + `micrometer-registry-prometheus`:
   health (+ liveness/readiness **probes**), `/actuator/info` (build version/time via the `build-info`
   goal), metrics, `/actuator/prometheus`. `RequestIdFilter` adds an `X-Request-Id` correlation id

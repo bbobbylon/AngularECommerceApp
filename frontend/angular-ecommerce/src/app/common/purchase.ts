@@ -18,4 +18,6 @@ export class Purchase {
   shippingMethodCode?: string;
   /** Stripe PaymentIntent id (card payments) so an approved return can refund the charge. */
   paymentIntentId?: string;
+  /** Gift card code to redeem as store credit (server applies it against the order total). */
+  giftCardCode?: string;
 }

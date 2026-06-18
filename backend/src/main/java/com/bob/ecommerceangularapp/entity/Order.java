@@ -69,6 +69,13 @@ public class Order {
     @Column(name = "payment_intent_id")
     private String paymentIntentId;
 
+    /** Gift card applied as store credit (nullable): the code used and the amount drawn from it. */
+    @Column(name = "gift_card_code")
+    private String giftCardCode;
+
+    @Column(name = "gift_card_amount")
+    private BigDecimal giftCardAmount;
+
     @Column(name = "date_created")
     @CreationTimestamp
     private Date dateCreated;

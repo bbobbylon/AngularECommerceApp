@@ -13,6 +13,7 @@ export class CheckoutService {
   private readonly paymentIntentUrl = `${environment.apiUrl}/checkout/payment-intent`;
   private readonly shippingMethodsUrl = `${environment.apiUrl}/checkout/shipping-methods`;
   private readonly quoteUrl = `${environment.apiUrl}/checkout/quote`;
+  private readonly giftCardUrl = `${environment.apiUrl}/checkout/gift-card`;
 
   constructor(private httpClient: HttpClient) {}
 
@@ -33,6 +34,20 @@ export class CheckoutService {
   quote(request: QuoteRequest): Observable<QuoteResponse> {
     return this.httpClient.post<QuoteResponse>(this.quoteUrl, request);
   }
+
+  /** Check a gift card's available balance before applying it. */
+  checkGiftCard(code: string): Observable<GiftCardCheck> {
+    return this.httpClient.get<GiftCardCheck>(`${this.giftCardUrl}`, {
+      params: { code },
+    });
+  }
+}
+
+export interface GiftCardCheck {
+  valid: boolean;
+  code: string;
+  balance: number;
+  message: string;
 }
 
 export interface PurchaseResponse {

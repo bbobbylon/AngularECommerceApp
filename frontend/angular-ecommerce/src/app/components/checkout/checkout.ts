@@ -46,8 +46,25 @@ export class Checkout implements OnInit, AfterViewInit {
   taxAmount = 0;
   private quoteTotal: number | null = null;
 
+  // gift card (store credit applied against the grand total)
+  giftCardCode = '';
+  appliedGiftCode = '';
+  giftCardBalance = 0;
+  giftCardError = '';
+  applyingGift = false;
+
   get grandTotal(): number {
     return this.quoteTotal != null ? this.quoteTotal : Math.max(0, this.totalPrice - this.discount);
+  }
+
+  /** Store credit actually applied: capped at the order total. */
+  get giftApplied(): number {
+    return this.appliedGiftCode ? Math.min(this.giftCardBalance, this.grandTotal) : 0;
+  }
+
+  /** What the customer pays by card after store credit. */
+  get amountDue(): number {
+    return Math.max(0, this.grandTotal - this.giftApplied);
   }
 
   countries: Country[] = [];
@@ -217,6 +234,40 @@ export class Checkout implements OnInit, AfterViewInit {
     this.recomputeQuote();
   }
 
+  applyGiftCard(): void {
+    const code = this.giftCardCode.trim();
+    if (!code) {
+      return;
+    }
+    this.applyingGift = true;
+    this.giftCardError = '';
+    this.checkoutService.checkGiftCard(code).subscribe({
+      next: res => {
+        if (res.valid) {
+          this.appliedGiftCode = res.code;
+          this.giftCardBalance = res.balance;
+          this.giftCardError = '';
+        } else {
+          this.appliedGiftCode = '';
+          this.giftCardBalance = 0;
+          this.giftCardError = res.message;
+        }
+        this.applyingGift = false;
+      },
+      error: () => {
+        this.giftCardError = 'Could not check that gift card. Please try again.';
+        this.applyingGift = false;
+      },
+    });
+  }
+
+  removeGiftCard(): void {
+    this.appliedGiftCode = '';
+    this.giftCardBalance = 0;
+    this.giftCardCode = '';
+    this.giftCardError = '';
+  }
+
   copyShippingToBilling(event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
     if (checked) {
@@ -258,8 +309,8 @@ export class Checkout implements OnInit, AfterViewInit {
     }
     this.errorMessage = '';
 
-    // Demo mode: no Stripe configured -> skip the card payment and save the order directly.
-    if (!this.stripeConfigured) {
+    // Skip the card step when Stripe isn't configured (demo) OR store credit covers the whole order.
+    if (!this.stripeConfigured || this.amountDue <= 0) {
       this.isSubmitting = true;
       this.placeOrder();
       return;
@@ -271,7 +322,7 @@ export class Checkout implements OnInit, AfterViewInit {
 
     this.isSubmitting = true;
 
-    this.paymentInfo.amount = Math.round(this.grandTotal * 100);
+    this.paymentInfo.amount = Math.round(this.amountDue * 100);
     this.paymentInfo.currency = 'USD';
     this.paymentInfo.receiptEmail = this.email?.value;
 
@@ -337,6 +388,7 @@ export class Checkout implements OnInit, AfterViewInit {
     purchase.subtotal = this.totalPrice;
     purchase.shippingMethodCode = this.selectedShippingCode || undefined;
     purchase.paymentIntentId = this.paymentIntentId || undefined;
+    purchase.giftCardCode = this.appliedGiftCode || undefined;
     if (this.appliedCode && this.discount > 0) {
       purchase.couponCode = this.appliedCode;
     }

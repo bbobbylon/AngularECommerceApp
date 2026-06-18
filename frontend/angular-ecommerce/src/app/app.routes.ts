@@ -30,6 +30,7 @@ export const routes: Routes = [
       { path: 'returns', loadComponent: () => import('./components/admin/admin-returns/admin-returns').then(m => m.AdminReturns) },
       { path: 'reviews', loadComponent: () => import('./components/admin/admin-reviews/admin-reviews').then(m => m.AdminReviews) },
       { path: 'coupons', loadComponent: () => import('./components/admin/admin-coupons/admin-coupons').then(m => m.AdminCoupons) },
+      { path: 'gift-cards', loadComponent: () => import('./components/admin/admin-gift-cards/admin-gift-cards').then(m => m.AdminGiftCards) },
       { path: 'tax-shipping', loadComponent: () => import('./components/admin/admin-tax-shipping/admin-tax-shipping').then(m => m.AdminTaxShipping) },
     ],
   },
