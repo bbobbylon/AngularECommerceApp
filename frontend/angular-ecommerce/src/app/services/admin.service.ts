@@ -167,6 +167,51 @@ export class AdminService {
   deleteCoupon(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/coupons/${id}`);
   }
+
+  // ----- tax & shipping -----
+
+  getTaxRates(): Observable<AdminTaxRate[]> {
+    return this.http.get<AdminTaxRate[]>(`${this.baseUrl}/tax-rates`);
+  }
+
+  saveTaxRate(payload: AdminTaxRate): Observable<AdminTaxRate> {
+    return this.http.post<AdminTaxRate>(`${this.baseUrl}/tax-rates`, payload);
+  }
+
+  deleteTaxRate(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/tax-rates/${id}`);
+  }
+
+  getShippingMethods(): Observable<AdminShippingMethod[]> {
+    return this.http.get<AdminShippingMethod[]>(`${this.baseUrl}/shipping-methods`);
+  }
+
+  saveShippingMethod(payload: AdminShippingMethod): Observable<AdminShippingMethod> {
+    return this.http.post<AdminShippingMethod>(`${this.baseUrl}/shipping-methods`, payload);
+  }
+
+  deleteShippingMethod(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/shipping-methods/${id}`);
+  }
+}
+
+export interface AdminTaxRate {
+  id?: number | null;
+  country: string;
+  state?: string | null;
+  ratePercent: number;
+  active: boolean;
+}
+
+export interface AdminShippingMethod {
+  id?: number | null;
+  code: string;
+  name: string;
+  baseRate: number;
+  freeOverThreshold?: number | null;
+  estimatedDays?: string;
+  sortOrder: number;
+  active: boolean;
 }
 
 export interface Coupon {

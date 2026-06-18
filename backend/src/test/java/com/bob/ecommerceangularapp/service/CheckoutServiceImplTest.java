@@ -27,10 +27,10 @@ class CheckoutServiceImplTest {
 
     private final CustomerRepository customerRepository = mock(CustomerRepository.class);
     private final EmailService emailService = mock(EmailService.class);
-    private final CouponService couponService = mock(CouponService.class);
+    private final TaxShippingService taxShippingService = mock(TaxShippingService.class);
     private final ProductVariantService productVariantService = mock(ProductVariantService.class);
     private final CheckoutServiceImpl service =
-            new CheckoutServiceImpl(customerRepository, emailService, couponService, productVariantService, "");
+            new CheckoutServiceImpl(customerRepository, emailService, taxShippingService, productVariantService, "");
 
     @Test
     void placeOrder_generatesTrackingNumberAndLinksEntities() {

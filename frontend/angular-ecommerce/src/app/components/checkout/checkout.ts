@@ -13,7 +13,7 @@ import { PaymentInfo } from '../../common/payment-info';
 import { Purchase } from '../../common/purchase';
 import { State } from '../../common/state';
 import { CartService } from '../../services/cart.service';
-import { CheckoutService } from '../../services/checkout.service';
+import { CheckoutService, ShippingMethodView } from '../../services/checkout.service';
 import { Luv2ShopFormService } from '../../services/luv2shop-form.service';
 import { Luv2ShopValidators } from '../../validators/luv2shop-validators';
 
@@ -39,8 +39,15 @@ export class Checkout implements OnInit, AfterViewInit {
   couponError = '';
   applyingCoupon = false;
 
+  // shipping + tax (server-computed quote — single source of truth for the grand total)
+  shippingMethods: ShippingMethodView[] = [];
+  selectedShippingCode = '';
+  shippingAmount = 0;
+  taxAmount = 0;
+  private quoteTotal: number | null = null;
+
   get grandTotal(): number {
-    return Math.max(0, this.totalPrice - this.discount);
+    return this.quoteTotal != null ? this.quoteTotal : Math.max(0, this.totalPrice - this.discount);
   }
 
   countries: Country[] = [];
@@ -82,6 +89,46 @@ export class Checkout implements OnInit, AfterViewInit {
     });
 
     this.formService.getCountries().subscribe(data => (this.countries = data));
+
+    this.checkoutService.getShippingMethods().subscribe(methods => {
+      this.shippingMethods = methods;
+      if (methods.length && !this.selectedShippingCode) {
+        this.selectedShippingCode = methods[0].code;
+      }
+      this.recomputeQuote();
+    });
+  }
+
+  /** Re-fetch the authoritative totals (discount + shipping + tax + total) from the server. */
+  recomputeQuote(): void {
+    if (this.totalPrice <= 0) {
+      this.quoteTotal = null;
+      this.shippingAmount = 0;
+      this.taxAmount = 0;
+      return;
+    }
+    const country = (this.shippingCountry?.value as Country)?.name;
+    const state = (this.shippingState?.value as State)?.name;
+    this.checkoutService.quote({
+      subtotal: this.totalPrice,
+      country,
+      state,
+      couponCode: this.appliedCode || undefined,
+      shippingMethodCode: this.selectedShippingCode || undefined,
+    }).subscribe({
+      next: q => {
+        this.discount = q.discount;
+        this.shippingAmount = q.shippingAmount;
+        this.taxAmount = q.taxAmount;
+        this.quoteTotal = q.total;
+      },
+      error: () => { /* keep the last-known totals on a transient failure */ },
+    });
+  }
+
+  selectShipping(code: string): void {
+    this.selectedShippingCode = code;
+    this.recomputeQuote();
   }
 
   async ngAfterViewInit(): Promise<void> {
@@ -143,7 +190,6 @@ export class Checkout implements OnInit, AfterViewInit {
     this.couponService.validate(code, this.totalPrice).subscribe({
       next: res => {
         if (res.valid) {
-          this.discount = res.discount;
           this.appliedCode = res.code;
           this.couponError = '';
         } else {
@@ -152,6 +198,7 @@ export class Checkout implements OnInit, AfterViewInit {
           this.couponError = res.message;
         }
         this.applyingCoupon = false;
+        this.recomputeQuote();
       },
       error: () => {
         this.couponError = 'Could not check that code. Please try again.';
@@ -165,6 +212,7 @@ export class Checkout implements OnInit, AfterViewInit {
     this.appliedCode = '';
     this.couponCode = '';
     this.couponError = '';
+    this.recomputeQuote();
   }
 
   copyShippingToBilling(event: Event): void {
@@ -190,7 +238,15 @@ export class Checkout implements OnInit, AfterViewInit {
         this.billingAddressStates = data;
       }
       formGroup?.get('state')?.setValue(data[0] ?? '');
+      if (addressType === 'shippingAddress') {
+        this.recomputeQuote(); // destination changed → tax may change
+      }
     });
+  }
+
+  /** Bound to the shipping state selector so tax recalculates when the destination changes. */
+  onShippingStateChange(): void {
+    this.recomputeQuote();
   }
 
   onSubmit(): void {
@@ -256,6 +312,9 @@ export class Checkout implements OnInit, AfterViewInit {
 
   private placeOrder(): void {
     const order = new Order(this.totalQuantity, this.grandTotal);
+    order.shippingAmount = this.shippingAmount;
+    order.taxAmount = this.taxAmount;
+    order.shippingMethod = this.selectedShippingCode;
     const orderItems: OrderItem[] = this.cartService.cartItems.map(item => new OrderItem(item));
 
     const purchase = new Purchase();
@@ -271,9 +330,11 @@ export class Checkout implements OnInit, AfterViewInit {
     purchase.order = order;
     purchase.orderItems = orderItems;
     purchase.subscribeToNewsletter = !!this.checkoutFormGroup.get('subscribeToNewsletter')?.value;
+    // Always send the subtotal + chosen method so the server recomputes shipping + tax (+ coupon).
+    purchase.subtotal = this.totalPrice;
+    purchase.shippingMethodCode = this.selectedShippingCode || undefined;
     if (this.appliedCode && this.discount > 0) {
       purchase.couponCode = this.appliedCode;
-      purchase.subtotal = this.totalPrice;
     }
 
     this.checkoutService.placeOrder(purchase).subscribe({
@@ -289,6 +350,9 @@ export class Checkout implements OnInit, AfterViewInit {
     const summary = {
       totalQuantity: this.totalQuantity,
       totalPrice: this.grandTotal,
+      shippingAmount: this.shippingAmount,
+      taxAmount: this.taxAmount,
+      discount: this.discount,
       items: this.cartService.cartItems.map(item => ({
         name: item.name,
         imageUrl: item.imageUrl,

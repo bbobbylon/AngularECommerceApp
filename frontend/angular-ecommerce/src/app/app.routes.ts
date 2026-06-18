@@ -29,6 +29,7 @@ export const routes: Routes = [
       { path: 'orders', loadComponent: () => import('./components/admin/admin-orders/admin-orders').then(m => m.AdminOrders) },
       { path: 'reviews', loadComponent: () => import('./components/admin/admin-reviews/admin-reviews').then(m => m.AdminReviews) },
       { path: 'coupons', loadComponent: () => import('./components/admin/admin-coupons/admin-coupons').then(m => m.AdminCoupons) },
+      { path: 'tax-shipping', loadComponent: () => import('./components/admin/admin-tax-shipping/admin-tax-shipping').then(m => m.AdminTaxShipping) },
     ],
   },
   {

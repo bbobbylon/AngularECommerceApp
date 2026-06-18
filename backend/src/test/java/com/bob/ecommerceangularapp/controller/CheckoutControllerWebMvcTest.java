@@ -3,6 +3,7 @@ package com.bob.ecommerceangularapp.controller;
 import com.bob.ecommerceangularapp.dto.Purchase;
 import com.bob.ecommerceangularapp.dto.PurchaseResponse;
 import com.bob.ecommerceangularapp.service.CheckoutService;
+import com.bob.ecommerceangularapp.service.TaxShippingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -24,11 +25,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class CheckoutControllerWebMvcTest {
 
     private final CheckoutService checkoutService = mock(CheckoutService.class);
+    private final TaxShippingService taxShippingService = mock(TaxShippingService.class);
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new CheckoutController(checkoutService)).build();
+        mockMvc = MockMvcBuilders
+                .standaloneSetup(new CheckoutController(checkoutService, taxShippingService)).build();
     }
 
     @Test

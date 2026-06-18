@@ -80,6 +80,24 @@ export async function mockBackend(page: Page): Promise<void> {
     })),
   );
 
+  // Shipping options for the checkout selector.
+  await page.route(/\/api\/checkout\/shipping-methods/, route =>
+    route.fulfill(json([
+      { id: 1, code: 'STANDARD', name: 'Standard shipping', baseRate: 5.99, freeOverThreshold: 50, estimatedDays: '3–5 business days' },
+      { id: 2, code: 'EXPRESS', name: 'Express shipping', baseRate: 14.99, freeOverThreshold: null, estimatedDays: '1–2 business days' },
+    ])),
+  );
+
+  // Totals quote — echoes the posted subtotal with free shipping + no tax (good enough for the smoke flow).
+  await page.route(/\/api\/checkout\/quote/, route => {
+    const body = (route.request().postDataJSON() ?? {}) as { subtotal?: number; shippingMethodCode?: string };
+    const subtotal = Number(body.subtotal ?? 0);
+    route.fulfill(json({
+      subtotal, discount: 0, shippingAmount: 0, taxAmount: 0, taxRatePercent: 0,
+      total: subtotal, shippingMethodCode: body.shippingMethodCode ?? 'STANDARD',
+    }));
+  });
+
   // Place order — demo mode (no Stripe key) posts straight here.
   await page.route(/\/api\/checkout\/purchase/, route =>
     route.fulfill(json({ orderTrackingNumber: TRACKING_NUMBER })),

@@ -7,7 +7,9 @@ import com.bob.ecommerceangularapp.dao.ProductCategoryRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
 import com.bob.ecommerceangularapp.dao.ProductVariantRepository;
 import com.bob.ecommerceangularapp.dao.ReviewRepository;
+import com.bob.ecommerceangularapp.dao.ShippingMethodRepository;
 import com.bob.ecommerceangularapp.dao.StateRepository;
+import com.bob.ecommerceangularapp.dao.TaxRateRepository;
 import com.bob.ecommerceangularapp.entity.Country;
 import com.bob.ecommerceangularapp.entity.Coupon;
 import com.bob.ecommerceangularapp.entity.Customer;
@@ -15,7 +17,9 @@ import com.bob.ecommerceangularapp.entity.Product;
 import com.bob.ecommerceangularapp.entity.ProductCategory;
 import com.bob.ecommerceangularapp.entity.ProductVariant;
 import com.bob.ecommerceangularapp.entity.Review;
+import com.bob.ecommerceangularapp.entity.ShippingMethod;
 import com.bob.ecommerceangularapp.entity.State;
+import com.bob.ecommerceangularapp.entity.TaxRate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -49,6 +53,8 @@ public class DataLoader implements CommandLineRunner {
     private final CustomerRepository customerRepository;
     private final ReviewRepository reviewRepository;
     private final CouponRepository couponRepository;
+    private final ShippingMethodRepository shippingMethodRepository;
+    private final TaxRateRepository taxRateRepository;
     private final TransactionTemplate txTemplate;
 
     public DataLoader(ProductRepository productRepository,
@@ -59,6 +65,8 @@ public class DataLoader implements CommandLineRunner {
                       CustomerRepository customerRepository,
                       ReviewRepository reviewRepository,
                       CouponRepository couponRepository,
+                      ShippingMethodRepository shippingMethodRepository,
+                      TaxRateRepository taxRateRepository,
                       PlatformTransactionManager transactionManager) {
         this.productRepository = productRepository;
         this.productCategoryRepository = productCategoryRepository;
@@ -68,6 +76,8 @@ public class DataLoader implements CommandLineRunner {
         this.customerRepository = customerRepository;
         this.reviewRepository = reviewRepository;
         this.couponRepository = couponRepository;
+        this.shippingMethodRepository = shippingMethodRepository;
+        this.taxRateRepository = taxRateRepository;
         this.txTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -80,6 +90,7 @@ public class DataLoader implements CommandLineRunner {
         backfillGalleryImages();
         backfillStockVariety();
         seedVariants();
+        seedTaxAndShipping();
         seedReviews();
         seedCoupons();
     }
@@ -153,6 +164,58 @@ public class DataLoader implements CommandLineRunner {
             return seed;         // low (1–3)
         }
         return 8 + seed;         // healthy
+    }
+
+    /**
+     * Seeds shipping methods (Standard — free over $50 — and Express) and a handful of US state tax
+     * rates, matched by the same display names the checkout sends. Idempotent: skips once any shipping
+     * method exists. Defensive — never crashes the catalog. (Unlisted regions resolve to 0% tax.)
+     */
+    private void seedTaxAndShipping() {
+        try {
+            if (shippingMethodRepository.count() == 0) {
+                shippingMethodRepository.saveAll(List.of(
+                        shippingMethod("STANDARD", "Standard shipping", "5.99", "50.00", "3–5 business days", 0),
+                        shippingMethod("EXPRESS", "Express shipping", "14.99", null, "1–2 business days", 1)));
+                log.info("Seeded 2 shipping methods.");
+            }
+            if (taxRateRepository.count() == 0) {
+                taxRateRepository.saveAll(List.of(
+                        taxRate("United States", "California", "7.25"),
+                        taxRate("United States", "New York", "8.88"),
+                        taxRate("United States", "Texas", "6.25"),
+                        taxRate("United States", "Washington", "6.50"),
+                        taxRate("United States", "Florida", "6.00"),
+                        taxRate("United States", "Illinois", "6.25"),
+                        taxRate("United States", "Ohio", "5.75"),
+                        taxRate("United States", "Pennsylvania", "6.00")));
+                log.info("Seeded {} tax rates.", taxRateRepository.count());
+            }
+        } catch (Exception e) {
+            log.warn("Skipped tax/shipping seeding (non-fatal): {}", e.getMessage());
+        }
+    }
+
+    private ShippingMethod shippingMethod(String code, String name, String baseRate, String freeOver,
+                                          String estimatedDays, int sortOrder) {
+        return ShippingMethod.builder()
+                .code(code)
+                .name(name)
+                .baseRate(new BigDecimal(baseRate))
+                .freeOverThreshold(freeOver == null ? null : new BigDecimal(freeOver))
+                .estimatedDays(estimatedDays)
+                .sortOrder(sortOrder)
+                .active(true)
+                .build();
+    }
+
+    private TaxRate taxRate(String country, String state, String ratePercent) {
+        return TaxRate.builder()
+                .country(country)
+                .state(state)
+                .ratePercent(new BigDecimal(ratePercent))
+                .active(true)
+                .build();
     }
 
     private void seedCoupons() {

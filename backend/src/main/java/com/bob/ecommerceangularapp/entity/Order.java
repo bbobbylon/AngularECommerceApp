@@ -54,6 +54,17 @@ public class Order {
     @Column(name = "discount_amount")
     private BigDecimal discountAmount;
 
+    /** Shipping charged (nullable on legacy/demo orders); the {@link #shippingMethod} code chosen. */
+    @Column(name = "shipping_amount")
+    private BigDecimal shippingAmount;
+
+    @Column(name = "shipping_method")
+    private String shippingMethod;
+
+    /** Sales tax applied to the discounted merchandise subtotal (nullable on legacy orders). */
+    @Column(name = "tax_amount")
+    private BigDecimal taxAmount;
+
     @Column(name = "date_created")
     @CreationTimestamp
     private Date dateCreated;

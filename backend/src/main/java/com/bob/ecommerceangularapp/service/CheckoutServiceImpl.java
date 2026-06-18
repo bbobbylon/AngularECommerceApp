@@ -1,11 +1,13 @@
 package com.bob.ecommerceangularapp.service;
 
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
-import com.bob.ecommerceangularapp.dto.CouponResponse;
 import com.bob.ecommerceangularapp.dto.PaymentInfo;
 import com.bob.ecommerceangularapp.dto.Purchase;
 import com.bob.ecommerceangularapp.dto.PurchaseResponse;
+import com.bob.ecommerceangularapp.dto.QuoteRequest;
+import com.bob.ecommerceangularapp.dto.QuoteResponse;
 import com.bob.ecommerceangularapp.email.EmailService;
+import com.bob.ecommerceangularapp.entity.Address;
 import com.bob.ecommerceangularapp.entity.Customer;
 import com.bob.ecommerceangularapp.entity.Order;
 import com.bob.ecommerceangularapp.entity.OrderItem;
@@ -28,17 +30,17 @@ public class CheckoutServiceImpl implements CheckoutService {
 
     private final CustomerRepository customerRepository;
     private final EmailService emailService;
-    private final CouponService couponService;
+    private final TaxShippingService taxShippingService;
     private final ProductVariantService productVariantService;
 
     public CheckoutServiceImpl(CustomerRepository customerRepository,
                                EmailService emailService,
-                               CouponService couponService,
+                               TaxShippingService taxShippingService,
                                ProductVariantService productVariantService,
                                @Value("${stripe.key.secret}") String secretKey) {
         this.customerRepository = customerRepository;
         this.emailService = emailService;
-        this.couponService = couponService;
+        this.taxShippingService = taxShippingService;
         this.productVariantService = productVariantService;
         // Stripe is keyed globally via a static field.
         Stripe.apiKey = secretKey;
@@ -64,14 +66,25 @@ public class CheckoutServiceImpl implements CheckoutService {
         order.setShippingAddress(purchase.getShippingAddress());
         order.setBillingAddress(purchase.getBillingAddress());
 
-        // Re-validate any coupon server-side and recompute the total authoritatively from the subtotal.
-        if (purchase.getCouponCode() != null && !purchase.getCouponCode().isBlank() && purchase.getSubtotal() != null) {
-            CouponResponse coupon = couponService.validate(purchase.getCouponCode(), purchase.getSubtotal());
-            if (coupon.valid()) {
-                order.setCouponCode(coupon.code());
-                order.setDiscountAmount(coupon.discount());
-                order.setTotalPrice(purchase.getSubtotal().subtract(coupon.discount()));
+        // Recompute the total authoritatively from the subtotal: re-validate any coupon, then add
+        // server-side shipping + tax (the same quote the storefront showed). Legacy/demo callers that
+        // don't send a subtotal keep the total they posted. See TaxShippingService.
+        if (purchase.getSubtotal() != null) {
+            Address ship = purchase.getShippingAddress();
+            QuoteResponse quote = taxShippingService.quote(new QuoteRequest(
+                    purchase.getSubtotal(),
+                    ship == null ? null : ship.getCountry(),
+                    ship == null ? null : ship.getState(),
+                    purchase.getCouponCode(),
+                    purchase.getShippingMethodCode()));
+            if (quote.discount() != null && quote.discount().signum() > 0) {
+                order.setCouponCode(purchase.getCouponCode());
+                order.setDiscountAmount(quote.discount());
             }
+            order.setShippingAmount(quote.shippingAmount());
+            order.setShippingMethod(quote.shippingMethodCode());
+            order.setTaxAmount(quote.taxAmount());
+            order.setTotalPrice(quote.total());
         }
 
         // populate customer with the order, reusing an existing customer if the email matches

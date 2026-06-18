@@ -11,6 +11,8 @@ export class CheckoutService {
 
   private readonly purchaseUrl = `${environment.apiUrl}/checkout/purchase`;
   private readonly paymentIntentUrl = `${environment.apiUrl}/checkout/payment-intent`;
+  private readonly shippingMethodsUrl = `${environment.apiUrl}/checkout/shipping-methods`;
+  private readonly quoteUrl = `${environment.apiUrl}/checkout/quote`;
 
   constructor(private httpClient: HttpClient) {}
 
@@ -21,6 +23,16 @@ export class CheckoutService {
   createPaymentIntent(paymentInfo: PaymentInfo): Observable<PaymentIntentResponse> {
     return this.httpClient.post<PaymentIntentResponse>(this.paymentIntentUrl, paymentInfo);
   }
+
+  /** Active shipping options for the checkout selector. */
+  getShippingMethods(): Observable<ShippingMethodView[]> {
+    return this.httpClient.get<ShippingMethodView[]>(this.shippingMethodsUrl);
+  }
+
+  /** Server-computed totals breakdown (discount + shipping + tax + total). */
+  quote(request: QuoteRequest): Observable<QuoteResponse> {
+    return this.httpClient.post<QuoteResponse>(this.quoteUrl, request);
+  }
 }
 
 export interface PurchaseResponse {
@@ -29,4 +41,31 @@ export interface PurchaseResponse {
 
 export interface PaymentIntentResponse {
   client_secret: string;
+}
+
+export interface ShippingMethodView {
+  id: number;
+  code: string;
+  name: string;
+  baseRate: number;
+  freeOverThreshold?: number | null;
+  estimatedDays?: string;
+}
+
+export interface QuoteRequest {
+  subtotal: number;
+  country?: string;
+  state?: string;
+  couponCode?: string;
+  shippingMethodCode?: string;
+}
+
+export interface QuoteResponse {
+  subtotal: number;
+  discount: number;
+  shippingAmount: number;
+  taxAmount: number;
+  taxRatePercent: number;
+  total: number;
+  shippingMethodCode?: string;
 }

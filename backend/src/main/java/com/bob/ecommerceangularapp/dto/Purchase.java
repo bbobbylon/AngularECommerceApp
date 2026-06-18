@@ -25,4 +25,7 @@ public class Purchase {
     /** Applied coupon (optional). The server re-validates and records the discount on the order. */
     private String couponCode;
     private java.math.BigDecimal subtotal;
+
+    /** Chosen shipping method code; the server recomputes shipping + tax authoritatively from it. */
+    private String shippingMethodCode;
 }

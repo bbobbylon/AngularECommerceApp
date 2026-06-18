@@ -14,4 +14,6 @@ export class Purchase {
   /** Applied coupon (optional) + the pre-discount subtotal, so the server can re-validate. */
   couponCode?: string;
   subtotal?: number;
+  /** Chosen shipping method code; the server recomputes shipping + tax authoritatively from it. */
+  shippingMethodCode?: string;
 }
