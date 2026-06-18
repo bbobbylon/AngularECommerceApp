@@ -33,9 +33,10 @@ class AdminServiceTest {
     private final OrderRepository orderRepository = mock(OrderRepository.class);
     private final CustomerRepository customerRepository = mock(CustomerRepository.class);
     private final NewsletterSubscriberRepository subscriberRepository = mock(NewsletterSubscriberRepository.class);
+    private final StockNotificationService stockNotificationService = mock(StockNotificationService.class);
 
-    private final AdminService service = new AdminService(
-            productRepository, categoryRepository, orderRepository, customerRepository, subscriberRepository);
+    private final AdminService service = new AdminService(productRepository, categoryRepository,
+            orderRepository, customerRepository, subscriberRepository, stockNotificationService);
 
     @Test
     void stats_aggregatesRepositoryCounts() {

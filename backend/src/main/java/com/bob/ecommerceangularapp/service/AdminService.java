@@ -37,17 +37,20 @@ public class AdminService {
     private final OrderRepository orderRepository;
     private final CustomerRepository customerRepository;
     private final NewsletterSubscriberRepository subscriberRepository;
+    private final StockNotificationService stockNotificationService;
 
     public AdminService(ProductRepository productRepository,
                         ProductCategoryRepository productCategoryRepository,
                         OrderRepository orderRepository,
                         CustomerRepository customerRepository,
-                        NewsletterSubscriberRepository subscriberRepository) {
+                        NewsletterSubscriberRepository subscriberRepository,
+                        StockNotificationService stockNotificationService) {
         this.productRepository = productRepository;
         this.productCategoryRepository = productCategoryRepository;
         this.orderRepository = orderRepository;
         this.customerRepository = customerRepository;
         this.subscriberRepository = subscriberRepository;
+        this.stockNotificationService = stockNotificationService;
     }
 
     public AdminStats stats() {
@@ -89,7 +92,12 @@ public class AdminService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
         apply(product, request);
-        return productRepository.save(product);
+        Product saved = productRepository.save(product);
+        // If this update brings the product back in stock, email anyone waiting (gated).
+        if (saved.getUnitsInStock() > 0) {
+            stockNotificationService.notifyProductRestocked(saved);
+        }
+        return saved;
     }
 
     @Transactional

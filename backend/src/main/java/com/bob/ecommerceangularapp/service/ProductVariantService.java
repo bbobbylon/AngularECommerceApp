@@ -27,11 +27,14 @@ public class ProductVariantService {
 
     private final ProductVariantRepository variantRepository;
     private final ProductRepository productRepository;
+    private final StockNotificationService stockNotificationService;
 
     public ProductVariantService(ProductVariantRepository variantRepository,
-                                 ProductRepository productRepository) {
+                                 ProductRepository productRepository,
+                                 StockNotificationService stockNotificationService) {
         this.variantRepository = variantRepository;
         this.productRepository = productRepository;
+        this.stockNotificationService = stockNotificationService;
     }
 
     // ---------- storefront reads ----------
@@ -109,7 +112,14 @@ public class ProductVariantService {
         if (!byId.isEmpty()) {
             variantRepository.deleteAll(byId.values());
         }
-        return variantRepository.saveAll(kept).stream().map(ProductVariantService::toRequest).toList();
+        List<ProductVariant> saved = variantRepository.saveAll(kept);
+        // Any variant that now has stock → notify back-in-stock subscribers waiting on that SKU (gated).
+        for (ProductVariant v : saved) {
+            if (v.getUnitsInStock() > 0) {
+                stockNotificationService.notifyVariantRestocked(v.getSku(), product);
+            }
+        }
+        return saved.stream().map(ProductVariantService::toRequest).toList();
     }
 
     // ---------- checkout ----------

@@ -30,6 +30,11 @@ export class ProductDetails implements OnInit {
   readonly variants = signal<ProductVariant[]>([]);
   readonly selectedVariant = signal<ProductVariant | null>(null);
 
+  // back-in-stock notify-me
+  notifyEmail = '';
+  readonly notifyRequested = signal(false);
+  readonly notifying = signal(false);
+
   /** The large image currently shown in the gallery (defaults to the main image). */
   readonly selectedImage = signal('');
 
@@ -93,6 +98,31 @@ export class ProductDetails implements OnInit {
     }
   }
 
+  /** Subscribe to a back-in-stock email for the current product/variant. */
+  notifyMe(): void {
+    if (!this.product) {
+      return;
+    }
+    const email = this.notifyEmail.trim();
+    if (!email || !email.includes('@')) {
+      this.toast.error('Please enter a valid email.');
+      return;
+    }
+    this.notifying.set(true);
+    const variantSku = this.hasVariants() ? this.selectedVariant()?.sku ?? null : null;
+    this.productService.notifyWhenInStock(this.product.id, email, variantSku).subscribe({
+      next: () => {
+        this.notifyRequested.set(true);
+        this.notifying.set(false);
+        this.toast.success("We'll email you when it's back in stock.");
+      },
+      error: () => {
+        this.notifying.set(false);
+        this.toast.error('Could not sign you up. Please try again.');
+      },
+    });
+  }
+
   addToCart(): void {
     if (!this.product) {
       return;
@@ -139,6 +169,8 @@ export class ProductDetails implements OnInit {
     this.selectedImage.set('');
     this.variants.set([]);
     this.selectedVariant.set(null);
+    this.notifyRequested.set(false);
+    this.notifyEmail = '';
     this.recentlyViewed.record(productId);
     this.productService.getProduct(productId).subscribe(data => {
       this.product = data;

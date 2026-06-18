@@ -25,7 +25,9 @@ class ProductVariantServiceTest {
 
     private final ProductVariantRepository variantRepository = mock(ProductVariantRepository.class);
     private final ProductRepository productRepository = mock(ProductRepository.class);
-    private final ProductVariantService service = new ProductVariantService(variantRepository, productRepository);
+    private final StockNotificationService stockNotificationService = mock(StockNotificationService.class);
+    private final ProductVariantService service =
+            new ProductVariantService(variantRepository, productRepository, stockNotificationService);
 
     @Test
     void viewsForProduct_resolvesPriceAndStockFlag() {

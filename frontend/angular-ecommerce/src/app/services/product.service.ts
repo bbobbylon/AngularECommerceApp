@@ -92,6 +92,13 @@ export class ProductService {
       .pipe(catchError(() => of([])));
   }
 
+  /** Subscribe an email to be notified when a product (or variant) is back in stock. */
+  notifyWhenInStock(productId: number, email: string, variantSku?: string | null): Observable<void> {
+    return this.httpClient.post<void>(`${this.baseUrl}/stock-notifications`, {
+      productId, email, variantSku: variantSku ?? null,
+    });
+  }
+
   /** Fetches several products by id (for the wishlist); skips any that fail to load. */
   getProductsByIds(ids: number[]): Observable<Product[]> {
     if (ids.length === 0) {

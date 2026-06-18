@@ -87,6 +87,19 @@ public final class EmailTemplates {
         return layout("Your Luv2Shop order is confirmed.", content, null);
     }
 
+    /** "It's back!" notification when a product the customer wanted is in stock again. */
+    public static String backInStock(String productName, String productUrl) {
+        String content = """
+                <h1 style="font-size:26px;margin:0 0 12px;">It's back in stock! &#127881;</h1>
+                <p style="font-size:16px;line-height:1.6;color:#515a73;margin:0 0 18px;">
+                  Good news — <strong>%s</strong> is available again. Popular items sell out fast, so grab
+                  yours before it's gone.
+                </p>
+                <p style="margin:0 0 8px;">%s</p>
+                """.formatted(esc(productName), button(productUrl, "Shop now"));
+        return layout("The item you wanted is back in stock.", content, null);
+    }
+
     /** Confirmation that account/email preferences were updated. */
     public static String settingsUpdated(String name, boolean subscribed, String accountUrl) {
         String status = subscribed

@@ -64,6 +64,11 @@ public class EmailService {
                 EmailTemplates.orderConfirmation(name, trackingNumber, total, frontendUrl + "/members/orders"));
     }
 
+    public void sendBackInStock(String to, String productName, Long productId) {
+        send(to, "Back in stock: " + productName + " 🎉",
+                EmailTemplates.backInStock(productName, frontendUrl + "/products/" + productId));
+    }
+
     public void sendSettingsUpdated(String to, String name, boolean subscribed) {
         send(to, "Your Luv2Shop preferences were updated",
                 EmailTemplates.settingsUpdated(name, subscribed, frontendUrl + "/account"));

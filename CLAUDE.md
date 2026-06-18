@@ -130,6 +130,15 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   checkout (cleared after); account page gains a **Refer a friend** card (shareable link + copy +
   stats). Tests: `ReferralServiceTest` (reward both, self-referral guard, already-referred guard, code
   assignment).
+- ✅ **Back-in-stock notifications** — `StockNotification` entity (email + product, optional variant SKU,
+  `notified` flag); `V9` creates the table (IT-validated). `StockNotificationService.subscribe()`
+  (deduped while waiting) + `notifyProductRestocked`/`notifyVariantRestocked` email every waiter once
+  via the **gated** `EmailService.sendBackInStock` (new `EmailTemplates.backInStock`) and mark them
+  notified. Triggers: `AdminService.updateProduct` (when stock > 0) and `ProductVariantService.replaceVariants`
+  (per restocked variant). Public `POST /api/stock-notifications`. Frontend: product-details shows an
+  "Email me when it's back" form whenever the selected product/variant is out of stock
+  (`ProductService.notifyWhenInStock`). Tests: `StockNotificationServiceTest` (subscribe dedup, notify +
+  mark, OOS no-op).
 - ✅ **Observability & ops** — `spring-boot-starter-actuator` + `micrometer-registry-prometheus`:
   health (+ liveness/readiness **probes**), `/actuator/info` (build version/time via the `build-info`
   goal), metrics, `/actuator/prometheus`. `RequestIdFilter` adds an `X-Request-Id` correlation id

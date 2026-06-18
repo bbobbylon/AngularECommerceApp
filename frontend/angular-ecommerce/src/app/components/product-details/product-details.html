@@ -117,6 +117,25 @@
           <i class="fa-solid fa-arrow-left me-1"></i> Back
         </a>
       </div>
+
+      @if (availableStock() === 0) {
+        <div class="mt-3 p-3 rounded border bg-body-secondary">
+          @if (notifyRequested()) {
+            <span class="text-success-emphasis fw-semibold">
+              <i class="fa-solid fa-bell me-1"></i>You're on the list — we'll email you when it's back in stock.
+            </span>
+          } @else {
+            <label class="form-label fw-semibold mb-1"><i class="fa-solid fa-bell me-1"></i>Email me when it's back in stock</label>
+            <div class="input-group" style="max-width: 420px;">
+              <input type="email" class="form-control" placeholder="you@example.com"
+                     [(ngModel)]="notifyEmail" name="notifyEmail" (keyup.enter)="notifyMe()" />
+              <button type="button" class="btn btn-outline-primary" (click)="notifyMe()" [disabled]="notifying()">
+                Notify me
+              </button>
+            </div>
+          }
+        </div>
+      }
     </div>
   </div>
 
