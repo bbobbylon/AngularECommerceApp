@@ -38,6 +38,42 @@
             </div>
           </div>
           <app-order-timeline [status]="order.status"></app-order-timeline>
+
+          <!-- Returns -->
+          <div class="border-top mt-3 pt-3">
+            @if (returnFor(order); as ret) {
+              <div class="d-flex align-items-center flex-wrap gap-2">
+                <span class="badge" [ngClass]="returnBadgeClass(ret.status)">
+                  <i class="fa-solid fa-rotate-left me-1"></i>Return {{ ret.status | lowercase }}
+                </span>
+                @if (ret.refunded && ret.refundAmount) {
+                  <span class="small text-muted">{{ ret.refundAmount | currency:'USD' }} refunded</span>
+                }
+                @if (ret.adminNote) { <span class="small text-muted">· {{ ret.adminNote }}</span> }
+              </div>
+            } @else if (openReturnFor === order.orderTrackingNumber) {
+              <div class="vstack gap-2">
+                <span class="fw-semibold small">Request a return</span>
+                @if (!email) {
+                  <input type="email" class="form-control form-control-sm" placeholder="Email used on this order"
+                         [(ngModel)]="returnEmail" name="returnEmail" />
+                }
+                <textarea class="form-control form-control-sm" rows="2" placeholder="What's the reason for the return?"
+                          [(ngModel)]="returnReason" name="returnReason"></textarea>
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-primary btn-sm" (click)="submitReturn(order)" [disabled]="submittingReturn">
+                    @if (submittingReturn) { <i class="fa-solid fa-spinner fa-spin me-1"></i> }
+                    Submit return
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" (click)="toggleReturn(order)">Cancel</button>
+                </div>
+              </div>
+            } @else {
+              <button type="button" class="btn btn-outline-secondary btn-sm" (click)="toggleReturn(order)">
+                <i class="fa-solid fa-rotate-left me-1"></i> Request a return
+              </button>
+            }
+          </div>
         </div>
       </div>
     }

@@ -65,6 +65,10 @@ public class Order {
     @Column(name = "tax_amount")
     private BigDecimal taxAmount;
 
+    /** Stripe PaymentIntent id (when paid by card) — lets a return issue a real refund. Null in demo mode. */
+    @Column(name = "payment_intent_id")
+    private String paymentIntentId;
+
     @Column(name = "date_created")
     @CreationTimestamp
     private Date dateCreated;

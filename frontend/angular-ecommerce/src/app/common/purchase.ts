@@ -16,4 +16,6 @@ export class Purchase {
   subtotal?: number;
   /** Chosen shipping method code; the server recomputes shipping + tax authoritatively from it. */
   shippingMethodCode?: string;
+  /** Stripe PaymentIntent id (card payments) so an approved return can refund the charge. */
+  paymentIntentId?: string;
 }

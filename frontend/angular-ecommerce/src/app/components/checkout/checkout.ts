@@ -60,6 +60,8 @@ export class Checkout implements OnInit, AfterViewInit {
   private cardElement?: StripeCardElement;
   cardError = '';
   private paymentInfo = new PaymentInfo();
+  /** Captured after a successful card payment so the order can later be refunded on a return. */
+  private paymentIntentId = '';
 
   /** True only when a real Stripe publishable key is configured (runtime config.json or environment). */
   get stripeConfigured(): boolean {
@@ -275,6 +277,7 @@ export class Checkout implements OnInit, AfterViewInit {
 
     this.checkoutService.createPaymentIntent(this.paymentInfo).subscribe({
       next: response => {
+        this.paymentIntentId = response.id;
         this.stripe!.confirmCardPayment(
           response.client_secret,
           {
@@ -333,6 +336,7 @@ export class Checkout implements OnInit, AfterViewInit {
     // Always send the subtotal + chosen method so the server recomputes shipping + tax (+ coupon).
     purchase.subtotal = this.totalPrice;
     purchase.shippingMethodCode = this.selectedShippingCode || undefined;
+    purchase.paymentIntentId = this.paymentIntentId || undefined;
     if (this.appliedCode && this.discount > 0) {
       purchase.couponCode = this.appliedCode;
     }

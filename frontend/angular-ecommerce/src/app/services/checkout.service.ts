@@ -40,6 +40,7 @@ export interface PurchaseResponse {
 }
 
 export interface PaymentIntentResponse {
+  id: string;
   client_secret: string;
 }
 

@@ -28,4 +28,7 @@ public class Purchase {
 
     /** Chosen shipping method code; the server recomputes shipping + tax authoritatively from it. */
     private String shippingMethodCode;
+
+    /** Stripe PaymentIntent id when paid by card — recorded on the order so a return can refund it. */
+    private String paymentIntentId;
 }

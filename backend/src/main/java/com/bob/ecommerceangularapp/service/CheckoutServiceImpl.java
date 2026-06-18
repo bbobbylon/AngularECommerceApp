@@ -54,6 +54,7 @@ public class CheckoutServiceImpl implements CheckoutService {
 
         String orderTrackingNumber = generateOrderTrackingNumber();
         order.setOrderTrackingNumber(orderTrackingNumber);
+        order.setPaymentIntentId(purchase.getPaymentIntentId());
 
         // populate order with its items (maintains the bidirectional link)
         Set<OrderItem> orderItems = purchase.getOrderItems();

@@ -1,0 +1,57 @@
+<div class="mb-4">
+  <h1 class="fw-bold mb-0">Returns</h1>
+  <p class="text-muted mb-0">Review return requests. Approving a card order refunds it via Stripe when configured.</p>
+</div>
+
+@if (loading()) {
+  <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+} @else if (returns().length === 0) {
+  <div class="alert alert-secondary">No return requests yet.</div>
+} @else {
+  <div class="vstack gap-3">
+    @for (r of returns(); track r.id) {
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+              <span class="badge" [ngClass]="badgeClass(r.status)">{{ r.status | lowercase }}</span>
+              <span class="font-monospace small ms-2">{{ r.orderTrackingNumber }}</span>
+              <div class="small text-muted mt-1">{{ r.customerEmail }} · {{ r.dateCreated | date:'medium' }}</div>
+            </div>
+            @if (r.refundAmount) {
+              <div class="text-end">
+                <div class="fw-semibold">{{ r.refundAmount | currency:'USD' }}</div>
+                <div class="small text-muted">{{ r.refunded ? 'refunded' : 'refund pending' }}</div>
+              </div>
+            }
+          </div>
+
+          <p class="mt-2 mb-2"><span class="text-muted small">Reason:</span> {{ r.reason }}</p>
+          @if (r.adminNote) { <p class="small text-muted mb-2"><i class="fa-solid fa-note-sticky me-1"></i>{{ r.adminNote }}</p> }
+
+          @if (pending(r)) {
+            <div class="row g-2 align-items-end border-top pt-3">
+              <div class="col-sm-3">
+                <label class="form-label small mb-0">Refund amount</label>
+                <input type="number" step="0.01" min="0" class="form-control form-control-sm"
+                       placeholder="full order" [(ngModel)]="amountFor[r.id]" [name]="'amt' + r.id" />
+              </div>
+              <div class="col-sm-5">
+                <label class="form-label small mb-0">Note (optional)</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="noteFor[r.id]" [name]="'note' + r.id" />
+              </div>
+              <div class="col-sm-4 d-flex gap-2 justify-content-sm-end">
+                <button class="btn btn-success btn-sm" (click)="decide(r, 'APPROVE')" [disabled]="busy === r.id">
+                  <i class="fa-solid fa-check me-1"></i> Approve &amp; refund
+                </button>
+                <button class="btn btn-outline-danger btn-sm" (click)="decide(r, 'DENY')" [disabled]="busy === r.id">
+                  Deny
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+}

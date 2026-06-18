@@ -86,6 +86,18 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   `Order`/`Purchase` carry the amounts + method code, new **admin "Tax & Shipping"** page (`/admin/tax-shipping`).
   `DataLoader.seedTaxAndShipping()` seeds 2 methods (Standard free > $50, Express) + 8 US state rates.
   Tests: `TaxShippingServiceTest` (state/country-wide/no-match tax, free-shipping threshold, coupon-before-tax).
+- ✅ **Returns / RMA + refunds** — `ReturnRequest` entity (lifecycle REQUESTED→APPROVED/DENIED→REFUNDED);
+  `V5` migration creates `return_request` + adds nullable `payment_intent_id` to `orders` (MySQL
+  IT-validated). `ReturnService`: customer opens a return (`POST /api/returns`, email must match the
+  order — looked up via `OrderRepository.findByOrderTrackingNumber`, `@RestResource(exported=false)`;
+  blocks duplicate open returns); admin approves/denies (`AdminReturnController`
+  `/api/admin/returns` + `PUT /{id}/decision`). **Approval issues a real Stripe refund** against the
+  order's PaymentIntent when Stripe is configured (→ REFUNDED + `stripeRefundId`), else stays APPROVED
+  for a manual refund — graceful degradation, non-fatal on Stripe error. Checkout now captures the
+  Stripe **PaymentIntent id** onto the order (`Purchase.paymentIntentId` → `Order`). Frontend:
+  order-history gains a "Request a return" inline form + status badge (`return.service.ts`); new admin
+  **Returns** queue (`/admin/returns`) with approve/deny + refund amount/note. Tests: `ReturnServiceTest`
+  (email-match, duplicate guard, approve-without-Stripe, deny). 57 backend + 17 frontend tests green.
 - ✅ **Observability & ops** — `spring-boot-starter-actuator` + `micrometer-registry-prometheus`:
   health (+ liveness/readiness **probes**), `/actuator/info` (build version/time via the `build-info`
   goal), metrics, `/actuator/prometheus`. `RequestIdFilter` adds an `X-Request-Id` correlation id
