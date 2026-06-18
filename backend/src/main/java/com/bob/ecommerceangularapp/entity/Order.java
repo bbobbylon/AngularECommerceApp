@@ -76,6 +76,13 @@ public class Order {
     @Column(name = "gift_card_amount")
     private BigDecimal giftCardAmount;
 
+    /** Loyalty points redeemed on this order as store credit, and the discount they produced (nullable). */
+    @Column(name = "loyalty_points_redeemed")
+    private Integer loyaltyPointsRedeemed;
+
+    @Column(name = "loyalty_discount")
+    private BigDecimal loyaltyDiscount;
+
     @Column(name = "date_created")
     @CreationTimestamp
     private Date dateCreated;

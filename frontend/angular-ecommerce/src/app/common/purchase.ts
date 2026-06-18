@@ -20,4 +20,6 @@ export class Purchase {
   paymentIntentId?: string;
   /** Gift card code to redeem as store credit (server applies it against the order total). */
   giftCardCode?: string;
+  /** Loyalty points to redeem as store credit (server-validated against the customer's balance). */
+  pointsToRedeem?: number;
 }

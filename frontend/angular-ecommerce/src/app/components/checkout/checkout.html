@@ -263,6 +263,14 @@
               <span>Gift card:</span>
               <span class="fw-semibold">&minus;{{ giftApplied | currency:'USD' }}</span>
             </div>
+          }
+          @if (useLoyalty && pointsApplied > 0) {
+            <div class="d-flex justify-content-between mt-1 text-success-emphasis">
+              <span>Rewards ({{ pointsApplied }} pts):</span>
+              <span class="fw-semibold">&minus;{{ loyaltyApplied | currency:'USD' }}</span>
+            </div>
+          }
+          @if (appliedGiftCode || (useLoyalty && pointsApplied > 0)) {
             <div class="d-flex justify-content-between fw-bold mt-1">
               <span>Amount due:</span>
               <span>{{ amountDue | currency:'USD' }}</span>
@@ -310,6 +318,22 @@
               </div>
               @if (giftCardError) { <div class="text-danger small mt-1">{{ giftCardError }}</div> }
               <div class="form-text">Try <code>GIFT25</code> or <code>GIFT50</code>.</div>
+            }
+          </div>
+
+          <!-- Rewards points -->
+          <div class="mt-3">
+            @if (useLoyalty) {
+              <div class="d-flex justify-content-between align-items-center small">
+                <span class="text-success-emphasis"><i class="fa-solid fa-star me-1"></i>{{ loyaltyBalance }} pts{{ loyaltyTier ? ' · ' + loyaltyTier : '' }}</span>
+                <button type="button" class="btn btn-link btn-sm p-0" (click)="removeLoyalty()">Remove</button>
+              </div>
+            } @else {
+              <button type="button" class="btn btn-outline-primary btn-sm w-100" (click)="applyLoyalty()" [disabled]="loadingLoyalty">
+                <i class="fa-solid fa-star me-1"></i> Use my rewards points
+              </button>
+              @if (loyaltyError) { <div class="text-danger small mt-1">{{ loyaltyError }}</div> }
+              <div class="form-text">Redeem points for store credit (1 pt = $0.01).</div>
             }
           </div>
 

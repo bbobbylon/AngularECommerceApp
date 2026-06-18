@@ -33,18 +33,21 @@ public class CheckoutServiceImpl implements CheckoutService {
     private final TaxShippingService taxShippingService;
     private final ProductVariantService productVariantService;
     private final GiftCardService giftCardService;
+    private final LoyaltyService loyaltyService;
 
     public CheckoutServiceImpl(CustomerRepository customerRepository,
                                EmailService emailService,
                                TaxShippingService taxShippingService,
                                ProductVariantService productVariantService,
                                GiftCardService giftCardService,
+                               LoyaltyService loyaltyService,
                                @Value("${stripe.key.secret}") String secretKey) {
         this.customerRepository = customerRepository;
         this.emailService = emailService;
         this.taxShippingService = taxShippingService;
         this.productVariantService = productVariantService;
         this.giftCardService = giftCardService;
+        this.loyaltyService = loyaltyService;
         // Stripe is keyed globally via a static field.
         Stripe.apiKey = secretKey;
     }
@@ -118,13 +121,20 @@ public class CheckoutServiceImpl implements CheckoutService {
         customer.add(order);
 
         // cascade persists the order, items and addresses
-        customerRepository.save(customer);
+        Customer saved = customerRepository.save(customer);
+
+        // Loyalty: redeem requested points as store credit (server-validated), then earn on this order.
+        // Runs after the save so the order has an id for the ledger; same transaction, so it commits atomically.
+        if (purchase.getPointsToRedeem() > 0) {
+            loyaltyService.redeem(saved, order, purchase.getPointsToRedeem());
+        }
+        loyaltyService.award(saved, order);
 
         // Email is gated inside EmailService — these are safe no-ops when SMTP isn't configured.
-        emailService.sendOrderConfirmation(customer.getEmail(), customer.getFirstName(),
+        emailService.sendOrderConfirmation(saved.getEmail(), saved.getFirstName(),
                 orderTrackingNumber, order.getTotalPrice());
-        if (customer.isNewsletterSubscribed() && !wasSubscribed) {
-            emailService.sendWelcome(customer.getEmail(), customer.getFirstName());
+        if (saved.isNewsletterSubscribed() && !wasSubscribed) {
+            emailService.sendWelcome(saved.getEmail(), saved.getFirstName());
         }
 
         return new PurchaseResponse(orderTrackingNumber);

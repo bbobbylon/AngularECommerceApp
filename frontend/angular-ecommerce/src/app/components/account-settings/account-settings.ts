@@ -1,3 +1,4 @@
+import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -6,6 +7,7 @@ import { OktaAuthStateService } from '@okta/okta-angular';
 import { isOktaConfigured } from '../../auth/dev-auth.guard';
 import { oktaConfig } from '../../auth/okta-config';
 import { AccountPreferences, AccountService } from '../../services/account.service';
+import { LoyaltyService, LoyaltySummary } from '../../services/loyalty.service';
 import { ToastService } from '../../services/toast.service';
 
 /**
@@ -17,7 +19,7 @@ import { ToastService } from '../../services/toast.service';
  */
 @Component({
   selector: 'app-account-settings',
-  imports: [FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './account-settings.html',
 })
 export class AccountSettings implements OnInit {
@@ -30,6 +32,7 @@ export class AccountSettings implements OnInit {
   newsletterSubscribed = true;
 
   readonly prefs = signal<AccountPreferences | null>(null);
+  readonly loyalty = signal<LoyaltySummary | null>(null);
   readonly loading = signal(false);
   readonly saving = signal(false);
   readonly notFound = signal(false);
@@ -41,6 +44,7 @@ export class AccountSettings implements OnInit {
     : '';
 
   private accountService = inject(AccountService);
+  private loyaltyService = inject(LoyaltyService);
   private authStateService = inject(OktaAuthStateService);
   private toast = inject(ToastService);
 
@@ -66,6 +70,10 @@ export class AccountSettings implements OnInit {
       next: prefs => {
         this.applyPrefs(prefs);
         this.loading.set(false);
+        this.loyaltyService.summary(email).subscribe({
+          next: summary => this.loyalty.set(summary),
+          error: () => this.loyalty.set(null),
+        });
       },
       error: () => {
         this.prefs.set(null);

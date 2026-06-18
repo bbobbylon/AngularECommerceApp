@@ -109,6 +109,16 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   $0 PaymentIntent). `CheckoutServiceImpl` redeems server-side after the quote and records it on the
   order. `DataLoader` seeds GIFT25/GIFT50. Tests: `GiftCardServiceTest` (check active/inactive/empty,
   redeem cap + partial + unknown). New admin **Gift Cards** page (`/admin/gift-cards`).
+- ✅ **Loyalty & rewards points** — earn 1 pt/$1, redeem as store credit at 1¢/pt; lifetime points drive
+  a Bronze/Silver/Gold tier. `Customer` gains nullable `loyalty_points`/`lifetime_points`; new
+  `loyalty_transaction` ledger; `orders` gets nullable `loyalty_points_redeemed`/`loyalty_discount`
+  (`V7`, MySQL IT-validated). `LoyaltyService.award()` (floor of order total) + `redeem()` (capped by
+  balance **and** order total, logged to ledger) run in the checkout tx after the order saves (so the
+  ledger has an order id); `summary()` powers the account view. Public `GET /api/loyalty?email=`.
+  `CheckoutServiceImpl` redeems `purchase.pointsToRedeem` then awards. Checkout: "Use my rewards points"
+  applies points as store credit (Rewards + Amount due lines, stacks with gift card; card step skipped
+  when credit covers the order). Account page gains a **Rewards** card (balance/tier/progress/history).
+  Tests: `LoyaltyServiceTest` (earn floor, redeem cap-by-balance + cap-by-total, tier/progress).
 - ✅ **Observability & ops** — `spring-boot-starter-actuator` + `micrometer-registry-prometheus`:
   health (+ liveness/readiness **probes**), `/actuator/info` (build version/time via the `build-info`
   goal), metrics, `/actuator/prometheus`. `RequestIdFilter` adds an `X-Request-Id` correlation id

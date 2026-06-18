@@ -75,6 +75,35 @@
   </div>
 
   <div class="col-12 col-lg-4">
+    @if (loyalty(); as rw) {
+      <div class="card mb-4 border-primary-subtle">
+        <div class="card-body">
+          <h6 class="fw-bold"><i class="fa-solid fa-star me-2 text-warning"></i>Rewards</h6>
+          <div class="d-flex align-items-baseline gap-2">
+            <span class="display-6 fw-bold text-primary mb-0">{{ rw.balance }}</span>
+            <span class="text-muted">points</span>
+            <span class="badge bg-warning-subtle text-warning-emphasis ms-auto">{{ rw.tier }}</span>
+          </div>
+          <p class="small text-muted mb-2">Worth {{ rw.redeemableValue | currency:'USD' }} in store credit at checkout.</p>
+          @if (rw.nextTier) {
+            <div class="small text-muted mb-2">{{ rw.pointsToNextTier }} more lifetime points to {{ rw.nextTier }}.</div>
+          }
+          @if (rw.history.length) {
+            <ul class="list-unstyled small mb-0 border-top pt-2">
+              @for (h of rw.history.slice(0, 5); track $index) {
+                <li class="d-flex justify-content-between">
+                  <span class="text-muted text-truncate me-2">{{ h.description }}</span>
+                  <span [class.text-success-emphasis]="h.type === 'EARN'" [class.text-danger-emphasis]="h.type === 'REDEEM'">
+                    {{ h.type === 'EARN' ? '+' : '−' }}{{ h.points }}
+                  </span>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      </div>
+    }
+
     <div class="card mb-4">
       <div class="card-body">
         <h6 class="fw-bold"><i class="fa-solid fa-fingerprint me-2 text-primary"></i>Security &amp; sign-in</h6>

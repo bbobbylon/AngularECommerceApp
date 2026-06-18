@@ -34,4 +34,7 @@ public class Purchase {
 
     /** Gift card code to redeem as store credit against the order total (optional). */
     private String giftCardCode;
+
+    /** Loyalty points the customer chose to redeem as store credit (server-validated against balance). */
+    private int pointsToRedeem;
 }

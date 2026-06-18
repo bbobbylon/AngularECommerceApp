@@ -45,6 +45,17 @@ public class Customer {
     @Column(name = "unsubscribe_token", unique = true)
     private String unsubscribeToken;
 
+    /**
+     * Loyalty: redeemable point balance and the lifetime total earned (drives tier). Nullable
+     * (Integer) so adding the columns to a populated {@code customer} table is a safe ALTER; treated
+     * as 0 when null. Managed by {@code LoyaltyService}.
+     */
+    @Column(name = "loyalty_points")
+    private Integer loyaltyPoints;
+
+    @Column(name = "lifetime_points")
+    private Integer lifetimePoints;
+
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL)
     private Set<Order> orders = new HashSet<>();
 

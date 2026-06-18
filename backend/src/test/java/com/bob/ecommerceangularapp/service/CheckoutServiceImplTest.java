@@ -8,6 +8,7 @@ import com.bob.ecommerceangularapp.entity.Address;
 import com.bob.ecommerceangularapp.entity.Customer;
 import com.bob.ecommerceangularapp.entity.Order;
 import com.bob.ecommerceangularapp.entity.OrderItem;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -15,6 +16,7 @@ import java.math.BigDecimal;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -30,8 +32,15 @@ class CheckoutServiceImplTest {
     private final TaxShippingService taxShippingService = mock(TaxShippingService.class);
     private final ProductVariantService productVariantService = mock(ProductVariantService.class);
     private final GiftCardService giftCardService = mock(GiftCardService.class);
-    private final CheckoutServiceImpl service = new CheckoutServiceImpl(
-            customerRepository, emailService, taxShippingService, productVariantService, giftCardService, "");
+    private final LoyaltyService loyaltyService = mock(LoyaltyService.class);
+    private final CheckoutServiceImpl service = new CheckoutServiceImpl(customerRepository, emailService,
+            taxShippingService, productVariantService, giftCardService, loyaltyService, "");
+
+    @BeforeEach
+    void stubSave() {
+        // The order-save returns the managed customer the service then reads back; echo the argument.
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+    }
 
     @Test
     void placeOrder_generatesTrackingNumberAndLinksEntities() {

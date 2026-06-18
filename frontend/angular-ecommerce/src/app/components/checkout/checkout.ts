@@ -14,6 +14,7 @@ import { Purchase } from '../../common/purchase';
 import { State } from '../../common/state';
 import { CartService } from '../../services/cart.service';
 import { CheckoutService, ShippingMethodView } from '../../services/checkout.service';
+import { LoyaltyService } from '../../services/loyalty.service';
 import { Luv2ShopFormService } from '../../services/luv2shop-form.service';
 import { Luv2ShopValidators } from '../../validators/luv2shop-validators';
 
@@ -53,18 +54,39 @@ export class Checkout implements OnInit, AfterViewInit {
   giftCardError = '';
   applyingGift = false;
 
+  // loyalty / rewards points (store credit; 1 point = $0.01)
+  private loyalty = inject(LoyaltyService);
+  useLoyalty = false;
+  loyaltyBalance = 0;
+  loyaltyTier = '';
+  loyaltyError = '';
+  loadingLoyalty = false;
+
   get grandTotal(): number {
     return this.quoteTotal != null ? this.quoteTotal : Math.max(0, this.totalPrice - this.discount);
   }
 
-  /** Store credit actually applied: capped at the order total. */
+  /** Gift-card store credit actually applied: capped at the order total. */
   get giftApplied(): number {
     return this.appliedGiftCode ? Math.min(this.giftCardBalance, this.grandTotal) : 0;
   }
 
-  /** What the customer pays by card after store credit. */
+  /** Points redeemed against the remaining total (1 point = $0.01), capped by balance + remainder. */
+  get pointsApplied(): number {
+    if (!this.useLoyalty) {
+      return 0;
+    }
+    const remainderCents = Math.round(Math.max(0, this.grandTotal - this.giftApplied) * 100);
+    return Math.min(this.loyaltyBalance, remainderCents);
+  }
+
+  get loyaltyApplied(): number {
+    return this.pointsApplied / 100;
+  }
+
+  /** What the customer pays by card after all store credit. */
   get amountDue(): number {
-    return Math.max(0, this.grandTotal - this.giftApplied);
+    return Math.max(0, this.grandTotal - this.giftApplied - this.loyaltyApplied);
   }
 
   countries: Country[] = [];
@@ -268,6 +290,38 @@ export class Checkout implements OnInit, AfterViewInit {
     this.giftCardError = '';
   }
 
+  /** Looks up the customer's points (by the email entered above) and applies them as store credit. */
+  applyLoyalty(): void {
+    const email = (this.email?.value ?? '').trim();
+    if (!email) {
+      this.loyaltyError = 'Enter your email above first so we can find your rewards.';
+      return;
+    }
+    this.loadingLoyalty = true;
+    this.loyaltyError = '';
+    this.loyalty.summary(email).subscribe({
+      next: s => {
+        this.loyaltyBalance = s.balance;
+        this.loyaltyTier = s.tier;
+        if (s.balance > 0) {
+          this.useLoyalty = true;
+        } else {
+          this.loyaltyError = 'No points available on this account yet.';
+        }
+        this.loadingLoyalty = false;
+      },
+      error: () => {
+        this.loyaltyError = 'Could not load your rewards. Please try again.';
+        this.loadingLoyalty = false;
+      },
+    });
+  }
+
+  removeLoyalty(): void {
+    this.useLoyalty = false;
+    this.loyaltyError = '';
+  }
+
   copyShippingToBilling(event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
     if (checked) {
@@ -389,6 +443,7 @@ export class Checkout implements OnInit, AfterViewInit {
     purchase.shippingMethodCode = this.selectedShippingCode || undefined;
     purchase.paymentIntentId = this.paymentIntentId || undefined;
     purchase.giftCardCode = this.appliedGiftCode || undefined;
+    purchase.pointsToRedeem = this.pointsApplied || undefined;
     if (this.appliedCode && this.discount > 0) {
       purchase.couponCode = this.appliedCode;
     }
