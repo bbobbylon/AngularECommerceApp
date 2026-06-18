@@ -22,4 +22,6 @@ export class Purchase {
   giftCardCode?: string;
   /** Loyalty points to redeem as store credit (server-validated against the customer's balance). */
   pointsToRedeem?: number;
+  /** Referral code the buyer arrived with (rewards both parties on their first order). */
+  referralCode?: string;
 }

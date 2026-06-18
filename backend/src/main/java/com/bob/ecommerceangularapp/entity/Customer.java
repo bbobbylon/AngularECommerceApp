@@ -56,6 +56,10 @@ public class Customer {
     @Column(name = "lifetime_points")
     private Integer lifetimePoints;
 
+    /** The customer's own referral code (shared with friends). Assigned lazily by ReferralService. */
+    @Column(name = "referral_code", unique = true)
+    private String referralCode;
+
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL)
     private Set<Order> orders = new HashSet<>();
 

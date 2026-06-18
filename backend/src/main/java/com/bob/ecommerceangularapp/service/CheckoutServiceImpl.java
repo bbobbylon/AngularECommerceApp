@@ -34,6 +34,7 @@ public class CheckoutServiceImpl implements CheckoutService {
     private final ProductVariantService productVariantService;
     private final GiftCardService giftCardService;
     private final LoyaltyService loyaltyService;
+    private final ReferralService referralService;
 
     public CheckoutServiceImpl(CustomerRepository customerRepository,
                                EmailService emailService,
@@ -41,6 +42,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                                ProductVariantService productVariantService,
                                GiftCardService giftCardService,
                                LoyaltyService loyaltyService,
+                               ReferralService referralService,
                                @Value("${stripe.key.secret}") String secretKey) {
         this.customerRepository = customerRepository;
         this.emailService = emailService;
@@ -48,6 +50,7 @@ public class CheckoutServiceImpl implements CheckoutService {
         this.productVariantService = productVariantService;
         this.giftCardService = giftCardService;
         this.loyaltyService = loyaltyService;
+        this.referralService = referralService;
         // Stripe is keyed globally via a static field.
         Stripe.apiKey = secretKey;
     }
@@ -129,6 +132,11 @@ public class CheckoutServiceImpl implements CheckoutService {
             loyaltyService.redeem(saved, order, purchase.getPointsToRedeem());
         }
         loyaltyService.award(saved, order);
+
+        // Referral: reward both parties when a NEW customer (this is their first order) used a code.
+        if (saved.getOrders().size() == 1) {
+            referralService.recordReferral(saved, purchase.getReferralCode(), order.getId());
+        }
 
         // Email is gated inside EmailService — these are safe no-ops when SMTP isn't configured.
         emailService.sendOrderConfirmation(saved.getEmail(), saved.getFirstName(),

@@ -11,6 +11,7 @@ import { ProductCategoryMenu } from './components/product-category-menu/product-
 import { Search } from './components/search/search';
 import { Toast } from './components/toast/toast';
 import { FavoritesService } from './services/favorites.service';
+import { ReferralService } from './services/referral.service';
 import { ThemeService } from './services/theme.service';
 
 @Component({
@@ -23,6 +24,8 @@ export class App {
   protected readonly themeService = inject(ThemeService);
   protected readonly favorites = inject(FavoritesService);
   private readonly router = inject(Router);
+  // Instantiated here so it captures any ?ref= referral link parameter on first load.
+  private readonly referral = inject(ReferralService);
   title = 'angular-ecommerce';
 
   /** Admin routes get a full-width canvas — hide the customer category sidebar there. */

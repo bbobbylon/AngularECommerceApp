@@ -37,4 +37,7 @@ public class Purchase {
 
     /** Loyalty points the customer chose to redeem as store credit (server-validated against balance). */
     private int pointsToRedeem;
+
+    /** Referral code the buyer arrived with (rewards both parties on the buyer's first order). */
+    private String referralCode;
 }

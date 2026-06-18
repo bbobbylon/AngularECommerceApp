@@ -15,6 +15,7 @@ import { State } from '../../common/state';
 import { CartService } from '../../services/cart.service';
 import { CheckoutService, ShippingMethodView } from '../../services/checkout.service';
 import { LoyaltyService } from '../../services/loyalty.service';
+import { ReferralService } from '../../services/referral.service';
 import { Luv2ShopFormService } from '../../services/luv2shop-form.service';
 import { Luv2ShopValidators } from '../../validators/luv2shop-validators';
 
@@ -56,6 +57,7 @@ export class Checkout implements OnInit, AfterViewInit {
 
   // loyalty / rewards points (store credit; 1 point = $0.01)
   private loyalty = inject(LoyaltyService);
+  private referral = inject(ReferralService);
   useLoyalty = false;
   loyaltyBalance = 0;
   loyaltyTier = '';
@@ -444,6 +446,7 @@ export class Checkout implements OnInit, AfterViewInit {
     purchase.paymentIntentId = this.paymentIntentId || undefined;
     purchase.giftCardCode = this.appliedGiftCode || undefined;
     purchase.pointsToRedeem = this.pointsApplied || undefined;
+    purchase.referralCode = this.referral.getStoredCode() || undefined;
     if (this.appliedCode && this.discount > 0) {
       purchase.couponCode = this.appliedCode;
     }
@@ -473,6 +476,7 @@ export class Checkout implements OnInit, AfterViewInit {
     };
 
     this.cartService.clear();
+    this.referral.clear(); // a referral applies to the first order only
     this.checkoutFormGroup.reset();
     this.router.navigate(['/order-confirmation', trackingNumber], { state: { summary } });
   }

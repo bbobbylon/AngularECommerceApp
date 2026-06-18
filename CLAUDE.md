@@ -119,6 +119,17 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   applies points as store credit (Rewards + Amount due lines, stacks with gift card; card step skipped
   when credit covers the order). Account page gains a **Rewards** card (balance/tier/progress/history).
   Tests: `LoyaltyServiceTest` (earn floor, redeem cap-by-balance + cap-by-total, tier/progress).
+- ✅ **Referral program** — each `Customer` gets a unique `referral_code` (lazily assigned); a
+  `referral` ledger tracks who referred whom (`V8`: nullable+unique code on customer — MySQL allows
+  multiple NULLs under a unique key — + new table; IT-validated). `ReferralService` reuses
+  `LoyaltyService.grantPoints()` to reward **both** parties (referrer 500 / referee 200 pts) when a
+  **new** customer places their **first** order carrying a code; guards self-referral + one-per-referee.
+  Public `GET /api/referrals?email=` (assigns the code on first view). `CheckoutServiceImpl` calls
+  `recordReferral` only when `saved.getOrders().size() == 1`. Frontend: a root-instantiated
+  `ReferralService` captures `?ref=CODE` into localStorage on landing and attaches it to the first
+  checkout (cleared after); account page gains a **Refer a friend** card (shareable link + copy +
+  stats). Tests: `ReferralServiceTest` (reward both, self-referral guard, already-referred guard, code
+  assignment).
 - ✅ **Observability & ops** — `spring-boot-starter-actuator` + `micrometer-registry-prometheus`:
   health (+ liveness/readiness **probes**), `/actuator/info` (build version/time via the `build-info`
   goal), metrics, `/actuator/prometheus`. `RequestIdFilter` adds an `X-Request-Id` correlation id

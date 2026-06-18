@@ -12,6 +12,10 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
     Customer findByEmail(String email);
 
+    Customer findByReferralCode(String referralCode);
+
+    boolean existsByReferralCode(String referralCode);
+
     Customer findByUnsubscribeToken(String unsubscribeToken);
 
     List<Customer> findByNewsletterSubscribedTrue();

@@ -8,6 +8,7 @@ import { isOktaConfigured } from '../../auth/dev-auth.guard';
 import { oktaConfig } from '../../auth/okta-config';
 import { AccountPreferences, AccountService } from '../../services/account.service';
 import { LoyaltyService, LoyaltySummary } from '../../services/loyalty.service';
+import { ReferralService, ReferralSummary } from '../../services/referral.service';
 import { ToastService } from '../../services/toast.service';
 
 /**
@@ -33,6 +34,7 @@ export class AccountSettings implements OnInit {
 
   readonly prefs = signal<AccountPreferences | null>(null);
   readonly loyalty = signal<LoyaltySummary | null>(null);
+  readonly referral = signal<ReferralSummary | null>(null);
   readonly loading = signal(false);
   readonly saving = signal(false);
   readonly notFound = signal(false);
@@ -45,6 +47,7 @@ export class AccountSettings implements OnInit {
 
   private accountService = inject(AccountService);
   private loyaltyService = inject(LoyaltyService);
+  private referralService = inject(ReferralService);
   private authStateService = inject(OktaAuthStateService);
   private toast = inject(ToastService);
 
@@ -73,6 +76,10 @@ export class AccountSettings implements OnInit {
         this.loyaltyService.summary(email).subscribe({
           next: summary => this.loyalty.set(summary),
           error: () => this.loyalty.set(null),
+        });
+        this.referralService.summary(email).subscribe({
+          next: summary => this.referral.set(summary),
+          error: () => this.referral.set(null),
         });
       },
       error: () => {
@@ -107,6 +114,17 @@ export class AccountSettings implements OnInit {
           this.saving.set(false);
         },
       });
+  }
+
+  referralLink(code: string): string {
+    return `${window.location.origin}/products?ref=${code}`;
+  }
+
+  copyReferral(code: string): void {
+    navigator.clipboard?.writeText(this.referralLink(code)).then(
+      () => this.toast.success('Referral link copied!'),
+      () => this.toast.error('Could not copy — select and copy the link manually.'),
+    );
   }
 
   private applyPrefs(prefs: AccountPreferences): void {

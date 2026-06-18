@@ -91,6 +91,19 @@ public class LoyaltyService {
         return discount;
     }
 
+    /** Directly grants points to a customer (e.g. a referral reward) and logs it. Returns points granted. */
+    @Transactional
+    public int grantPoints(Customer customer, int points, String description) {
+        if (customer == null || points <= 0) {
+            return 0;
+        }
+        customer.setLoyaltyPoints(nz(customer.getLoyaltyPoints()) + points);
+        customer.setLifetimePoints(nz(customer.getLifetimePoints()) + points);
+        customerRepository.save(customer);
+        record(customer.getEmail(), "EARN", points, description, null);
+        return points;
+    }
+
     private void record(String email, String type, int points, String description, Long orderId) {
         LoyaltyTransaction tx = new LoyaltyTransaction();
         tx.setCustomerEmail(email);

@@ -104,6 +104,31 @@
       </div>
     }
 
+    @if (referral(); as rf) {
+      @if (rf.code) {
+        <div class="card mb-4">
+          <div class="card-body">
+            <h6 class="fw-bold"><i class="fa-solid fa-user-group me-2 text-primary"></i>Refer a friend</h6>
+            <p class="small text-muted mb-2">
+              Give friends {{ rf.refereeReward }} points and earn {{ rf.referrerReward }} when they
+              make their first purchase.
+            </p>
+            <div class="input-group input-group-sm mb-2">
+              <input type="text" class="form-control" [value]="referralLink(rf.code)" readonly />
+              <button class="btn btn-outline-primary" (click)="copyReferral(rf.code)">
+                <i class="fa-solid fa-copy me-1"></i> Copy
+              </button>
+            </div>
+            <div class="small text-muted">
+              Code <span class="font-monospace fw-semibold">{{ rf.code }}</span>
+              · {{ rf.completedReferrals }} referral{{ rf.completedReferrals === 1 ? '' : 's' }}
+              · {{ rf.pointsEarned }} pts earned
+            </div>
+          </div>
+        </div>
+      }
+    }
+
     <div class="card mb-4">
       <div class="card-body">
         <h6 class="fw-bold"><i class="fa-solid fa-fingerprint me-2 text-primary"></i>Security &amp; sign-in</h6>
