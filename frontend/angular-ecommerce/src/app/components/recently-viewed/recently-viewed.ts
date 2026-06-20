@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { MoneyPipe } from '../../common/money.pipe';
 import { Component, computed, inject, input } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
@@ -14,7 +15,7 @@ import { RecentlyViewedService } from '../../services/recently-viewed.service';
  */
 @Component({
   selector: 'app-recently-viewed',
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, MoneyPipe, RouterLink],
   templateUrl: './recently-viewed.html',
 })
 export class RecentlyViewed {

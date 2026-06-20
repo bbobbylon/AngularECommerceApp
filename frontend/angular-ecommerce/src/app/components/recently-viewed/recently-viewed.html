@@ -11,7 +11,7 @@
             <img [src]="p.imageUrl" [alt]="p.name" loading="lazy" />
           </div>
           <div class="rv-name">{{ p.name }}</div>
-          <div class="rv-price">{{ p.unitPrice | currency:'USD' }}</div>
+          <div class="rv-price">{{ p.unitPrice | money }}</div>
         </a>
       }
     </div>

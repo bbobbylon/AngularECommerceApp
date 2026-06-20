@@ -53,7 +53,7 @@
               <a [routerLink]="['/products', product.id]">{{ product.name }}</a>
             </h6>
             <p class="product-sub small text-muted mb-2">{{ product.description }}</p>
-            <span class="fs-5 fw-bold text-primary mt-auto mb-2">{{ product.unitPrice | currency:'USD' }}</span>
+            <span class="fs-5 fw-bold text-primary mt-auto mb-2">{{ product.unitPrice | money }}</span>
             <div class="d-flex gap-2">
               <button type="button" class="btn btn-primary btn-sm flex-grow-1"
                       [disabled]="product.unitsInStock === 0" (click)="addToCart(product)">

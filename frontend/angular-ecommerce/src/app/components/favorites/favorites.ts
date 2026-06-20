@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { MoneyPipe } from '../../common/money.pipe';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -13,7 +14,7 @@ import { WishlistService } from '../../services/wishlist.service';
 
 @Component({
   selector: 'app-favorites',
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, MoneyPipe, FormsModule, RouterLink],
   templateUrl: './favorites.html',
 })
 export class Favorites implements OnInit {

@@ -54,9 +54,9 @@
       }
 
       <div class="d-flex align-items-baseline flex-wrap gap-2 mb-3">
-        <span class="display-6 fw-bold text-primary">{{ effectivePrice() | currency:'USD' }}</span>
+        <span class="display-6 fw-bold text-primary">{{ effectivePrice() | money }}</span>
         @if (isOnSale(product) && !hasVariants()) {
-          <span class="fs-4 text-muted text-decoration-line-through">{{ product.originalPrice | currency:'USD' }}</span>
+          <span class="fs-4 text-muted text-decoration-line-through">{{ product.originalPrice | money }}</span>
           <span class="badge bg-danger-subtle text-danger-emphasis align-self-center">Save {{ discountPercent(product) }}%</span>
         }
       </div>
@@ -235,9 +235,9 @@
                   <a [routerLink]="['/products', rp.id]">{{ rp.name }}</a>
                 </h6>
                 <span class="mt-auto mb-2 d-flex align-items-baseline gap-2">
-                  <span class="fs-6 fw-bold text-primary">{{ rp.unitPrice | currency:'USD' }}</span>
+                  <span class="fs-6 fw-bold text-primary">{{ rp.unitPrice | money }}</span>
                   @if (isOnSale(rp)) {
-                    <span class="small text-muted text-decoration-line-through">{{ rp.originalPrice | currency:'USD' }}</span>
+                    <span class="small text-muted text-decoration-line-through">{{ rp.originalPrice | money }}</span>
                   }
                 </span>
                 <button type="button" class="btn btn-outline-primary btn-sm w-100"

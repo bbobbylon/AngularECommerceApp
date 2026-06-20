@@ -10,19 +10,24 @@ import { NewsletterSignup } from './components/newsletter-signup/newsletter-sign
 import { ProductCategoryMenu } from './components/product-category-menu/product-category-menu';
 import { Search } from './components/search/search';
 import { Toast } from './components/toast/toast';
+import { TranslatePipe } from './common/translate.pipe';
+import { CurrencyService } from './services/currency.service';
 import { FavoritesService } from './services/favorites.service';
+import { I18nService } from './services/i18n.service';
 import { ReferralService } from './services/referral.service';
 import { ThemeService } from './services/theme.service';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Search, ProductCategoryMenu, CartStatus, LoginStatus, Toast, BackToTop, NewsletterSignup],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Search, ProductCategoryMenu, CartStatus, LoginStatus, Toast, BackToTop, NewsletterSignup, TranslatePipe],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
 export class App {
   protected readonly themeService = inject(ThemeService);
   protected readonly favorites = inject(FavoritesService);
+  protected readonly currencyService = inject(CurrencyService);
+  protected readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
   // Instantiated here so it captures any ?ref= referral link parameter on first load.
   private readonly referral = inject(ReferralService);

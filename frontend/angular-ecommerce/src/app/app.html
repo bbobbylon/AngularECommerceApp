@@ -32,6 +32,22 @@
           </span>
         }
       </a>
+      <select class="form-select form-select-sm bg-dark text-light border-secondary w-auto"
+              [value]="currencyService.current().code"
+              (change)="currencyService.setCurrency($any($event.target).value)"
+              [attr.aria-label]="'common.currency' | t" [attr.title]="'common.currency' | t">
+        @for (c of currencyService.currencies; track c.code) {
+          <option [value]="c.code">{{ c.code }}</option>
+        }
+      </select>
+      <select class="form-select form-select-sm bg-dark text-light border-secondary w-auto"
+              [value]="i18n.lang()"
+              (change)="i18n.setLang($any($event.target).value)"
+              [attr.aria-label]="'common.language' | t" [attr.title]="'common.language' | t">
+        @for (l of i18n.languages; track l.code) {
+          <option [value]="l.code">{{ l.name }}</option>
+        }
+      </select>
       <app-login-status></app-login-status>
       <app-cart-status></app-cart-status>
     </div>
@@ -45,11 +61,11 @@
 <nav class="subnav" aria-label="Primary">
   <div class="container-fluid px-3 px-lg-4">
     <ul class="subnav-list">
-      <li><a routerLink="/products" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Shop all</a></li>
-      <li><a routerLink="/sale" routerLinkActive="active" class="subnav-sale">Sale</a></li>
-      <li><a routerLink="/favorites" routerLinkActive="active">Favorites</a></li>
-      <li><a routerLink="/about" routerLinkActive="active">About</a></li>
-      <li><a routerLink="/account" routerLinkActive="active">My account</a></li>
+      <li><a routerLink="/products" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">{{ 'nav.shopAll' | t }}</a></li>
+      <li><a routerLink="/sale" routerLinkActive="active" class="subnav-sale">{{ 'nav.sale' | t }}</a></li>
+      <li><a routerLink="/favorites" routerLinkActive="active">{{ 'nav.favorites' | t }}</a></li>
+      <li><a routerLink="/about" routerLinkActive="active">{{ 'nav.about' | t }}</a></li>
+      <li><a routerLink="/account" routerLinkActive="active">{{ 'nav.account' | t }}</a></li>
     </ul>
   </div>
 </nav>

@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { MoneyPipe } from '../../common/money.pipe';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -17,7 +18,7 @@ import { StarRating } from '../star-rating/star-rating';
 
 @Component({
   selector: 'app-product-details',
-  imports: [CommonModule, FormsModule, RouterLink, StarRating, RecentlyViewed],
+  imports: [CommonModule, MoneyPipe, FormsModule, RouterLink, StarRating, RecentlyViewed],
   templateUrl: './product-details.html',
 })
 export class ProductDetails implements OnInit {

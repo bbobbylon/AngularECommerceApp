@@ -211,9 +211,9 @@
             <p class="product-sub small text-muted mb-2">{{ product.description }}</p>
             <div class="d-flex justify-content-between align-items-center mt-auto mb-2">
               <span class="d-flex align-items-baseline gap-2">
-                <span class="fs-5 fw-bold text-primary">{{ product.unitPrice | currency:'USD' }}</span>
+                <span class="fs-5 fw-bold text-primary">{{ product.unitPrice | money }}</span>
                 @if (isOnSale(product)) {
-                  <span class="small text-muted text-decoration-line-through">{{ product.originalPrice | currency:'USD' }}</span>
+                  <span class="small text-muted text-decoration-line-through">{{ product.originalPrice | money }}</span>
                 }
               </span>
               @if (product.unitsInStock === 0) {
