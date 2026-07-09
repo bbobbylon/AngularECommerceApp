@@ -243,6 +243,13 @@
       <div class="card position-sticky" style="top: 90px;">
         <div class="card-header fw-semibold"><i class="fa-solid fa-receipt me-2 text-primary"></i>Order Summary</div>
         <div class="card-body">
+          @if (currencyService.current().code !== 'USD') {
+            <div class="alert alert-light border small py-2 px-3 mb-3" role="note">
+              <i class="fa-solid fa-circle-info me-1 text-primary"></i>
+              You've been browsing in {{ currencyService.current().code }} — checkout is charged in
+              <strong>USD</strong> (approx. {{ currencyService.current().symbol }} conversions shown while shopping).
+            </div>
+          }
           <div class="d-flex justify-content-between">
             <span>Total quantity:</span>
             <span class="fw-semibold">{{ totalQuantity }}</span>

@@ -260,6 +260,15 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   cookies" section (incl. the BFF upgrade path + why CSRF is N/A). **Runtime-verified** via
   `docker compose up --build`: all security headers present, **0 CSP violations**, 12 products render,
   Flyway migrates + seeds the empty DB, prod warning fires. 45 backend tests + 17 frontend tests green.
+- ✅ **Runtime i18n + display currency (frontend-only)** — `I18nService` (en/es/fr key→string dicts,
+  active language is a persisted signal; `t()` falls back en → key) + impure `t` pipe; `CurrencyService`
+  (USD/EUR/GBP/CAD/AUD/JPY, static demo rates, persisted signal) + impure `money` pipe converts
+  stored-USD prices for **display only** on browse/cart surfaces (product list/details, cart,
+  favorites, recently-viewed). **Checkout/admin stay in the built-in USD pipe** — settlement is USD;
+  the order summary shows a note when a non-USD display currency is active. Header gains
+  currency + language selectors; nav/footer strings are translated. Extend by adding dict keys +
+  `| t` usages (full `@angular/localize` extraction is the ship-every-string path); swap static
+  rates for a live FX feed for prod.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.

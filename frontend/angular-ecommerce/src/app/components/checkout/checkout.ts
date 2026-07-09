@@ -15,6 +15,7 @@ import { State } from '../../common/state';
 import { AccountService, SavedAddress } from '../../services/account.service';
 import { CartService } from '../../services/cart.service';
 import { CheckoutService, ShippingMethodView } from '../../services/checkout.service';
+import { CurrencyService } from '../../services/currency.service';
 import { LoyaltyService } from '../../services/loyalty.service';
 import { ReferralService } from '../../services/referral.service';
 import { Luv2ShopFormService } from '../../services/luv2shop-form.service';
@@ -59,6 +60,9 @@ export class Checkout implements OnInit, AfterViewInit {
   // loyalty / rewards points (store credit; 1 point = $0.01)
   private loyalty = inject(LoyaltyService);
   private referral = inject(ReferralService);
+
+  // display currency (checkout always settles in USD — surface a note when browsing in another)
+  protected readonly currencyService = inject(CurrencyService);
 
   // saved addresses (loaded once the customer enters their email)
   private accountService = inject(AccountService);
