@@ -49,6 +49,22 @@ Optional integrations (Stripe, Okta, email) are off by default and degrade grace
 env vars in `compose.yaml` to enable them. This is also the fastest way to **smoke-test a release
 candidate** the way it will run in the cloud.
 
+### Running a second instance side-by-side (alt ports)
+
+[`compose.deploy.yaml`](../compose.deploy.yaml) is the same three-tier stack on **different ports**,
+so it can run alongside a dev instance (`./run.sh` or `docker compose up`) already using 4250/8585/3307
+— useful for building/smoke-testing a release candidate without stopping what you're working on.
+
+```bash
+./deploy.sh          # builds fresh images and starts the stack
+./deploy.sh down      # stops it
+```
+
+Open **http://localhost:4251**. API on **http://localhost:8586**, MySQL on **3308**. It's a separate
+Compose project (`luv2shop-deploy`) with its own MySQL volume, so it doesn't touch the dev instance's
+data. `APP_FRONTEND_URL`/`APP_API_URL`/`APP_CORS_ALLOWED_ORIGINS` are set to the alt ports so links
+(sitemap.xml, emails, CORS) are self-consistent — see [`SitemapController`](../backend/src/main/java/com/bob/ecommerceangularapp/controller/SitemapController.java).
+
 ---
 
 ## Continuous Integration

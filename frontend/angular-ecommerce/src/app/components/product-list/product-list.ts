@@ -6,10 +6,12 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NgbPaginationModule } from '@ng-bootstrap/ng-bootstrap';
 
 import { CartItem } from '../../common/cart-item';
+import { ProductCategory } from '../../common/product-category';
 import { Product, discountPercent, isLowStock, isOnSale } from '../../common/product';
 import { CartService } from '../../services/cart.service';
 import { FavoritesService } from '../../services/favorites.service';
 import { CatalogFilters, CatalogPage, ProductService } from '../../services/product.service';
+import { SeoService } from '../../services/seo.service';
 import { ToastService } from '../../services/toast.service';
 import { NewsletterSignup } from '../newsletter-signup/newsletter-signup';
 import { RecentlyViewed } from '../recently-viewed/recently-viewed';
@@ -71,6 +73,8 @@ export class ProductList implements OnInit {
 
   protected favorites = inject(FavoritesService);
   private toast = inject(ToastService);
+  private seo = inject(SeoService);
+  private categories: ProductCategory[] = [];
 
   constructor(
     private productService: ProductService,
@@ -89,6 +93,7 @@ export class ProductList implements OnInit {
 
   ngOnInit(): void {
     this.saleMode = this.route.snapshot.data['mode'] === 'sale';
+    this.productService.getProductCategories().subscribe(data => (this.categories = data));
     this.route.paramMap.subscribe(() => this.listProducts());
   }
 
@@ -141,6 +146,38 @@ export class ProductList implements OnInit {
     this.pageSize = data.size;
     this.totalElements = data.totalElements;
     this.isLoading = false;
+    this.updateSeo();
+  }
+
+  /** Title/meta/OG for the current scope (home/category/search/sale — roadmap #11). */
+  private updateSeo(): void {
+    if (this.saleMode) {
+      this.seo.update({
+        title: 'Sale',
+        description: 'Shop today\'s sale items and limited-time discounts at Luv2Shop.',
+      });
+      return;
+    }
+    if (this.searchMode) {
+      const keyword = this.route.snapshot.paramMap.get('keyword') ?? '';
+      this.seo.update({
+        title: `Search results for "${keyword}"`,
+        description: `${this.totalElements} result(s) for "${keyword}" at Luv2Shop.`,
+      });
+      return;
+    }
+    if (this.isHome) {
+      this.seo.update({
+        title: 'Shop All Products',
+        description: 'Browse the full Luv2Shop catalog — books, mugs, mouse pads, luggage, and more.',
+      });
+      return;
+    }
+    const categoryName = this.categories.find(c => c.id === this.currentCategoryId)?.categoryName ?? 'Category';
+    this.seo.update({
+      title: categoryName,
+      description: `Shop ${categoryName} at Luv2Shop.`,
+    });
   }
 
   applyFilters(): void {

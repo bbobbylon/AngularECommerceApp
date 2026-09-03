@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -15,6 +16,7 @@ import { CurrencyService } from './services/currency.service';
 import { FavoritesService } from './services/favorites.service';
 import { I18nService } from './services/i18n.service';
 import { ReferralService } from './services/referral.service';
+import { SeoService } from './services/seo.service';
 import { ThemeService } from './services/theme.service';
 
 @Component({
@@ -31,7 +33,30 @@ export class App {
   private readonly router = inject(Router);
   // Instantiated here so it captures any ?ref= referral link parameter on first load.
   private readonly referral = inject(ReferralService);
+  private readonly seo = inject(SeoService);
+  private readonly document = inject(DOCUMENT);
   title = 'angular-ecommerce';
+
+  constructor() {
+    // Site-wide structured data (roadmap #11 — SEO), set once; per-page JSON-LD (e.g. Product) is
+    // managed separately by SeoService callers under a different id so this doesn't get clobbered.
+    this.seo.setJsonLd('organization', {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'Organization',
+          name: 'Luv2Shop',
+          url: this.document.location.origin,
+          logo: `${this.document.location.origin}/favicon.ico`,
+        },
+        {
+          '@type': 'WebSite',
+          name: 'Luv2Shop',
+          url: this.document.location.origin,
+        },
+      ],
+    });
+  }
 
   /** Admin routes get a full-width canvas — hide the customer category sidebar there. */
   protected readonly isAdminRoute = toSignal(

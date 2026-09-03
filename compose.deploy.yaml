@@ -1,0 +1,62 @@
+# Parallel full-stack LOCAL deployment — same shape as compose.yaml (prod-profile containers) but
+# on DIFFERENT ports, so it can run alongside an already-running dev instance (./run.sh or
+# `docker compose up`) without port clashes.
+#
+#     ./deploy.sh        # or: docker compose -f compose.deploy.yaml -p luv2shop-deploy up --build -d
+#
+# Then open http://localhost:4251. Backend: http://localhost:8586/api. MySQL: 3308.
+name: luv2shop-deploy
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: full-stack-ecommerce
+      MYSQL_USER: ecommerceapp
+      MYSQL_PASSWORD: ecommerceapp
+      MYSQL_ROOT_PASSWORD: verysecret
+    ports:
+      - "3308:3306"          # host:container — distinct from compose.yaml's 3307
+    volumes:
+      - mysql-deploy-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build: ./backend
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DOCKER_COMPOSE_ENABLED: "false"
+      SERVER_PORT: 8586
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/full-stack-ecommerce
+      SPRING_DATASOURCE_USERNAME: ecommerceapp
+      SPRING_DATASOURCE_PASSWORD: ecommerceapp
+      # Sitemap/email links + CORS must point at THIS instance's ports, not the default dev ones.
+      APP_FRONTEND_URL: http://localhost:4251
+      APP_API_URL: http://localhost:8586
+      APP_CORS_ALLOWED_ORIGINS: http://localhost:4251
+      # Optional integrations — uncomment + set to light up payments / auth / email:
+      # STRIPE_SECRET_KEY: sk_test_...
+      # SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: https://YOUR_OKTA_DOMAIN/oauth2/default
+    ports:
+      - "8586:8586"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend/angular-ecommerce
+      args:
+        API_URL: http://localhost:8586/api
+    depends_on:
+      - backend
+    ports:
+      - "4251:80"
+    restart: unless-stopped
+
+volumes:
+  mysql-deploy-data:

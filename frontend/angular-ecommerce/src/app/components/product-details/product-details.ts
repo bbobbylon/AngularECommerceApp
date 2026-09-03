@@ -1,6 +1,6 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule, DOCUMENT } from '@angular/common';
 import { MoneyPipe } from '../../common/money.pipe';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
@@ -12,6 +12,7 @@ import { FavoritesService } from '../../services/favorites.service';
 import { ProductService } from '../../services/product.service';
 import { RecentlyViewedService } from '../../services/recently-viewed.service';
 import { Review, ReviewService, ReviewSummary } from '../../services/review.service';
+import { SeoService } from '../../services/seo.service';
 import { ToastService } from '../../services/toast.service';
 import { RecentlyViewed } from '../recently-viewed/recently-viewed';
 import { StarRating } from '../star-rating/star-rating';
@@ -21,7 +22,7 @@ import { StarRating } from '../star-rating/star-rating';
   imports: [CommonModule, MoneyPipe, FormsModule, RouterLink, StarRating, RecentlyViewed],
   templateUrl: './product-details.html',
 })
-export class ProductDetails implements OnInit {
+export class ProductDetails implements OnInit, OnDestroy {
 
   product?: Product;
   quantity = 1;
@@ -58,6 +59,8 @@ export class ProductDetails implements OnInit {
   private toast = inject(ToastService);
   private reviewService = inject(ReviewService);
   private recentlyViewed = inject(RecentlyViewedService);
+  private seo = inject(SeoService);
+  private document = inject(DOCUMENT);
 
   constructor(
     private productService: ProductService,
@@ -164,6 +167,10 @@ export class ProductDetails implements OnInit {
     this.route.paramMap.subscribe(() => this.handleProductDetails());
   }
 
+  ngOnDestroy(): void {
+    this.seo.removeJsonLd('product');
+  }
+
   private handleProductDetails(): void {
     const productId = Number(this.route.snapshot.paramMap.get('id'));
     this.quantity = 1;
@@ -178,6 +185,7 @@ export class ProductDetails implements OnInit {
       if (!this.selectedVariant()?.imageUrl) {
         this.selectedImage.set(data.imageUrl);
       }
+      this.updateSeo(data);
     });
 
     this.productService.getVariants(productId).subscribe(variants => {
@@ -200,6 +208,43 @@ export class ProductDetails implements OnInit {
     this.reviewService.summary(productId).subscribe({
       next: summary => this.reviewSummary.set(summary),
       error: () => this.reviewSummary.set(null),
+    });
+  }
+
+  /** Title/meta/OG + Product JSON-LD for this page (roadmap #11 — SEO). */
+  private updateSeo(product: Product): void {
+    const description = product.description?.length > 160
+      ? `${product.description.slice(0, 157)}...`
+      : product.description;
+    this.seo.update({
+      title: product.name,
+      description: description || `${product.name} — shop it at Luv2Shop.`,
+      image: product.imageUrl,
+      type: 'product',
+    });
+    this.seo.setJsonLd('product', {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: product.name,
+      description: product.description,
+      sku: product.sku,
+      image: product.imageUrl ? [product.imageUrl] : undefined,
+      offers: {
+        '@type': 'Offer',
+        priceCurrency: 'USD',
+        price: product.unitPrice,
+        availability: product.unitsInStock > 0
+          ? 'https://schema.org/InStock'
+          : 'https://schema.org/OutOfStock',
+        url: this.document.location.href,
+      },
+      ...(product.reviewCount ? {
+        aggregateRating: {
+          '@type': 'AggregateRating',
+          ratingValue: product.averageRating,
+          reviewCount: product.reviewCount,
+        },
+      } : {}),
     });
   }
 

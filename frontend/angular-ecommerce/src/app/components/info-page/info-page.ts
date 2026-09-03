@@ -1,6 +1,8 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 
+import { SeoService } from '../../services/seo.service';
+
 interface Section {
   heading: string;
   body: string;
@@ -25,6 +27,7 @@ export class InfoPage implements OnInit {
 
   content!: InfoContent;
   private route = inject(ActivatedRoute);
+  private seo = inject(SeoService);
 
   private readonly pages: Record<string, InfoContent> = {
     shipping: {
@@ -67,5 +70,6 @@ export class InfoPage implements OnInit {
   ngOnInit(): void {
     const key = (this.route.snapshot.data['page'] as string) ?? 'shipping';
     this.content = this.pages[key] ?? this.pages['shipping'];
+    this.seo.update({ title: this.content.title, description: this.content.intro });
   }
 }

@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 
+import java.util.List;
+
 @RepositoryRestResource(collectionResourceRel = "products", path = "products")
 public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product> {
 
@@ -17,6 +19,9 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     /** On-sale products — anything with a pre-sale ("was") price set. Powers the /sale page. */
     Page<Product> findByOriginalPriceNotNull(Pageable pageable);
+
+    /** All active products, unpaged — powers sitemap.xml generation. */
+    List<Product> findByActiveTrue();
 
     // ----- admin dashboard metrics -----
     long countByActiveTrue();

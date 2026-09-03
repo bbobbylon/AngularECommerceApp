@@ -1,5 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+
+import { SeoService } from '../../services/seo.service';
 
 interface QA {
   q: string;
@@ -11,7 +13,16 @@ interface QA {
   imports: [RouterLink],
   templateUrl: './faq.html',
 })
-export class Faq {
+export class Faq implements OnInit {
+  private seo = inject(SeoService);
+
+  ngOnInit(): void {
+    this.seo.update({
+      title: 'Frequently Asked Questions',
+      description: 'Shipping, returns, payments, and account answers for Luv2Shop.',
+    });
+  }
+
   readonly faqs: QA[] = [
     { q: 'How long does shipping take?', a: 'Standard shipping is 3–5 business days. Orders over $50 ship free; expedited options are shown at checkout.' },
     { q: 'What is your return policy?', a: 'Returns are accepted within 30 days of delivery, in original condition. See Shipping & Returns for the full details.' },

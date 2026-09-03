@@ -9,6 +9,8 @@ COPY . .
 #   docker build --build-arg API_URL=https://your-backend-host/api ...
 ARG API_URL=http://localhost:8585/api
 RUN sed -i "s#http://localhost:8585/api#${API_URL}#g" src/environments/environment.ts
+# robots.txt points at the backend-generated sitemap; re-point it at the same backend origin.
+RUN API_ORIGIN="${API_URL%/api}" && sed -i "s#http://localhost:8585#${API_ORIGIN}#g" public/robots.txt
 RUN npx ng build
 
 # --- Run stage: serve the SPA with nginx ---

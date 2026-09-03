@@ -269,6 +269,18 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   currency + language selectors; nav/footer strings are translated. Extend by adding dict keys +
   `| t` usages (full `@angular/localize` extraction is the ship-every-string path); swap static
   rates for a live FX feed for prod.
+- ✅ **SEO (roadmap #11)** — `SeoService` (Angular `Title`/`Meta` + a keyed JSON-LD `<script>`
+  injector) sets per-route title/description/canonical/OG/Twitter tags: product-details (Product
+  JSON-LD with `offers`/`aggregateRating`), product-list (home/category/search/sale scopes), and
+  the static info pages. `App` root injects a one-time Organization/WebSite JSON-LD block. Since
+  this is a plain client-side SPA (no SSR/prerendering), tags land after JS runs — fine for
+  JS-executing crawlers, not a substitute for prerendering if that's ever needed. `sitemap.xml` is
+  generated **by the backend** (`SitemapController`/`SitemapService`, public, outside `/api`) from
+  the live catalog (`ProductRepository.findByActiveTrue()` + all categories) — its `<loc>` entries
+  point at the frontend (`app.frontend-url`) even though the backend serves it, since the frontend
+  has no server to generate it from. `frontend/public/robots.txt` points crawlers at it; the
+  Dockerfile bakes in the right backend origin (from the `API_URL` build arg) alongside the
+  existing `environment.ts` substitution. See `docs/DEPLOYMENT.md`.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
@@ -286,6 +298,7 @@ boots and the catalog/cart/checkout flow works with placeholder config, so they 
 - Frontend dev server: `cd frontend/angular-ecommerce && npm start` (→ http://localhost:4250)
 - One-shot build + launch + open browser (Git Bash): `./run.sh` — Ctrl+C stops both servers
 - Full-stack local deploy (all 3 tiers in containers, prod-shaped — mirrors cloud): `docker compose up --build` (repo-root `compose.yaml`) → http://localhost:4250. See `docs/DEPLOYMENT.md`.
+- Second full-stack instance on alt ports (runs alongside the above without clashing): `./deploy.sh` (repo-root `compose.deploy.yaml`) → http://localhost:4251, API 8586, MySQL 3308. `./deploy.sh down` to stop. See `docs/DEPLOYMENT.md`.
 - Stripe setup (optional, for real card payments): see `docs/STRIPE.md`. Without it, checkout runs in demo mode.
 
 Ports are non-default on purpose: backend **8585**, frontend **4250**, MySQL **3307** (avoids 8080/4200/3306).
