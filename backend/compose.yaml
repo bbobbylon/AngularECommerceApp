@@ -7,4 +7,4 @@ services:
       - 'MYSQL_PASSWORD=ecommerceapp'
       - 'MYSQL_ROOT_PASSWORD=verysecret'
     ports:
-      - '3307:3306'
+      - '3308:3306'

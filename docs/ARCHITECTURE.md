@@ -23,11 +23,11 @@ How the pieces fit together and what crosses each boundary.
 flowchart LR
   user([🛍️  Shopper]):::user
 
-  subgraph Browser["🖥️  Browser · localhost:4250"]
+  subgraph Browser["🖥️  Browser · localhost:4251"]
     spa["Angular 21 SPA<br/>standalone components"]:::fe
   end
 
-  subgraph Cloud["☁️  Server · localhost:8585"]
+  subgraph Cloud["☁️  Server · localhost:8586"]
     api["Spring Boot 4.1 API<br/>Spring Data REST + MVC"]:::be
   end
 
@@ -276,7 +276,7 @@ sequenceDiagram
 
 | Concern | How it's handled |
 |---|---|
-| **CORS** | `MyDataRestConfig` + `@CrossOrigin` allow the Angular origin(s) (`:4200`, `:4250`) |
+| **CORS** | `MyDataRestConfig` + `@CrossOrigin` allow the Angular origin(s) (`:4200`, `:4251`) |
 | **Security** | `SecurityConfig` — JWT resource server, *active only* when an Okta issuer is configured; otherwise an open chain. Protects `GET /api/orders/**`. |
 | **Pagination** | Spring Data REST HAL envelope: `_embedded.<rel>` + `page:{number,size,totalElements,totalPages}` |
 | **Seeding** | `DataLoader` (`CommandLineRunner`) — idempotent, only seeds an empty DB |

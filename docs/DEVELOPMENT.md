@@ -11,7 +11,7 @@ ecommerceAngularApp/
 ├─ backend/                  Spring Boot API (Maven)
 │  ├─ src/main/java/com/bob/ecommerceangularapp/   entity · dao · dto · service · controller · config · bootstrap
 │  ├─ src/test/java/...      JUnit 5 + H2 tests
-│  ├─ compose.yaml           MySQL 8 (port 3307)
+│  ├─ compose.yaml           MySQL 8 (port 3308)
 │  └─ schema.sql             generated DDL (manual DB provisioning)
 ├─ frontend/angular-ecommerce/   Angular 21 standalone app
 │  └─ src/app/               components · services · validators · interceptors · auth · common (models)
@@ -22,7 +22,7 @@ ecommerceAngularApp/
 
 ## Quick start
 ```bash
-./run.sh        # builds both, starts them, opens http://localhost:4250
+./run.sh        # builds both, starts them, opens http://localhost:4251
                 # Ctrl+C stops everything
 ```
 
@@ -39,13 +39,13 @@ cd frontend/angular-ecommerce && CI=true npx ng test --watch=false
 ## Ports (intentionally non-default)
 | Service | Port |
 |---|---|
-| Frontend (Angular dev server) | **4250** |
-| Backend (Spring Boot) | **8585** |
-| MySQL (Docker) | **3307** |
+| Frontend (Angular dev server) | **4251** |
+| Backend (Spring Boot) | **8586** |
+| MySQL (Docker) | **3308** |
 
 ## Database
-- `spring-boot-docker-compose` auto-starts MySQL on `:3307` when you run the backend.
-- Inspect it in MySQL Workbench: host `127.0.0.1`, port **3307**, user `ecommerceapp` / `ecommerceapp`
+- `spring-boot-docker-compose` auto-starts MySQL on `:3308` when you run the backend.
+- Inspect it in MySQL Workbench: host `127.0.0.1`, port **3308**, user `ecommerceapp` / `ecommerceapp`
   (or `root` / `verysecret`), schema `full-stack-ecommerce`.
 - To provision a DB by hand, run [`backend/schema.sql`](../backend/schema.sql) (or `seed-database.sql`
   if present) against your MySQL.
@@ -77,6 +77,6 @@ A change isn't done until:
 - **Empty page / "no products found" but the API has data** → check the browser console. A runtime
   error (e.g. a missing polyfill) can abort a render branch silently. The `@angular/localize/init`
   polyfill is required because `ng-bootstrap` pagination uses `$localize`.
-- **Workbench can't connect as `root`** → you're likely on `:3306` (your local MySQL), not `:3307`
-  (the app's Docker MySQL). Use port **3307**.
-- **`./run.sh` won't bind a port** → something's already on 8585/4250; stop it first.
+- **Workbench can't connect as `root`** → you're likely on `:3306` (your local MySQL), not `:3308`
+  (the app's Docker MySQL). Use port **3308**.
+- **`./run.sh` won't bind a port** → something's already on 8586/4251; stop it first.

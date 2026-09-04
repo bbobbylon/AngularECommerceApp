@@ -32,9 +32,9 @@ with placeholder config, and lights up the moment real keys are supplied.
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'fontFamily':'DM Sans, system-ui, sans-serif','lineColor':'#9aa3b8'}}}%%
 flowchart LR
-  user([🛍️ Shopper]):::user --> spa["Angular 21 SPA<br/>:4250"]:::fe
-  spa -->|"REST / JSON · CORS"| api["Spring Boot 4.1 API<br/>:8585"]:::be
-  api -->|"JPA / JDBC"| db[("MySQL 8<br/>:3307")]:::db
+  user([🛍️ Shopper]):::user --> spa["Angular 21 SPA<br/>:4251"]:::fe
+  spa -->|"REST / JSON · CORS"| api["Spring Boot 4.1 API<br/>:8586"]:::be
+  api -->|"JPA / JDBC"| db[("MySQL 8<br/>:3308")]:::db
   spa -.->|optional| okta{{"Okta · Stripe"}}:::ext
   api -.->|optional| okta
   classDef user fill:#1e2435,stroke:#1e2435,color:#fff;
@@ -66,20 +66,20 @@ One command (from **Git Bash**) — builds both, launches them, and opens the br
 ./run.sh
 ```
 
-Then open **http://localhost:4250**. Press **Ctrl+C** in that terminal to stop **both** servers.
+Then open **http://localhost:4251**. Press **Ctrl+C** in that terminal to stop **both** servers.
 
 Or run the pieces manually:
 
 ```bash
-# Backend — spring-boot-docker-compose auto-starts MySQL on :3307
-cd backend && ./mvnw spring-boot:run            # http://localhost:8585/api/products
+# Backend — spring-boot-docker-compose auto-starts MySQL on :3308
+cd backend && ./mvnw spring-boot:run            # http://localhost:8586/api/products
 
 # Frontend
 cd frontend/angular-ecommerce
-npm install && npm start                        # http://localhost:4250
+npm install && npm start                        # http://localhost:4251
 ```
 
-Ports are intentionally non-default (**backend 8585, frontend 4250, MySQL 3307**) to avoid
+Ports are intentionally non-default (**backend 8586, frontend 4251, MySQL 3308**) to avoid
 clashing with anything already on 8080 / 4200 / 3306. To create the database by hand instead
 of via docker-compose, run `backend/schema.sql` against your MySQL.
 

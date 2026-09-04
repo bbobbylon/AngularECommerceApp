@@ -5,16 +5,16 @@
 #   Run it from Git Bash:   ./run.sh        (or:  bash run.sh)
 #   Stop it:                press Ctrl+C in this terminal (stops BOTH servers).
 #
-#   App (open this):  http://localhost:4250
-#   API:              http://localhost:8585/api
+#   App (open this):  http://localhost:4251
+#   API:              http://localhost:8586/api
 #
-# Requirements: JDK 21+, Node 20+, and Docker running (the backend auto-starts MySQL on :3307).
+# Requirements: JDK 21+, Node 20+, and Docker running (the backend auto-starts MySQL on :3308).
 #
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_URL="http://localhost:4250"
-API_URL="http://localhost:8585/api"
+APP_URL="http://localhost:4251"
+API_URL="http://localhost:8586/api"
 BACKEND_PID=""
 
 # Ctrl+C (or exit) stops the backend too, so one terminal controls the whole app.
@@ -23,7 +23,7 @@ cleanup() {
   echo ""
   echo "Stopping Luv2Shop (backend + frontend)..."
   [ -n "${BACKEND_PID:-}" ] && kill "$BACKEND_PID" >/dev/null 2>&1 || true
-  for PORT in 8585 4250; do
+  for PORT in 8586 4251; do
     PID="$(netstat -ano 2>/dev/null | grep ":$PORT" | grep -i LISTENING | awk '{print $NF}' | head -1)"
     [ -n "${PID:-}" ] && MSYS_NO_PATHCONV=1 taskkill /F /PID "$PID" /T >/dev/null 2>&1 || true
   done
@@ -51,7 +51,7 @@ BACKEND_PID=$!
 # Wait for the backend to actually serve data BEFORE opening the browser, so the first
 # page load isn't an empty "no products found" (the API call would otherwise beat the backend).
 echo ""
-echo "Waiting for the backend API on :8585 (first run ~40s while MySQL starts)..."
+echo "Waiting for the backend API on :8586 (first run ~40s while MySQL starts)..."
 for i in $(seq 1 120); do
   if curl -sf -o /dev/null "$API_URL/products" 2>/dev/null; then
     echo "Backend is UP and serving data."
@@ -68,13 +68,13 @@ cat <<EOF
   ===================================================
 
 Starting the frontend - the app opens in your browser automatically when ready (~10-20s).
-Make sure Docker is running so the backend can start MySQL (:3307).
+Make sure Docker is running so the backend can start MySQL (:3308).
 
   Backend logs:     tail -f backend.log
   Stop everything:  press Ctrl+C here.
 
 EOF
 
-# Foreground: compiles + serves the frontend on :4250 and opens the browser.
+# Foreground: compiles + serves the frontend on :4251 and opens the browser.
 # Pressing Ctrl+C here returns control to the trap above, which stops the backend too.
-npx ng serve --port 4250 --open
+npx ng serve --port 4251 --open
