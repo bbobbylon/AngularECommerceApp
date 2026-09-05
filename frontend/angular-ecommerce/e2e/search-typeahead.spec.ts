@@ -11,6 +11,9 @@ test.describe('search typeahead', () => {
   test.beforeEach(async ({ page }) => {
     await mockBackend(page);
     await page.goto('/products');
+    // The CMS-driven announcement banner (roadmap #17) fetches after first paint and can shift the
+    // sticky header down; let it settle before tests click at fixed page coordinates.
+    await page.waitForLoadState('networkidle');
   });
 
   test('shows matching suggestions while typing and navigates to the selected product', async ({ page }) => {

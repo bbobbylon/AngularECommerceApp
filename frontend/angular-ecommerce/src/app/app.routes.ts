@@ -23,6 +23,7 @@ export const routes: Routes = [
     canActivate: [devOrAuthGuard],
     children: [
       { path: '', loadComponent: () => import('./components/admin/admin-dashboard/admin-dashboard').then(m => m.AdminDashboard) },
+      { path: 'analytics', loadComponent: () => import('./components/admin/admin-analytics/admin-analytics').then(m => m.AdminAnalytics) },
       { path: 'products', loadComponent: () => import('./components/admin/admin-products/admin-products').then(m => m.AdminProducts) },
       { path: 'products/new', loadComponent: () => import('./components/admin/admin-product-form/admin-product-form').then(m => m.AdminProductForm) },
       { path: 'products/:id/edit', loadComponent: () => import('./components/admin/admin-product-form/admin-product-form').then(m => m.AdminProductForm) },
@@ -30,9 +31,12 @@ export const routes: Routes = [
       { path: 'returns', loadComponent: () => import('./components/admin/admin-returns/admin-returns').then(m => m.AdminReturns) },
       { path: 'reviews', loadComponent: () => import('./components/admin/admin-reviews/admin-reviews').then(m => m.AdminReviews) },
       { path: 'coupons', loadComponent: () => import('./components/admin/admin-coupons/admin-coupons').then(m => m.AdminCoupons) },
+      { path: 'promotions', loadComponent: () => import('./components/admin/admin-promotions/admin-promotions').then(m => m.AdminPromotions) },
       { path: 'gift-cards', loadComponent: () => import('./components/admin/admin-gift-cards/admin-gift-cards').then(m => m.AdminGiftCards) },
       { path: 'tax-shipping', loadComponent: () => import('./components/admin/admin-tax-shipping/admin-tax-shipping').then(m => m.AdminTaxShipping) },
+      { path: 'content', loadComponent: () => import('./components/admin/admin-content/admin-content').then(m => m.AdminContent) },
       { path: 'inventory', loadComponent: () => import('./components/admin/admin-inventory/admin-inventory').then(m => m.AdminInventory) },
+      { path: 'audit-log', loadComponent: () => import('./components/admin/admin-audit-log/admin-audit-log').then(m => m.AdminAuditLog) },
     ],
   },
   {

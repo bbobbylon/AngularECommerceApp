@@ -36,8 +36,10 @@ import java.util.stream.Collectors;
  *
  * <p>The secured chain is only active once an Okta (or any OIDC) issuer URI is configured via
  * {@code spring.security.oauth2.resourceserver.jwt.issuer-uri}. When it is set, the app validates
- * incoming Bearer JWTs, requires authentication for {@code GET /api/orders/**}, and requires the
- * <b>admin role</b> for {@code /api/admin/**} (derived from a configurable groups claim).
+ * incoming Bearer JWTs, requires authentication for {@code GET /api/orders/**}, and requires one of
+ * three <b>admin-tier roles</b> for {@code /api/admin/**} (roadmap #19 RBAC, derived from a
+ * configurable groups claim): {@code Admin} (full access), {@code OrderManager} (read-only plus order/
+ * return decisions), and {@code Viewer} (read-only everything).
  *
  * <p>When no issuer is configured the open chain applies, so the catalog/cart/checkout API stays
  * fully usable for local development without standing up an identity provider (graceful degradation).
@@ -54,9 +56,20 @@ public class SecurityConfig {
     @Value("${app.security.admin-claim:groups}")
     private String adminClaim;
 
-    /** Membership value required to reach the admin back-office. */
+    /** Membership value required to reach the admin back-office (full access). */
     @Value("${app.security.admin-role:Admin}")
     private String adminRole;
+
+    /**
+     * RBAC (roadmap #19): a scoped role that can view the whole admin back-office (read-only, same as
+     * {@link #viewerRole}) plus update order status and return decisions, but nothing else mutating.
+     */
+    @Value("${app.security.order-manager-role:OrderManager}")
+    private String orderManagerRole;
+
+    /** RBAC (roadmap #19): read-only access to the admin back-office — no mutating endpoints at all. */
+    @Value("${app.security.viewer-role:Viewer}")
+    private String viewerRole;
 
     /**
      * Browser origins allowed to call the API cross-origin. Comma-separated; defaults to the two
@@ -102,7 +115,15 @@ public class SecurityConfig {
                         // controller-level checks).
                         .requestMatchers("/api/account/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/newsletter/send-now").authenticated()
-                        // Back-office requires the admin role (not just any authenticated user).
+                        // RBAC (roadmap #19): specific admin sub-paths/methods are matched before the broad
+                        // /api/admin/** catch-all below, top-down like every other matcher list in this class.
+                        // Any of the three admin-tier roles can view the whole back-office (Viewer's entire
+                        // purpose is read-only access); OrderManager additionally gets order/return decisions.
+                        .requestMatchers(HttpMethod.GET, "/api/admin/**").hasAnyAuthority(adminRole, orderManagerRole, viewerRole)
+                        .requestMatchers(HttpMethod.PUT, "/api/admin/orders/**").hasAnyAuthority(adminRole, orderManagerRole)
+                        .requestMatchers(HttpMethod.PUT, "/api/admin/returns/**").hasAnyAuthority(adminRole, orderManagerRole)
+                        // Every other admin mutation (products, coupons, promotions, gift cards, tax/shipping,
+                        // content, categories, reviews, inventory) requires full Admin.
                         .requestMatchers("/api/admin/**").hasAuthority(adminRole)
                         .anyRequest().permitAll())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(adminAwareConverter())))

@@ -168,6 +168,62 @@ export class AdminService {
     return this.http.delete<void>(`${this.baseUrl}/coupons/${id}`);
   }
 
+  // ----- promotions -----
+
+  getPromotions(): Observable<Promotion[]> {
+    return this.http.get<Promotion[]>(`${this.baseUrl}/promotions`);
+  }
+
+  savePromotion(payload: PromotionPayload): Observable<Promotion> {
+    return this.http.post<Promotion>(`${this.baseUrl}/promotions`, payload);
+  }
+
+  deletePromotion(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/promotions/${id}`);
+  }
+
+  // ----- analytics -----
+
+  getRevenueOverTime(days = 30): Observable<RevenuePoint[]> {
+    const params = new HttpParams().set('days', days);
+    return this.http.get<RevenuePoint[]>(`${this.baseUrl}/analytics/revenue`, { params });
+  }
+
+  getTopProducts(days = 30, limit = 5): Observable<TopProduct[]> {
+    const params = new HttpParams().set('days', days).set('limit', limit);
+    return this.http.get<TopProduct[]>(`${this.baseUrl}/analytics/top-products`, { params });
+  }
+
+  getOrderStatusBreakdown(): Observable<StatusCount[]> {
+    return this.http.get<StatusCount[]>(`${this.baseUrl}/analytics/order-status`);
+  }
+
+  getAnalyticsSummary(): Observable<AnalyticsSummary> {
+    return this.http.get<AnalyticsSummary>(`${this.baseUrl}/analytics/summary`);
+  }
+
+  // ----- content (CMS) -----
+
+  getBanner(): Observable<SiteBanner> {
+    return this.http.get<SiteBanner>(`${this.baseUrl}/content/banner`);
+  }
+
+  saveBanner(payload: SiteBannerPayload): Observable<SiteBanner> {
+    return this.http.put<SiteBanner>(`${this.baseUrl}/content/banner`, payload);
+  }
+
+  getFaqAdmin(): Observable<AdminFaqEntry[]> {
+    return this.http.get<AdminFaqEntry[]>(`${this.baseUrl}/content/faq`);
+  }
+
+  saveFaq(payload: AdminFaqEntryPayload): Observable<AdminFaqEntry> {
+    return this.http.post<AdminFaqEntry>(`${this.baseUrl}/content/faq`, payload);
+  }
+
+  deleteFaq(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/content/faq/${id}`);
+  }
+
   // ----- tax & shipping -----
 
   getTaxRates(): Observable<AdminTaxRate[]> {
@@ -232,6 +288,20 @@ export class AdminService {
     formData.append('file', file);
     return this.http.post<CsvImportResult>(`${this.baseUrl}/inventory/import`, formData);
   }
+
+  // ----- RBAC + audit log (roadmap #19) -----
+
+  getCurrentAdmin(): Observable<CurrentAdmin> {
+    return this.http.get<CurrentAdmin>(`${this.baseUrl}/me`);
+  }
+
+  getAuditLog(page: number, size: number, entityType?: string): Observable<PageResponse<AuditLogEntry>> {
+    let params = new HttpParams().set('page', page).set('size', size);
+    if (entityType) {
+      params = params.set('entityType', entityType);
+    }
+    return this.http.get<PageResponse<AuditLogEntry>>(`${this.baseUrl}/audit-log`, { params });
+  }
 }
 
 export interface AdminGiftCard {
@@ -291,6 +361,86 @@ export interface CouponPayload {
   expiresAt?: string | null;
 }
 
+export interface Promotion {
+  id: number;
+  name: string;
+  description?: string;
+  percentOff?: number | null;
+  amountOff?: number | null;
+  minSpend?: number | null;
+  active: boolean;
+  startsAt?: string | null;
+  endsAt?: string | null;
+}
+
+export interface PromotionPayload {
+  id?: number | null;
+  name: string;
+  description?: string;
+  percentOff?: number | null;
+  amountOff?: number | null;
+  minSpend?: number | null;
+  active: boolean;
+  startsAt?: string | null;
+  endsAt?: string | null;
+}
+
+export interface RevenuePoint {
+  date: string;
+  revenue: number;
+  orderCount: number;
+}
+
+export interface TopProduct {
+  productId: number;
+  name: string;
+  unitsSold: number;
+  revenue: number;
+}
+
+export interface StatusCount {
+  status: string;
+  count: number;
+}
+
+export interface AnalyticsSummary {
+  averageOrderValue: number;
+  revenueThisMonth: number;
+  revenueLastMonth: number;
+  growthPercent: number | null;
+}
+
+export interface SiteBanner {
+  id?: number | null;
+  message: string;
+  linkUrl?: string | null;
+  linkText?: string | null;
+  active: boolean;
+}
+
+export interface SiteBannerPayload {
+  message: string;
+  linkUrl?: string | null;
+  linkText?: string | null;
+  active: boolean;
+}
+
+export interface AdminFaqEntry {
+  id: number;
+  question: string;
+  answer: string;
+  sortOrder: number;
+  active: boolean;
+}
+
+export interface AdminFaqEntryPayload {
+  id?: number | null;
+  question: string;
+  answer: string;
+  sortOrder: number;
+  active: boolean;
+}
+
 export interface InventoryItem {
   sku: string;
   productId: number;
@@ -316,4 +466,18 @@ export interface InventoryAdjustment {
 export interface CsvImportResult {
   updated: number;
   errors: string[];
+}
+
+export interface CurrentAdmin {
+  roles: string[];
+}
+
+export interface AuditLogEntry {
+  id: number;
+  actor: string;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  details: string | null;
+  createdAt: string;
 }

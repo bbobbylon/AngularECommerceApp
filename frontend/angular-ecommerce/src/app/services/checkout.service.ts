@@ -89,4 +89,6 @@ export interface QuoteResponse {
   taxRatePercent: number;
   total: number;
   shippingMethodCode?: string;
+  promotionName?: string | null;
+  promotionDiscount: number;
 }

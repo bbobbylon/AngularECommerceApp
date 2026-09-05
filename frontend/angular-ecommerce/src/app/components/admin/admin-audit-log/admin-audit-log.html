@@ -1,0 +1,45 @@
+<div class="mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <h1 class="fw-bold mb-1">Audit Log</h1>
+    <p class="text-muted mb-0">Every admin action — who did what, to which record, and when.</p>
+  </div>
+  <select class="form-select w-auto" [(ngModel)]="entityTypeFilter" (ngModelChange)="onFilterChange()">
+    <option value="">All entity types</option>
+    @for (t of entityTypes; track t) {
+      <option [value]="t">{{ t }}</option>
+    }
+  </select>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    @if (loading()) {
+      <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+    } @else if (!entries().length) {
+      <div class="alert alert-secondary mb-0">No audit entries recorded yet.</div>
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead>
+          <tbody>
+            @for (e of entries(); track e.id) {
+              <tr>
+                <td class="small text-muted text-nowrap">{{ e.createdAt | date:'short' }}</td>
+                <td class="small">{{ e.actor }}</td>
+                <td class="small"><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ e.action }}</span></td>
+                <td class="small font-monospace">{{ e.entityType }}{{ e.entityId ? ' #' + e.entityId : '' }}</td>
+                <td class="small text-muted">{{ e.details || '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (totalElements > pageSize) {
+        <div class="d-flex justify-content-center mt-3">
+          <ngb-pagination [collectionSize]="totalElements" [(page)]="pageNumber" [pageSize]="pageSize"
+                          [maxSize]="5" [boundaryLinks]="true" (pageChange)="load()"></ngb-pagination>
+        </div>
+      }
+    }
+  </div>
+</div>

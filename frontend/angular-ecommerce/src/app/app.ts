@@ -1,5 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs';
@@ -13,6 +13,7 @@ import { ProductCategoryMenu } from './components/product-category-menu/product-
 import { Search } from './components/search/search';
 import { Toast } from './components/toast/toast';
 import { TranslatePipe } from './common/translate.pipe';
+import { ContentService, SiteBanner } from './services/content.service';
 import { CurrencyService } from './services/currency.service';
 import { FavoritesService } from './services/favorites.service';
 import { I18nService } from './services/i18n.service';
@@ -36,9 +37,15 @@ export class App {
   private readonly referral = inject(ReferralService);
   private readonly seo = inject(SeoService);
   private readonly document = inject(DOCUMENT);
+  private readonly contentService = inject(ContentService);
   title = 'angular-ecommerce';
 
+  /** CMS-managed announcement banner (roadmap #17). Null hides the bar entirely. */
+  protected readonly banner = signal<SiteBanner | null>(null);
+
   constructor() {
+    this.contentService.getBanner().subscribe(banner => this.banner.set(banner));
+
     // Site-wide structured data (roadmap #11 — SEO), set once; per-page JSON-LD (e.g. Product) is
     // managed separately by SeoService callers under a different id so this doesn't get clobbered.
     this.seo.setJsonLd('organization', {

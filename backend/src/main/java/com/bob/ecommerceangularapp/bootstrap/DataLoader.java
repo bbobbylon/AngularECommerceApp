@@ -3,23 +3,27 @@ package com.bob.ecommerceangularapp.bootstrap;
 import com.bob.ecommerceangularapp.dao.CountryRepository;
 import com.bob.ecommerceangularapp.dao.CouponRepository;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
+import com.bob.ecommerceangularapp.dao.FaqEntryRepository;
 import com.bob.ecommerceangularapp.dao.GiftCardRepository;
 import com.bob.ecommerceangularapp.dao.ProductCategoryRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
 import com.bob.ecommerceangularapp.dao.ProductVariantRepository;
 import com.bob.ecommerceangularapp.dao.ReviewRepository;
 import com.bob.ecommerceangularapp.dao.ShippingMethodRepository;
+import com.bob.ecommerceangularapp.dao.SiteBannerRepository;
 import com.bob.ecommerceangularapp.dao.StateRepository;
 import com.bob.ecommerceangularapp.dao.TaxRateRepository;
 import com.bob.ecommerceangularapp.entity.Country;
 import com.bob.ecommerceangularapp.entity.Coupon;
 import com.bob.ecommerceangularapp.entity.Customer;
+import com.bob.ecommerceangularapp.entity.FaqEntry;
 import com.bob.ecommerceangularapp.entity.GiftCard;
 import com.bob.ecommerceangularapp.entity.Product;
 import com.bob.ecommerceangularapp.entity.ProductCategory;
 import com.bob.ecommerceangularapp.entity.ProductVariant;
 import com.bob.ecommerceangularapp.entity.Review;
 import com.bob.ecommerceangularapp.entity.ShippingMethod;
+import com.bob.ecommerceangularapp.entity.SiteBanner;
 import com.bob.ecommerceangularapp.entity.State;
 import com.bob.ecommerceangularapp.entity.TaxRate;
 import org.slf4j.Logger;
@@ -78,6 +82,8 @@ public class DataLoader implements CommandLineRunner {
     private final ShippingMethodRepository shippingMethodRepository;
     private final TaxRateRepository taxRateRepository;
     private final GiftCardRepository giftCardRepository;
+    private final SiteBannerRepository siteBannerRepository;
+    private final FaqEntryRepository faqEntryRepository;
     private final TransactionTemplate txTemplate;
 
     public DataLoader(ProductRepository productRepository,
@@ -91,6 +97,8 @@ public class DataLoader implements CommandLineRunner {
                       ShippingMethodRepository shippingMethodRepository,
                       TaxRateRepository taxRateRepository,
                       GiftCardRepository giftCardRepository,
+                      SiteBannerRepository siteBannerRepository,
+                      FaqEntryRepository faqEntryRepository,
                       PlatformTransactionManager transactionManager) {
         this.productRepository = productRepository;
         this.productCategoryRepository = productCategoryRepository;
@@ -103,6 +111,8 @@ public class DataLoader implements CommandLineRunner {
         this.shippingMethodRepository = shippingMethodRepository;
         this.taxRateRepository = taxRateRepository;
         this.giftCardRepository = giftCardRepository;
+        this.siteBannerRepository = siteBannerRepository;
+        this.faqEntryRepository = faqEntryRepository;
         this.txTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -120,6 +130,7 @@ public class DataLoader implements CommandLineRunner {
         seedGiftCards();
         seedReviews();
         seedCoupons();
+        seedContent();
     }
 
     /**
@@ -290,6 +301,52 @@ public class DataLoader implements CommandLineRunner {
         c.setMinSpend(minSpend);
         c.setActive(true);
         return c;
+    }
+
+    /**
+     * Seeds the site banner + FAQ list with the content that used to be hardcoded in the frontend, so
+     * a fresh DB looks the same as before this feature — from here on an admin owns both. Idempotent
+     * + defensive, like the other reference-data seeds.
+     */
+    private void seedContent() {
+        try {
+            if (siteBannerRepository.count() == 0) {
+                SiteBanner banner = new SiteBanner();
+                banner.setMessage("This week's sale — up to 49% off · free shipping over $50.");
+                banner.setLinkUrl("/sale");
+                banner.setLinkText("Shop now");
+                banner.setActive(true);
+                siteBannerRepository.save(banner);
+                log.info("Seeded 1 site banner.");
+            }
+            if (faqEntryRepository.count() == 0) {
+                faqEntryRepository.saveAll(List.of(
+                        faqEntry("How long does shipping take?",
+                                "Standard shipping is 3–5 business days. Orders over $50 ship free; expedited options are shown at checkout.", 1),
+                        faqEntry("What is your return policy?",
+                                "Returns are accepted within 30 days of delivery, in original condition. See Shipping & Returns for the full details.", 2),
+                        faqEntry("Which payment methods do you accept?",
+                                "All major credit and debit cards via Stripe. Your card details are entered directly into Stripe and never touch our servers.", 3),
+                        faqEntry("Do you ship internationally?",
+                                "We ship to the United States, Canada, Brazil, Germany, India and Australia, with more regions on the way.", 4),
+                        faqEntry("How do I track my order?",
+                                "You'll get an order confirmation email with a tracking number, and you can view past orders under My account → My orders.", 5),
+                        faqEntry("How do I manage marketing emails?",
+                                "Update your preferences anytime in Account settings, or use the unsubscribe link at the bottom of any marketing email.", 6)));
+                log.info("Seeded 6 FAQ entries.");
+            }
+        } catch (Exception e) {
+            log.warn("Skipped content seeding (non-fatal): {}", e.getMessage());
+        }
+    }
+
+    private FaqEntry faqEntry(String question, String answer, int sortOrder) {
+        FaqEntry entry = new FaqEntry();
+        entry.setQuestion(question);
+        entry.setAnswer(answer);
+        entry.setSortOrder(sortOrder);
+        entry.setActive(true);
+        return entry;
     }
 
     private static final String[] REVIEW_AUTHORS = {"Ada", "Linus", "Grace", "Alan", "Margaret",

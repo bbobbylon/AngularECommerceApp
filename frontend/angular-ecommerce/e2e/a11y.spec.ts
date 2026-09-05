@@ -35,6 +35,9 @@ for (const theme of themes) {
       await mockBackend(page);
       await page.goto(path);
       await expect(page.locator('main')).toBeVisible();
+      // Let the CMS-driven announcement banner (roadmap #17) settle before scanning — it fetches
+      // after first paint and its arrival shifts the sticky header down.
+      await page.waitForLoadState('networkidle');
 
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

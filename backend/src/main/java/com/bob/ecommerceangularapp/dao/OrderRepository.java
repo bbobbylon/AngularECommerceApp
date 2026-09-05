@@ -10,6 +10,8 @@ import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 import org.springframework.data.rest.core.annotation.RestResource;
 
 import java.math.BigDecimal;
+import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -30,4 +32,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query("select coalesce(sum(o.totalPrice), 0) from Order o")
     BigDecimal sumTotalRevenue();
+
+    // ----- analytics (roadmap #18) -----
+    List<Order> findByDateCreatedGreaterThanEqual(Date cutoff);
 }

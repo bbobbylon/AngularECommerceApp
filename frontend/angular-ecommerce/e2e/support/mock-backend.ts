@@ -104,6 +104,7 @@ export async function mockBackend(page: Page): Promise<void> {
     route.fulfill(json({
       subtotal, discount: 0, shippingAmount: 0, taxAmount: 0, taxRatePercent: 0,
       total: subtotal, shippingMethodCode: body.shippingMethodCode ?? 'STANDARD',
+      promotionName: null, promotionDiscount: 0,
     }));
   });
 
@@ -141,4 +142,41 @@ export async function mockBackend(page: Page): Promise<void> {
 
   // Wishlist sync (favorites page) — empty for a guest session.
   await page.route(/\/api\/wishlist/, route => route.fulfill(json([])));
+
+  // CMS content (roadmap #17) — banner shown on every page, FAQ entries on /faq.
+  await page.route(/\/api\/content\/banner/, route =>
+    route.fulfill(json({ id: 1, message: "This week's sale — up to 49% off.", linkUrl: '/sale', linkText: 'Shop now', active: true })),
+  );
+  await page.route(/\/api\/content\/faq/, route =>
+    route.fulfill(json([
+      { id: 1, question: 'How long does shipping take?', answer: 'Standard shipping is 3–5 business days.', sortOrder: 1, active: true },
+    ])),
+  );
+
+  // Admin analytics dashboard (roadmap #18) — no storefront spec navigates here today, but stubbed
+  // for consistency with the other admin surfaces in case a future E2E spec covers it.
+  await page.route(/\/api\/admin\/analytics\/summary/, route =>
+    route.fulfill(json({ averageOrderValue: 42.5, revenueThisMonth: 500, revenueLastMonth: 400, growthPercent: 25 })),
+  );
+  await page.route(/\/api\/admin\/analytics\/revenue/, route =>
+    route.fulfill(json([{ date: '2026-09-04', revenue: 100, orderCount: 2 }])),
+  );
+  await page.route(/\/api\/admin\/analytics\/top-products/, route =>
+    route.fulfill(json([{ productId: 101, name: 'The Pragmatic Programmer', unitsSold: 3, revenue: 119.97 }])),
+  );
+  await page.route(/\/api\/admin\/analytics\/order-status/, route =>
+    route.fulfill(json([{ status: 'COMPLETED', count: 5 }])),
+  );
+
+  // Admin RBAC + audit log (roadmap #19) — no storefront spec navigates here today, but stubbed
+  // for consistency with the other admin surfaces in case a future E2E spec covers it.
+  await page.route(/\/api\/admin\/me/, route => route.fulfill(json({ roles: ['Admin'] })));
+  await page.route(/\/api\/admin\/audit-log/, route =>
+    route.fulfill(json({
+      content: [
+        { id: 1, actor: 'admin@example.com', action: 'PRODUCT_UPDATE', entityType: 'Product', entityId: '101', details: null, createdAt: '2026-09-04T12:00:00Z' },
+      ],
+      totalElements: 1, totalPages: 1, number: 0, size: 20,
+    })),
+  );
 }

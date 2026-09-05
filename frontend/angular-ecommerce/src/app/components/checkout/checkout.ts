@@ -43,6 +43,10 @@ export class Checkout implements OnInit, AfterViewInit {
   couponError = '';
   applyingCoupon = false;
 
+  // automatic, no-code promotion (surfaced from the server's quote — nothing for the customer to enter)
+  promotionName: string | null = null;
+  promotionDiscount = 0;
+
   // shipping + tax (server-computed quote — single source of truth for the grand total)
   shippingMethods: ShippingMethodView[] = [];
   selectedShippingCode = '';
@@ -157,6 +161,8 @@ export class Checkout implements OnInit, AfterViewInit {
       this.quoteTotal = null;
       this.shippingAmount = 0;
       this.taxAmount = 0;
+      this.promotionName = null;
+      this.promotionDiscount = 0;
       return;
     }
     const country = (this.shippingCountry?.value as Country)?.name;
@@ -173,6 +179,8 @@ export class Checkout implements OnInit, AfterViewInit {
         this.shippingAmount = q.shippingAmount;
         this.taxAmount = q.taxAmount;
         this.quoteTotal = q.total;
+        this.promotionName = q.promotionName ?? null;
+        this.promotionDiscount = q.promotionDiscount ?? 0;
       },
       error: () => { /* keep the last-known totals on a transient failure */ },
     });

@@ -364,6 +364,118 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   success + per-row error shown; CSV export → `200` on `/api/admin/inventory/export`. 7 new backend
   unit tests (`InventoryServiceTest`) + 32 E2E + 17 frontend unit tests + full `./mvnw clean
   package` (incl. the real-MySQL IT) + production build all green.
+- ✅ **Promotions engine (roadmap #16)** — automatic, no-code discounts, distinct from `Coupon` (which
+  requires the customer to enter a code). `Promotion` entity (`V13` migration, MySQL-IT-validated):
+  name/description, percentOff or amountOff (percent wins if both), optional minSpend, active flag,
+  and an optional `startsAt`/`endsAt` date window (either side null = unbounded — this is the piece
+  coupons don't have, letting a sale be scheduled in advance, e.g. "Black Friday Nov 24–27").
+  `PromotionService.findBest(subtotal)` filters to active + in-window + min-spend-eligible promotions
+  and picks whichever is worth the most — consulted by `TaxShippingService.quote()` on *every*
+  checkout (no code needed) and **stacked additively on top of any manually-entered coupon**, before
+  shipping/tax (mirrors how gift card + rewards later stack on top of the discounted total, just at
+  an earlier stage in the pipeline: subtotal→coupon→promotion→shipping→tax→gift card→rewards→amount
+  due). Design note: the checkout quote pipeline (`QuoteRequest`/`QuoteResponse`) only ever carried
+  an aggregate `subtotal` — no per-line-item data — so this was scoped to **order-level** promotions
+  only; product/category-scoped automatic promotions would need to thread cart line items through
+  that whole pipeline, a materially bigger change deferred unless a future feature needs it. `Order`
+  gains nullable `promotionName`/`promotionDiscount` (set by `CheckoutServiceImpl` alongside the
+  existing coupon fields) so an applied promotion is recorded on the order the same way a coupon is.
+  Admin CRUD mirrors `AdminCouponController`/coupons page exactly (`/api/admin/promotions`, new
+  **Promotions** admin page at `/admin/promotions`); checkout's order summary shows the auto-applied
+  promotion as an informational line (no apply/remove UI — it just applies itself). Browser-verified
+  end to end: created a 5%-off, always-on promotion in admin → added an item to cart → checkout
+  showed "Test Auto Promo: −$X.XX" with no code entered and the total reflected it → deleted the
+  test promotion via the API afterward. 8 new backend unit tests (`PromotionServiceTest`) + a new
+  `TaxShippingServiceTest` case (coupon + promotion stacking) + 32 E2E + 17 frontend unit tests +
+  full `./mvnw clean package` (incl. the real-MySQL IT, which validated `V13`) + production build
+  all green.
+- ✅ **Simple CMS (roadmap #17)** — deliberately narrow, not a generic page-builder: a single
+  site-wide announcement banner (replacing the hardcoded `promo-bar` block in `app.html`) plus an
+  editable FAQ list (replacing the hardcoded array in `faq.ts`). `SiteBanner` is a **singleton-row
+  entity** — no natural unique key, `ContentService.currentBanner()` finds it via
+  `findAll().stream().findFirst()` rather than hardcoding an id, enforced by application logic, not
+  a DB constraint. `FaqEntry` (question/answer/sortOrder/active) supports the usual admin
+  upsert-by-optional-id pattern. `V14` migration creates both tables (MySQL-IT-validated).
+  `ContentService` (backend) exposes public reads (`GET /api/content/banner` — 204 when none is
+  configured or it's inactive; `GET /api/content/faq` — active entries ordered by sortOrder) plus
+  admin CRUD (`AdminContentController`, `/api/admin/content/banner` GET/PUT,
+  `/api/admin/content/faq` GET/POST/DELETE). `DataLoader.seedContent()` seeds the **exact** prior
+  hardcoded banner text and all 6 prior hardcoded FAQ entries, so a fresh DB renders identically to
+  before this feature — only now an admin owns the content going forward, not a code deploy.
+  Frontend `content.service.ts` (public reads, `catchError`-to-`null`/`[]` graceful degradation,
+  mirroring `recomputeQuote()`'s transient-failure pattern) backs `app.ts`'s dynamic banner (root
+  component fetches once on load) and `faq.ts`'s dynamic FAQ list. New admin **Content** page
+  (`/admin/content`, mirrors `admin-tax-shipping`'s two-cards-per-page layout): a banner settings
+  form and an edit-in-place FAQ list. Fixed a real bug found during browser verification: the FAQ
+  "add entry" form's default `sortOrder` was computed from the signal's value at field-initializer
+  time (before `ngOnInit`'s `load()` populated it), so the first entry added on a fresh page load
+  collided with an existing entry's sort order — fixed by syncing the default inside the load
+  callback instead of a one-shot computed field initializer. Also hardened `search-typeahead.spec.ts`
+  and `a11y.spec.ts` with `page.waitForLoadState('networkidle')` after navigation: the new
+  CMS-driven banner fetches *after* first paint (unlike the old static markup) and its arrival
+  shifts the sticky header down, which was intermittently racing fixed-coordinate clicks/scans in
+  those specs. Browser-verified end to end: edited the banner message via `/admin/content` → storefront
+  showed the new text on reload; added a test FAQ entry → appeared in the admin list and on `/faq` →
+  deleted via the admin API; restored the original banner text via the admin API afterward. 12 new
+  backend unit tests (`ContentServiceTest`) + 32 E2E (stable across repeated runs) + 17 frontend
+  unit tests + full `./mvnw clean package` (incl. the real-MySQL IT, which validated `V14`) +
+  production build all green.
+- ✅ **Analytics dashboard (roadmap #18)** — the first feature since #11 with **zero schema change**:
+  `AnalyticsService` is a pure read-side aggregation over existing `Order`/`OrderItem`/`Product` data
+  (no new entity, no `V{n}` migration). Aggregation is plain Java streams/grouping, not a JPQL
+  projection — deliberately matches the codebase's established style (`PromotionService`/
+  `TaxShippingService`/`AdminService` all keep aggregation logic in Java, not the DB); confirmed via
+  grep there was no existing JPQL-projection precedent to follow instead. `revenueOverTime(days)`
+  zero-fills every day in the window (not just days with orders, so the chart doesn't lie about gaps);
+  `topProducts(days, limit)` sums units/revenue per product from `OrderItem`s and sorts descending
+  (falls back to "Unknown product" if the product was since deleted); `orderStatusBreakdown()` groups
+  by status, bucketing null/blank as `"UNKNOWN"`; `summary()` gives avg order value (all-time) plus
+  this-month vs. last-month revenue and month-over-month growth — `growthPercent` is a nullable
+  `Double`, deliberately `null` (not `0.0`) when last month had no revenue to compare against, so the
+  UI can show "no data to compare" instead of a misleading fake percentage. `AdminAnalyticsController`
+  (`/api/admin/analytics/{summary,revenue,top-products,order-status}`) needs no new security wiring —
+  `/api/admin/**` is already globally role-gated. Frontend `AdminAnalytics` (`/admin/analytics`, new
+  "Analytics" nav link right under Dashboard) shows 4 KPI cards, a hand-rolled CSS/flexbox bar chart
+  for the revenue trend, and two horizontal-bar lists (top products, order status) reusing the
+  existing `.rating-bar` class (originally built for review-star distributions) with a new
+  `.bar-fill-accent` modifier — confirmed via `grep -i chart package.json` that no charting dependency
+  already existed, so no new one was added (mirrors the hand-rolled-CSV-parser precedent from #15).
+  Browser-verified end-to-end with real data: placed a demo-mode order through the storefront, then
+  confirmed the dashboard's avg order value, this-month revenue (with "no data last month" since the
+  dev DB was otherwise empty), top-products ranking (sorted by revenue), and status breakdown
+  (`UNKNOWN` × 1 — correct, since a freshly-placed order has no status until an admin sets one) all
+  matched. 8 new backend unit tests (`AnalyticsServiceTest`) + 32 E2E (stable across 2 full runs) + 17
+  frontend unit tests + full `./mvnw clean package` + production build all green.
+- ✅ **RBAC + global audit log (roadmap #19)** — three back-office roles (`Admin` full access,
+  `OrderManager` read-everything + order status/return decisions, `Viewer` read-only) enforced purely
+  via **ordered `authorizeHttpRequests` request-matchers** in `SecurityConfig` — deliberately *not*
+  `@EnableMethodSecurity`/`@PreAuthorize`, since a grep confirmed this codebase had never used method
+  security anywhere; specific matchers (`PUT /api/admin/orders/**`, `PUT /api/admin/returns/**`) are
+  inserted ahead of the existing `/api/admin/**` catch-all (Spring matches top-down, already this
+  file's convention). No `JwtAuthenticationConverter` change needed — it already passes through
+  arbitrary JWT groups-claim values as authorities verbatim, so the new role names just need to appear
+  in Okta's groups claim. New `AuditLogEntry`/`audit_log_entry` (`V15`) is a **global, cross-cutting**
+  ledger — one row per admin mutation across the *entire* back-office — deliberately kept separate
+  from the domain-specific `InventoryAdjustment` ledger (#15, stock-history only); an inventory
+  adjustment now writes to both. `AuditLogService.record(...)` is called from **every** admin mutation
+  controller (Products+variants, Orders, Returns, Coupons, Promotions, Gift Cards, Tax Rates, Shipping
+  Methods, Content/Banner/FAQ, Categories, Reviews, Inventory adjust+CSV import) — not a representative
+  sample. Actor resolution uses a plain `Authentication authentication` **method parameter** (Spring
+  MVC auto-resolves it, no `@AuthenticationPrincipal` needed) so the same controller code works
+  whether the secured JWT chain or the open/no-Okta chain is active; `AuditLogService.resolveActor()`
+  returns the principal name when authenticated, else `"anonymous"`. `GET /api/admin/me` reports the
+  caller's known roles, defaulting to `["Admin"]` when none are present (i.e. the app is running fully
+  open without Okta) — consistent with the app's established graceful-degradation pattern. Frontend
+  adds an admin **Audit Log** page (`/admin/audit-log`, paginated + entity-type filter) and a "Signed
+  in as: {roles}" badge in the admin sidebar — deliberately just a courtesy label, not a client-side
+  permission gate; none of the ~10 existing admin components were changed to hide buttons per-role,
+  since the backend's request-matchers are the actual enforcement boundary. Browser-verified live: set
+  a real order's status to Processing through the Orders page, then confirmed the resulting
+  `ORDER_STATUS_UPDATE` entry (actor `anonymous`, matching the no-Okta dev chain) rendered on the audit
+  log page, and that the entity-type filter correctly showed/hid it. 25 new/extended backend tests
+  (`AuditLogServiceTest` + `SecurityFilterChainIntegrationTest` RBAC cases) + full `./mvnw clean
+  package` (134 tests, incl. the real-MySQL IT validating `V15`) + 32 E2E (stable across 2 full runs) +
+  17 frontend unit tests + production build all green.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.

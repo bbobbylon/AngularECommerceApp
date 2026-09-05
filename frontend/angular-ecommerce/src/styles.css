@@ -430,6 +430,11 @@ footer h6 { font-family: var(--font-body); }
 .star-input i:hover { transform: scale(1.15); }
 .rating-bar { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
 .rating-bar > span { display: block; height: 100%; background: var(--gold); }
+.rating-bar > span.bar-fill-accent { background: var(--accent); }
+
+/* admin analytics (roadmap #18): hand-rolled daily revenue bar chart, no charting dependency */
+.revenue-chart { display: flex; align-items: flex-end; gap: 3px; height: 160px; }
+.revenue-bar { flex: 1 1 0; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; }
 
 /* sale "% off" badge on product cards */
 .sale-badge {
@@ -466,6 +471,7 @@ footer h6 { font-family: var(--font-body); }
   padding: 1rem; box-shadow: var(--shadow-sm);
 }
 .admin-brand { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; margin-bottom: 0.85rem; color: var(--ink); }
+.admin-role-badge { font-size: 0.75rem; color: var(--muted); margin: -0.5rem 0 0.85rem; }
 .admin-nav { display: flex; flex-direction: column; gap: 0.25rem; }
 .admin-nav a {
   display: flex; align-items: center; gap: 0.65rem; padding: 0.6rem 0.8rem; border-radius: var(--radius-sm);

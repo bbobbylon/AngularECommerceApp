@@ -5,6 +5,7 @@ import com.bob.ecommerceangularapp.dto.InventoryAdjustmentRequest;
 import com.bob.ecommerceangularapp.dto.InventoryAdjustmentView;
 import com.bob.ecommerceangularapp.dto.InventoryItemView;
 import com.bob.ecommerceangularapp.dto.PageResponse;
+import com.bob.ecommerceangularapp.service.AuditLogService;
 import com.bob.ecommerceangularapp.service.InventoryService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.PageRequest;
@@ -12,6 +13,7 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,15 +29,21 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-/** SKU-level inventory management (roadmap #15): the merged product+variant stock view, CSV export/import, and the audit log. */
+/**
+ * SKU-level inventory management (roadmap #15): the merged product+variant stock view, CSV
+ * export/import, and the per-SKU {@code InventoryAdjustment} ledger. Adjustments and imports are also
+ * recorded to the cross-cutting global admin audit log (roadmap #19).
+ */
 @RestController
 @RequestMapping("/api/admin/inventory")
 public class AdminInventoryController {
 
     private final InventoryService inventoryService;
+    private final AuditLogService auditLogService;
 
-    public AdminInventoryController(InventoryService inventoryService) {
+    public AdminInventoryController(InventoryService inventoryService, AuditLogService auditLogService) {
         this.inventoryService = inventoryService;
+        this.auditLogService = auditLogService;
     }
 
     @GetMapping
@@ -50,8 +58,10 @@ public class AdminInventoryController {
     }
 
     @PutMapping("/{sku}")
-    public InventoryItemView adjust(@PathVariable String sku, @Valid @RequestBody InventoryAdjustmentRequest request) {
-        return inventoryService.adjust(sku, request.quantity(), request.note());
+    public InventoryItemView adjust(Authentication authentication, @PathVariable String sku, @Valid @RequestBody InventoryAdjustmentRequest request) {
+        InventoryItemView saved = inventoryService.adjust(sku, request.quantity(), request.note());
+        auditLogService.record(authentication, "INVENTORY_ADJUST", "InventoryItem", sku, "delta=" + request.quantity());
+        return saved;
     }
 
     @GetMapping("/export")
@@ -65,12 +75,15 @@ public class AdminInventoryController {
     }
 
     @PostMapping("/import")
-    public CsvImportResult importCsv(@RequestParam("file") MultipartFile file) {
+    public CsvImportResult importCsv(Authentication authentication, @RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("Choose a CSV file to upload.");
         }
         try {
-            return inventoryService.importCsv(file.getInputStream());
+            CsvImportResult result = inventoryService.importCsv(file.getInputStream());
+            auditLogService.record(authentication, "INVENTORY_CSV_IMPORT", "InventoryItem", null,
+                    result.updated() + " updated, " + result.errors().size() + " error(s)");
+            return result;
         } catch (IOException e) {
             throw new UncheckedIOException("Could not read the uploaded CSV file.", e);
         }

@@ -4,10 +4,12 @@ import com.bob.ecommerceangularapp.dto.ShippingMethodRequest;
 import com.bob.ecommerceangularapp.dto.TaxRateRequest;
 import com.bob.ecommerceangularapp.entity.ShippingMethod;
 import com.bob.ecommerceangularapp.entity.TaxRate;
+import com.bob.ecommerceangularapp.service.AuditLogService;
 import com.bob.ecommerceangularapp.service.TaxShippingService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,9 +26,11 @@ import java.util.List;
 public class AdminTaxShippingController {
 
     private final TaxShippingService taxShippingService;
+    private final AuditLogService auditLogService;
 
-    public AdminTaxShippingController(TaxShippingService taxShippingService) {
+    public AdminTaxShippingController(TaxShippingService taxShippingService, AuditLogService auditLogService) {
         this.taxShippingService = taxShippingService;
+        this.auditLogService = auditLogService;
     }
 
     // ----- tax rates -----
@@ -37,13 +41,18 @@ public class AdminTaxShippingController {
     }
 
     @PostMapping("/tax-rates")
-    public TaxRate saveTaxRate(@Valid @RequestBody TaxRateRequest request) {
-        return taxShippingService.saveTaxRate(request);
+    public TaxRate saveTaxRate(Authentication authentication, @Valid @RequestBody TaxRateRequest request) {
+        boolean isNew = request.id() == null;
+        TaxRate saved = taxShippingService.saveTaxRate(request);
+        auditLogService.record(authentication, isNew ? "TAX_RATE_CREATE" : "TAX_RATE_UPDATE",
+                "TaxRate", String.valueOf(saved.getId()), null);
+        return saved;
     }
 
     @DeleteMapping("/tax-rates/{id}")
-    public ResponseEntity<Void> deleteTaxRate(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteTaxRate(Authentication authentication, @PathVariable Long id) {
         taxShippingService.deleteTaxRate(id);
+        auditLogService.record(authentication, "TAX_RATE_DELETE", "TaxRate", String.valueOf(id), null);
         return ResponseEntity.noContent().build();
     }
 
@@ -55,13 +64,18 @@ public class AdminTaxShippingController {
     }
 
     @PostMapping("/shipping-methods")
-    public ResponseEntity<ShippingMethod> saveShippingMethod(@Valid @RequestBody ShippingMethodRequest request) {
-        return ResponseEntity.status(HttpStatus.OK).body(taxShippingService.saveShippingMethod(request));
+    public ResponseEntity<ShippingMethod> saveShippingMethod(Authentication authentication, @Valid @RequestBody ShippingMethodRequest request) {
+        boolean isNew = request.id() == null;
+        ShippingMethod saved = taxShippingService.saveShippingMethod(request);
+        auditLogService.record(authentication, isNew ? "SHIPPING_METHOD_CREATE" : "SHIPPING_METHOD_UPDATE",
+                "ShippingMethod", String.valueOf(saved.getId()), saved.getName());
+        return ResponseEntity.status(HttpStatus.OK).body(saved);
     }
 
     @DeleteMapping("/shipping-methods/{id}")
-    public ResponseEntity<Void> deleteShippingMethod(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteShippingMethod(Authentication authentication, @PathVariable Long id) {
         taxShippingService.deleteShippingMethod(id);
+        auditLogService.record(authentication, "SHIPPING_METHOD_DELETE", "ShippingMethod", String.valueOf(id), null);
         return ResponseEntity.noContent().build();
     }
 }
