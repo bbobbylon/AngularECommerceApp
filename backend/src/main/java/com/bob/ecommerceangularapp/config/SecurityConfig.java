@@ -122,6 +122,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/admin/**").hasAnyAuthority(adminRole, orderManagerRole, viewerRole)
                         .requestMatchers(HttpMethod.PUT, "/api/admin/orders/**").hasAnyAuthority(adminRole, orderManagerRole)
                         .requestMatchers(HttpMethod.PUT, "/api/admin/returns/**").hasAnyAuthority(adminRole, orderManagerRole)
+                        // Fulfillment (roadmap #20): shipping an order is an order-management action, so
+                        // OrderManager can create shipments and move them along; warehouse configuration
+                        // below stays behind the full-Admin catch-all.
+                        .requestMatchers(HttpMethod.POST, "/api/admin/orders/*/shipments").hasAnyAuthority(adminRole, orderManagerRole)
+                        .requestMatchers(HttpMethod.PUT, "/api/admin/shipments/**").hasAnyAuthority(adminRole, orderManagerRole)
                         // Every other admin mutation (products, coupons, promotions, gift cards, tax/shipping,
                         // content, categories, reviews, inventory) requires full Admin.
                         .requestMatchers("/api/admin/**").hasAuthority(adminRole)

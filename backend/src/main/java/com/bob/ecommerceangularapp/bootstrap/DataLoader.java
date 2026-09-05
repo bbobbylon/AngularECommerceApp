@@ -13,6 +13,8 @@ import com.bob.ecommerceangularapp.dao.ShippingMethodRepository;
 import com.bob.ecommerceangularapp.dao.SiteBannerRepository;
 import com.bob.ecommerceangularapp.dao.StateRepository;
 import com.bob.ecommerceangularapp.dao.TaxRateRepository;
+import com.bob.ecommerceangularapp.dao.WarehouseRepository;
+import com.bob.ecommerceangularapp.dao.WarehouseStockRepository;
 import com.bob.ecommerceangularapp.entity.Country;
 import com.bob.ecommerceangularapp.entity.Coupon;
 import com.bob.ecommerceangularapp.entity.Customer;
@@ -26,6 +28,8 @@ import com.bob.ecommerceangularapp.entity.ShippingMethod;
 import com.bob.ecommerceangularapp.entity.SiteBanner;
 import com.bob.ecommerceangularapp.entity.State;
 import com.bob.ecommerceangularapp.entity.TaxRate;
+import com.bob.ecommerceangularapp.entity.Warehouse;
+import com.bob.ecommerceangularapp.entity.WarehouseStock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -84,6 +88,8 @@ public class DataLoader implements CommandLineRunner {
     private final GiftCardRepository giftCardRepository;
     private final SiteBannerRepository siteBannerRepository;
     private final FaqEntryRepository faqEntryRepository;
+    private final WarehouseRepository warehouseRepository;
+    private final WarehouseStockRepository warehouseStockRepository;
     private final TransactionTemplate txTemplate;
 
     public DataLoader(ProductRepository productRepository,
@@ -99,6 +105,8 @@ public class DataLoader implements CommandLineRunner {
                       GiftCardRepository giftCardRepository,
                       SiteBannerRepository siteBannerRepository,
                       FaqEntryRepository faqEntryRepository,
+                      WarehouseRepository warehouseRepository,
+                      WarehouseStockRepository warehouseStockRepository,
                       PlatformTransactionManager transactionManager) {
         this.productRepository = productRepository;
         this.productCategoryRepository = productCategoryRepository;
@@ -113,6 +121,8 @@ public class DataLoader implements CommandLineRunner {
         this.giftCardRepository = giftCardRepository;
         this.siteBannerRepository = siteBannerRepository;
         this.faqEntryRepository = faqEntryRepository;
+        this.warehouseRepository = warehouseRepository;
+        this.warehouseStockRepository = warehouseStockRepository;
         this.txTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -131,6 +141,7 @@ public class DataLoader implements CommandLineRunner {
         seedReviews();
         seedCoupons();
         seedContent();
+        seedWarehouses();
     }
 
     /**
@@ -338,6 +349,68 @@ public class DataLoader implements CommandLineRunner {
         } catch (Exception e) {
             log.warn("Skipped content seeding (non-fatal): {}", e.getMessage());
         }
+    }
+
+    /**
+     * Seeds two demo warehouses (roadmap #20) and distributes each sellable SKU's current stock
+     * between them 60/40, so fulfillment has something to draw from on a fresh or existing DB.
+     * Uses the same SKU convention as the inventory view: a product's own SKU only when it has no
+     * variants, else each variant's SKU. Idempotent (skips once any warehouse exists) + defensive.
+     */
+    private void seedWarehouses() {
+        try {
+            if (warehouseRepository.count() > 0) {
+                return;
+            }
+            Warehouse east = warehouse("ATL-EAST", "East Coast Fulfillment", "Atlanta", "Georgia", 0);
+            Warehouse west = warehouse("RNO-WEST", "West Coast Fulfillment", "Reno", "Nevada", 1);
+            warehouseRepository.saveAll(List.of(east, west));
+
+            java.util.Set<Long> productsWithVariants = variantRepository.findAll().stream()
+                    .map(v -> v.getProduct().getId())
+                    .collect(java.util.stream.Collectors.toSet());
+            List<WarehouseStock> rows = new java.util.ArrayList<>();
+            for (Product p : productRepository.findAll()) {
+                if (!productsWithVariants.contains(p.getId())) {
+                    splitStock(rows, east, west, p.getSku(), p.getUnitsInStock());
+                }
+            }
+            variantRepository.findAll().forEach(v -> splitStock(rows, east, west, v.getSku(), v.getUnitsInStock()));
+            warehouseStockRepository.saveAll(rows);
+            log.info("Seeded 2 warehouses with {} stock rows.", rows.size());
+        } catch (Exception e) {
+            log.warn("Skipped warehouse seeding (non-fatal): {}", e.getMessage());
+        }
+    }
+
+    private Warehouse warehouse(String code, String name, String city, String state, int priority) {
+        Warehouse w = new Warehouse();
+        w.setCode(code);
+        w.setName(name);
+        w.setCity(city);
+        w.setState(state);
+        w.setCountry("United States");
+        w.setPriority(priority);
+        w.setActive(true);
+        return w;
+    }
+
+    /** 60% east / 40% west (east gets the rounding remainder); zero-stock SKUs still get rows for editing. */
+    private void splitStock(List<WarehouseStock> rows, Warehouse east, Warehouse west, String sku, int total) {
+        if (sku == null || sku.isBlank()) {
+            return;
+        }
+        int westShare = (int) Math.floor(total * 0.4);
+        rows.add(stockRow(east, sku, total - westShare));
+        rows.add(stockRow(west, sku, westShare));
+    }
+
+    private WarehouseStock stockRow(Warehouse warehouse, String sku, int quantity) {
+        WarehouseStock s = new WarehouseStock();
+        s.setWarehouse(warehouse);
+        s.setSku(sku);
+        s.setQuantity(quantity);
+        return s;
     }
 
     private FaqEntry faqEntry(String question, String answer, int sortOrder) {

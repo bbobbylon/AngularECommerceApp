@@ -36,6 +36,7 @@ export const routes: Routes = [
       { path: 'tax-shipping', loadComponent: () => import('./components/admin/admin-tax-shipping/admin-tax-shipping').then(m => m.AdminTaxShipping) },
       { path: 'content', loadComponent: () => import('./components/admin/admin-content/admin-content').then(m => m.AdminContent) },
       { path: 'inventory', loadComponent: () => import('./components/admin/admin-inventory/admin-inventory').then(m => m.AdminInventory) },
+      { path: 'warehouses', loadComponent: () => import('./components/admin/admin-warehouses/admin-warehouses').then(m => m.AdminWarehouses) },
       { path: 'audit-log', loadComponent: () => import('./components/admin/admin-audit-log/admin-audit-log').then(m => m.AdminAuditLog) },
     ],
   },

@@ -476,6 +476,59 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   (`AuditLogServiceTest` + `SecurityFilterChainIntegrationTest` RBAC cases) + full `./mvnw clean
   package` (134 tests, incl. the real-MySQL IT validating `V15`) + 32 E2E (stable across 2 full runs) +
   17 frontend unit tests + production build all green.
+- ✅ **Fulfillment + multi-warehouse (roadmap #20)** — `Warehouse` (code/name/city/state/country/
+  priority/active) + `WarehouseStock` (per-warehouse per-SKU quantity, unique warehouse+sku) +
+  `Shipment` (orderId, orderTrackingNumber, warehouse FK, carrier, trackingNumber, status,
+  shippedAt/deliveredAt, note) entities; `V16` migration creates all three tables (indexed on
+  `shipment.order_id`, MySQL-IT-validated). `FulfillmentService` is the single home for the logic:
+  `fulfillmentOptions(orderId)` ranks active warehouses by how many of the order's lines they can
+  fully cover (priority as tiebreak — lower ships first); `createShipment()` draws down the chosen
+  warehouse's stock (clamped at zero, never negative) and sets the shipment PENDING (picked/packed,
+  not yet shipped) or SHIPPED depending on whether carrier/tracking were supplied, advancing the
+  order's status forward along `Received→Processing→Shipped→Delivered` — **forward-only**: it never
+  downgrades an already-further-along order and never touches a `Cancelled` order; `updateShipmentStatus()`
+  advances a shipment PENDING→SHIPPED→DELIVERED the same way; `trackShipments(trackingNumber, email)`
+  is the public customer-facing lookup — email must match the order's customer, with a generic
+  mismatch error (no user-enumeration, matching the `ReturnService` precedent from #3's returns
+  feature). RBAC (#19) extends naturally: `OrderManager` can create/advance shipments (`POST
+  .../shipments`, `PUT /api/admin/shipments/**`) alongside its existing order/return authority, but
+  warehouse configuration (`/api/admin/warehouses/**`) stays Admin-only — inserted ahead of the
+  general `/api/admin/**` catch-all, same ordered-matcher pattern as #19. `DataLoader` seeds two
+  warehouses ("East Coast Fulfillment"/"West Coast Fulfillment", priority 0/1) and splits each SKU's
+  existing stock 60/40 between them (idempotent — skips if any warehouse exists). Frontend: new admin
+  **Warehouses** page (`/admin/warehouses`, mirrors `admin-tax-shipping`'s two-card layout — warehouse
+  list+form on the left, per-warehouse stock table with inline edit on the right, reusing
+  `admin-inventory`'s save-per-row pattern); the Orders page gains this codebase's **first
+  expand-in-place table row** — a "Fulfillment" toggle per order reveals existing shipments (inline
+  carrier/tracking + Mark shipped/Mark delivered actions) and a "fulfill from a warehouse" form
+  defaulting to the best-coverage option; customer-facing `order-history` gets a read-only
+  shipment-tracking block (badge/carrier/tracking#/dates) between the order timeline and the Returns
+  section — gated on `email` being set exactly like Returns already was (only populates once Okta is
+  configured and the customer is signed in; demo mode shows the timeline without tracking detail, an
+  accepted limitation carried over unchanged from #3, not a new gap). Two real bugs caught and fixed
+  during browser verification: (1) after creating a shipment, the "fulfill from a warehouse" dropdown
+  reset to blank instead of defaulting to the next suggested warehouse, because the post-create
+  options-refresh callback updated the options list but never re-synced `shipmentForm.warehouseId`
+  from it (only the initial-open code path did) — fixed by applying the same default-to-best-option
+  logic in both places; (2) a **pre-existing** bug on the Orders page, not introduced by this feature
+  but newly exposed by it: the order-status `<select [value]="o.status">` used a plain property
+  binding, which raced against its own `@for`-generated `<option>` children on first paint and
+  silently failed to select the right option — confirmed by inspecting the live DOM (`select.value`
+  stayed `"Received"`, `selectedIndex 0`, while the badge correctly showed the true status) even on a
+  hard reload. It had gone unnoticed because status was previously only ever changed by interacting
+  with that same dropdown (so the browser's own last-clicked option coincidentally matched); once
+  shipment-driven status changes (this feature) could update status from a different code path, the
+  desync became visible. Fixed by switching it to `[(ngModel)]`/`(ngModelChange)`, this codebase's
+  established pattern for every other live-bound `<select>` — **lesson for future frontend work
+  here: never bind a native `<select>`'s selection with plain `[value]`, always `[(ngModel)]` (or a
+  reactive-forms control), even for a "simple" dropdown.** Browser-verified end to end: full shipment
+  lifecycle (create → Mark shipped → Mark delivered, order status badge syncing forward-only at each
+  step and surviving an unrelated backend restart with zero data loss); warehouse add and the delete
+  guard (blocked with a clear error once a warehouse has shipments, succeeds cleanly on one that
+  doesn't). 9 new backend unit tests (`FulfillmentServiceTest`) + 3 new
+  `SecurityFilterChainIntegrationTest` RBAC cases + full `./mvnw clean package` (146 tests, incl. the
+  real-MySQL IT validating `V16`) + 17 frontend unit tests + production build all green. (No new E2E
+  spec added this round — verification leaned on the backend suite + live browser testing instead.)
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.

@@ -13,11 +13,11 @@
   <div class="table-responsive">
     <table class="table align-middle">
       <thead>
-        <tr><th>Order</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th></tr>
+        <tr><th>Order</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th></th></tr>
       </thead>
       <tbody>
         @for (o of orders(); track o.id) {
-          <tr>
+          <tr [class.table-active]="expandedOrderId === o.id">
             <td>
               <div class="fw-semibold">#{{ o.id }}</div>
               <div class="small text-muted text-truncate" style="max-width: 180px;" [title]="o.orderTrackingNumber">{{ o.orderTrackingNumber }}</div>
@@ -32,15 +32,106 @@
             <td>
               <div class="d-flex align-items-center gap-2">
                 <span class="badge {{ badgeClass(o.status) }}">{{ o.status || '—' }}</span>
-                <select class="form-select form-select-sm" style="width:auto"
-                        [value]="o.status" (change)="updateStatus(o, $any($event.target).value)">
+                <select class="form-select form-select-sm" style="width:auto" name="orderStatus-{{ o.id }}"
+                        [ngModel]="o.status" (ngModelChange)="updateStatus(o, $event)">
                   @for (s of statuses; track s) {
                     <option [value]="s">{{ s }}</option>
                   }
                 </select>
               </div>
             </td>
+            <td class="text-end">
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="toggleFulfillment(o)">
+                <i class="fa-solid fa-truck me-1"></i>{{ expandedOrderId === o.id ? 'Hide' : 'Fulfillment' }}
+              </button>
+            </td>
           </tr>
+          @if (expandedOrderId === o.id) {
+            <tr>
+              <td colspan="7" class="bg-body-tertiary">
+                <div class="p-3">
+                  @if (fulfillmentLoading()) {
+                    <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+                  } @else {
+                    <div class="row g-4">
+                      <!-- Existing shipments -->
+                      <div class="col-lg-6">
+                        <h6 class="fw-bold small text-uppercase text-muted">Shipments</h6>
+                        @if ((shipmentsByOrder[o.id] ?? []).length === 0) {
+                          <div class="text-muted small">No shipments yet.</div>
+                        } @else {
+                          <div class="vstack gap-2">
+                            @for (s of shipmentsByOrder[o.id]; track s.id) {
+                              <div class="border rounded p-2 small">
+                                <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+                                  <span class="badge" [ngClass]="shipmentBadgeClass(s.status)">{{ s.status | lowercase }}</span>
+                                  <span class="text-muted">{{ s.warehouseName || s.warehouseCode }}</span>
+                                </div>
+                                @if (s.carrier || s.trackingNumber) {
+                                  <div class="text-muted">{{ s.carrier }} {{ s.trackingNumber }}</div>
+                                }
+                                @if (s.status !== 'DELIVERED') {
+                                  <div class="d-flex flex-wrap align-items-center gap-1 mt-2">
+                                    @if (s.status === 'PENDING') {
+                                      <input class="form-control form-control-sm" style="width:6rem" placeholder="Carrier"
+                                             [ngModel]="carrierFor[s.id]" (ngModelChange)="carrierFor[s.id] = $event" />
+                                      <input class="form-control form-control-sm" style="width:8rem" placeholder="Tracking #"
+                                             [ngModel]="trackingFor[s.id]" (ngModelChange)="trackingFor[s.id] = $event" />
+                                      <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="updatingShipmentId() === s.id"
+                                              (click)="advanceShipment(o, s, 'SHIPPED')">Mark shipped</button>
+                                    } @else if (s.status === 'SHIPPED') {
+                                      <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="updatingShipmentId() === s.id"
+                                              (click)="advanceShipment(o, s, 'DELIVERED')">Mark delivered</button>
+                                    }
+                                  </div>
+                                }
+                              </div>
+                            }
+                          </div>
+                        }
+                      </div>
+
+                      <!-- Create a shipment -->
+                      <div class="col-lg-6">
+                        <h6 class="fw-bold small text-uppercase text-muted">Fulfill from a warehouse</h6>
+                        @if ((optionsByOrder[o.id] ?? []).length === 0) {
+                          <div class="text-muted small">No active warehouses configured.</div>
+                        } @else {
+                          <div class="row g-2">
+                            <div class="col-12">
+                              <select class="form-select form-select-sm" [(ngModel)]="shipmentForm.warehouseId" name="shipWarehouse-{{ o.id }}">
+                                @for (opt of optionsByOrder[o.id]; track opt.warehouseId) {
+                                  <option [ngValue]="opt.warehouseId">
+                                    {{ opt.name }} — {{ opt.fullCoverage ? 'full coverage' : opt.coveredLines + '/' + opt.totalLines + ' lines' }}
+                                  </option>
+                                }
+                              </select>
+                            </div>
+                            <div class="col-6">
+                              <input class="form-control form-control-sm" placeholder="Carrier (optional)" [(ngModel)]="shipmentForm.carrier" name="shipCarrier-{{ o.id }}" />
+                            </div>
+                            <div class="col-6">
+                              <input class="form-control form-control-sm" placeholder="Tracking # (optional)" [(ngModel)]="shipmentForm.trackingNumber" name="shipTracking-{{ o.id }}" />
+                            </div>
+                            <div class="col-12">
+                              <input class="form-control form-control-sm" placeholder="Note (optional)" [(ngModel)]="shipmentForm.note" name="shipNote-{{ o.id }}" />
+                            </div>
+                            <div class="col-12">
+                              <button type="button" class="btn btn-sm btn-primary" [disabled]="creatingShipment()" (click)="createShipment(o)">
+                                @if (creatingShipment()) { <i class="fa-solid fa-spinner fa-spin me-1"></i> }
+                                Create shipment
+                              </button>
+                            </div>
+                          </div>
+                          <div class="form-text mt-2">Leave carrier/tracking blank to mark it picked/packed (Processing) without shipping yet.</div>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
         }
       </tbody>
     </table>

@@ -7,6 +7,7 @@ import { OKTA_AUTH } from '@okta/okta-angular';
 import { OrderHistory as OrderHistoryModel } from '../../common/order-history';
 import { OrderHistoryService } from '../../services/order-history.service';
 import { ReturnRequestView, ReturnService } from '../../services/return.service';
+import { ShipmentService, ShipmentView } from '../../services/shipment.service';
 import { ToastService } from '../../services/toast.service';
 import { OrderTimeline } from '../order-timeline/order-timeline';
 
@@ -31,8 +32,12 @@ export class OrderHistory implements OnInit {
   returnEmail = '';
   submittingReturn = false;
 
+  // shipments (roadmap #20)
+  private shipmentsByTracking = new Map<string, ShipmentView[]>();
+
   private orderHistoryService = inject(OrderHistoryService);
   private returnService = inject(ReturnService);
+  private shipmentService = inject(ShipmentService);
   private toast = inject(ToastService);
   private oktaAuth = inject(OKTA_AUTH);
 
@@ -58,6 +63,9 @@ export class OrderHistory implements OnInit {
   private setOrders(data: OrderHistoryModel[]): void {
     this.orderHistoryList = data;
     this.loaded = true;
+    if (this.email) {
+      this.loadShipments(this.email);
+    }
   }
 
   private loadReturns(email: string): void {
@@ -69,6 +77,31 @@ export class OrderHistory implements OnInit {
 
   returnFor(order: OrderHistoryModel): ReturnRequestView | undefined {
     return this.returnsByTracking.get(order.orderTrackingNumber);
+  }
+
+  /** One lookup per order (the customer endpoint is keyed by tracking number, not a bulk-by-email list like returns). */
+  private loadShipments(email: string): void {
+    for (const order of this.orderHistoryList) {
+      if (!order.status || order.status.toLowerCase() === 'received') {
+        continue; // nothing can have shipped yet — skip the call
+      }
+      this.shipmentService.track(order.orderTrackingNumber, email).subscribe({
+        next: shipments => this.shipmentsByTracking.set(order.orderTrackingNumber, shipments),
+        error: () => { /* non-fatal — tracking just won't show for this order */ },
+      });
+    }
+  }
+
+  shipmentsFor(order: OrderHistoryModel): ShipmentView[] | undefined {
+    return this.shipmentsByTracking.get(order.orderTrackingNumber);
+  }
+
+  shipmentBadgeClass(status: string): string {
+    switch (status) {
+      case 'DELIVERED': return 'bg-success-subtle text-success-emphasis';
+      case 'SHIPPED': return 'bg-info-subtle text-info-emphasis';
+      default: return 'bg-warning-subtle text-warning-emphasis';
+    }
   }
 
   toggleReturn(order: OrderHistoryModel): void {

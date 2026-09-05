@@ -289,6 +289,51 @@ export class AdminService {
     return this.http.post<CsvImportResult>(`${this.baseUrl}/inventory/import`, formData);
   }
 
+  // ----- fulfillment + multi-warehouse (roadmap #20) -----
+
+  getWarehouses(): Observable<Warehouse[]> {
+    return this.http.get<Warehouse[]>(`${this.baseUrl}/warehouses`);
+  }
+
+  saveWarehouse(payload: WarehousePayload): Observable<Warehouse> {
+    return this.http.post<Warehouse>(`${this.baseUrl}/warehouses`, payload);
+  }
+
+  deleteWarehouse(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/warehouses/${id}`);
+  }
+
+  getWarehouseStock(warehouseId: number): Observable<WarehouseStockRow[]> {
+    return this.http.get<WarehouseStockRow[]>(`${this.baseUrl}/warehouses/${warehouseId}/stock`);
+  }
+
+  updateWarehouseStock(warehouseId: number, updates: { sku: string; quantity: number }[]): Observable<WarehouseStockRow[]> {
+    return this.http.put<WarehouseStockRow[]>(`${this.baseUrl}/warehouses/${warehouseId}/stock`, updates);
+  }
+
+  getShipments(orderId: number): Observable<Shipment[]> {
+    return this.http.get<Shipment[]>(`${this.baseUrl}/orders/${orderId}/shipments`);
+  }
+
+  getFulfillmentOptions(orderId: number): Observable<FulfillmentOption[]> {
+    return this.http.get<FulfillmentOption[]>(`${this.baseUrl}/orders/${orderId}/fulfillment-options`);
+  }
+
+  createShipment(orderId: number, payload: CreateShipmentPayload): Observable<Shipment> {
+    return this.http.post<Shipment>(`${this.baseUrl}/orders/${orderId}/shipments`, payload);
+  }
+
+  updateShipmentStatus(id: number, status: string, carrier?: string, trackingNumber?: string): Observable<Shipment> {
+    let params = new HttpParams().set('status', status);
+    if (carrier) {
+      params = params.set('carrier', carrier);
+    }
+    if (trackingNumber) {
+      params = params.set('trackingNumber', trackingNumber);
+    }
+    return this.http.put<Shipment>(`${this.baseUrl}/shipments/${id}/status`, null, { params });
+  }
+
   // ----- RBAC + audit log (roadmap #19) -----
 
   getCurrentAdmin(): Observable<CurrentAdmin> {
@@ -470,6 +515,67 @@ export interface CsvImportResult {
 
 export interface CurrentAdmin {
   roles: string[];
+}
+
+export interface Warehouse {
+  id: number;
+  code: string;
+  name: string;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  priority: number;
+  active: boolean;
+}
+
+export interface WarehousePayload {
+  id?: number | null;
+  code: string;
+  name: string;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  priority: number;
+  active: boolean;
+}
+
+export interface WarehouseStockRow {
+  sku: string;
+  productName: string;
+  variantLabel?: string | null;
+  quantity: number;
+}
+
+export interface Shipment {
+  id: number;
+  orderId: number;
+  orderTrackingNumber: string;
+  warehouseId?: number | null;
+  warehouseCode?: string | null;
+  warehouseName?: string | null;
+  carrier?: string | null;
+  trackingNumber?: string | null;
+  status: string;
+  shippedAt?: string | null;
+  deliveredAt?: string | null;
+  note?: string | null;
+  dateCreated: string;
+}
+
+export interface FulfillmentOption {
+  warehouseId: number;
+  code: string;
+  name: string;
+  totalLines: number;
+  coveredLines: number;
+  fullCoverage: boolean;
+}
+
+export interface CreateShipmentPayload {
+  warehouseId: number;
+  carrier?: string | null;
+  trackingNumber?: string | null;
+  note?: string | null;
 }
 
 export interface AuditLogEntry {

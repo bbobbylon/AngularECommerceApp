@@ -154,6 +154,37 @@ class SecurityFilterChainIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    // ----- Fulfillment (roadmap #20): shipping is an order-management action -----
+
+    @Test
+    void orderManagerCanReachTheShipmentEndpoints() throws Exception {
+        // Same pattern as the order-status case: a 4xx past the security layer (order 1 doesn't
+        // exist) proves authorization passed — the point is it is NOT 401/403.
+        mvc.perform(post("/api/admin/orders/1/shipments").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"warehouseId\":1}")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("OrderManager"))))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
+        mvc.perform(put("/api/admin/shipments/1/status").param("status", "SHIPPED")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("OrderManager"))))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
+    }
+
+    @Test
+    void viewerCannotCreateShipments() throws Exception {
+        mvc.perform(post("/api/admin/orders/1/shipments").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"warehouseId\":1}")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("Viewer"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void orderManagerCannotConfigureWarehouses() throws Exception {
+        mvc.perform(post("/api/admin/warehouses").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"ATL\",\"name\":\"East\"}")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("OrderManager"))))
+                .andExpect(status().isForbidden());
+    }
+
     @Test
     void adminCanCreateACategory() throws Exception {
         mvc.perform(post("/api/admin/categories").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Gadgets\"}")
