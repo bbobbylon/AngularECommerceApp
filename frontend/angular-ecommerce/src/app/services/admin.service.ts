@@ -207,6 +207,31 @@ export class AdminService {
   deactivateGiftCard(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/gift-cards/${id}`);
   }
+
+  // ----- inventory -----
+
+  getInventory(): Observable<InventoryItem[]> {
+    return this.http.get<InventoryItem[]>(`${this.baseUrl}/inventory`);
+  }
+
+  getInventoryAdjustments(page: number, size: number): Observable<PageResponse<InventoryAdjustment>> {
+    const params = new HttpParams().set('page', page).set('size', size);
+    return this.http.get<PageResponse<InventoryAdjustment>>(`${this.baseUrl}/inventory/adjustments`, { params });
+  }
+
+  adjustInventory(sku: string, quantity: number, note?: string): Observable<InventoryItem> {
+    return this.http.put<InventoryItem>(`${this.baseUrl}/inventory/${encodeURIComponent(sku)}`, { quantity, note });
+  }
+
+  exportInventoryCsv(): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/inventory/export`, { responseType: 'blob' });
+  }
+
+  importInventoryCsv(file: File): Observable<CsvImportResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<CsvImportResult>(`${this.baseUrl}/inventory/import`, formData);
+  }
 }
 
 export interface AdminGiftCard {
@@ -264,4 +289,31 @@ export interface CouponPayload {
   minSpend?: number | null;
   active: boolean;
   expiresAt?: string | null;
+}
+
+export interface InventoryItem {
+  sku: string;
+  productId: number;
+  productName: string;
+  variantLabel?: string | null;
+  unitsInStock: number;
+  lowStock: boolean;
+  active: boolean;
+}
+
+export interface InventoryAdjustment {
+  id: number;
+  sku: string;
+  productName: string;
+  previousQuantity: number;
+  newQuantity: number;
+  delta: number;
+  source: string;
+  note?: string | null;
+  dateCreated: string;
+}
+
+export interface CsvImportResult {
+  updated: number;
+  errors: string[];
 }

@@ -2,6 +2,7 @@ package com.bob.ecommerceangularapp.service;
 
 import com.bob.ecommerceangularapp.dao.ShippingMethodRepository;
 import com.bob.ecommerceangularapp.dao.TaxRateRepository;
+import com.bob.ecommerceangularapp.dto.AppliedPromotion;
 import com.bob.ecommerceangularapp.dto.CouponResponse;
 import com.bob.ecommerceangularapp.dto.QuoteRequest;
 import com.bob.ecommerceangularapp.dto.QuoteResponse;
@@ -25,8 +26,9 @@ class TaxShippingServiceTest {
     private final TaxRateRepository taxRateRepository = mock(TaxRateRepository.class);
     private final ShippingMethodRepository shippingMethodRepository = mock(ShippingMethodRepository.class);
     private final CouponService couponService = mock(CouponService.class);
+    private final PromotionService promotionService = mock(PromotionService.class);
     private final TaxShippingService service =
-            new TaxShippingService(taxRateRepository, shippingMethodRepository, couponService);
+            new TaxShippingService(taxRateRepository, shippingMethodRepository, couponService, promotionService);
 
     private ShippingMethod standard() {
         return ShippingMethod.builder().code("STANDARD").name("Standard").baseRate(new BigDecimal("5.99"))
@@ -87,5 +89,25 @@ class TaxShippingServiceTest {
         assertThat(q.discount()).isEqualByComparingTo("10.00");
         assertThat(q.taxAmount()).isEqualByComparingTo("3.00");        // (40 - 10) * 10%
         assertThat(q.total()).isEqualByComparingTo("38.99");           // 30 + 5.99 + 3.00
+    }
+
+    @Test
+    void quote_stacksAutomaticPromotionOnTopOfCoupon() {
+        when(shippingMethodRepository.findByCode("STANDARD")).thenReturn(Optional.of(standard()));
+        when(taxRateRepository.findByActiveTrue()).thenReturn(List.of(
+                new TaxRate(1L, "United States", "California", new BigDecimal("10.00"), true)));
+        when(couponService.validate(anyString(), any())).thenReturn(
+                new CouponResponse(true, "SAVE10", "$10 off", new BigDecimal("10.00"), "ok"));
+        when(promotionService.findBest(any())).thenReturn(
+                Optional.of(new AppliedPromotion("Summer Sale", new BigDecimal("5.00"))));
+
+        QuoteResponse q = service.quote(new QuoteRequest(
+                new BigDecimal("40.00"), "United States", "California", "SAVE10", "STANDARD"));
+
+        assertThat(q.discount()).isEqualByComparingTo("10.00");
+        assertThat(q.promotionName()).isEqualTo("Summer Sale");
+        assertThat(q.promotionDiscount()).isEqualByComparingTo("5.00");
+        assertThat(q.taxAmount()).isEqualByComparingTo("2.50");        // (40 - 10 - 5) * 10%
+        assertThat(q.total()).isEqualByComparingTo("33.49");           // 25 + 5.99 + 2.50
     }
 }

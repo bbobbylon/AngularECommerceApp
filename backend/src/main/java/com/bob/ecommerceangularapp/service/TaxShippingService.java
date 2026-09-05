@@ -2,6 +2,7 @@ package com.bob.ecommerceangularapp.service;
 
 import com.bob.ecommerceangularapp.dao.ShippingMethodRepository;
 import com.bob.ecommerceangularapp.dao.TaxRateRepository;
+import com.bob.ecommerceangularapp.dto.AppliedPromotion;
 import com.bob.ecommerceangularapp.dto.CouponResponse;
 import com.bob.ecommerceangularapp.dto.QuoteRequest;
 import com.bob.ecommerceangularapp.dto.QuoteResponse;
@@ -17,6 +18,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Authoritative tax + shipping computation. The same {@link #quote} method backs the storefront's
@@ -30,13 +32,16 @@ public class TaxShippingService {
     private final TaxRateRepository taxRateRepository;
     private final ShippingMethodRepository shippingMethodRepository;
     private final CouponService couponService;
+    private final PromotionService promotionService;
 
     public TaxShippingService(TaxRateRepository taxRateRepository,
                               ShippingMethodRepository shippingMethodRepository,
-                              CouponService couponService) {
+                              CouponService couponService,
+                              PromotionService promotionService) {
         this.taxRateRepository = taxRateRepository;
         this.shippingMethodRepository = shippingMethodRepository;
         this.couponService = couponService;
+        this.promotionService = promotionService;
     }
 
     // ---------- storefront ----------
@@ -50,8 +55,9 @@ public class TaxShippingService {
     }
 
     /**
-     * Computes the full totals breakdown: discount (re-validated coupon), shipping (chosen method, free
-     * over its threshold), tax (region rate on the discounted merchandise) and the grand total.
+     * Computes the full totals breakdown: discount (re-validated coupon, stacked with the best
+     * automatic promotion), shipping (chosen method, free over its threshold), tax (region rate on the
+     * discounted merchandise) and the grand total.
      */
     @Transactional(readOnly = true)
     public QuoteResponse quote(QuoteRequest request) {
@@ -64,7 +70,14 @@ public class TaxShippingService {
                 discount = nz(coupon.discount());
             }
         }
-        BigDecimal discounted = subtotal.subtract(discount).max(BigDecimal.ZERO);
+
+        // Automatic, no-code promotion — evaluated against the raw subtotal and stacked on top of any
+        // coupon (mirrors how gift card + rewards later stack on top of the discounted total).
+        Optional<AppliedPromotion> promotion = promotionService.findBest(subtotal);
+        BigDecimal promotionDiscount = promotion.map(AppliedPromotion::discount).orElse(BigDecimal.ZERO);
+        String promotionName = promotion.map(AppliedPromotion::name).orElse(null);
+
+        BigDecimal discounted = subtotal.subtract(discount).subtract(promotionDiscount).max(BigDecimal.ZERO);
 
         ShippingMethod method = resolveShippingMethod(request.shippingMethodCode());
         BigDecimal shipping = shippingFor(method, subtotal);
@@ -75,7 +88,8 @@ public class TaxShippingService {
 
         BigDecimal total = discounted.add(shipping).add(tax).max(BigDecimal.ZERO);
         return new QuoteResponse(money(subtotal), money(discount), money(shipping), money(tax),
-                ratePercent, money(total), method == null ? null : method.getCode());
+                ratePercent, money(total), method == null ? null : method.getCode(),
+                promotionName, money(promotionDiscount));
     }
 
     private ShippingMethod resolveShippingMethod(String code) {

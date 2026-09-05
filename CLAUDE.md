@@ -281,6 +281,89 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   has no server to generate it from. `frontend/public/robots.txt` points crawlers at it; the
   Dockerfile bakes in the right backend origin (from the `API_URL` build arg) alongside the
   existing `environment.ts` substitution. See `docs/DEPLOYMENT.md`.
+- ✅ **PWA — installable + offline app shell (roadmap #12)** — `@angular/service-worker` registered
+  via `provideServiceWorker('ngsw-worker.js', { enabled: !isDevMode(), registrationStrategy:
+  'registerWhenStable:30000' })` in `app.config.ts`; gated on `isDevMode()` rather than
+  `environment.production` because this project's `environment.ts` has no `fileReplacements` wired
+  in `angular.json` (that flag is always `false`) — `isDevMode()` correctly reflects the real build
+  mode instead. `ngsw-config.json` prefetches the app shell, lazily caches images/fonts/icons, and
+  applies a `freshness` strategy (5s timeout, 1h max age) to `/api/catalog|products|product-category`
+  so the storefront still renders from cache on a flaky connection. `public/manifest.webmanifest` +
+  `public/icons/*` (brand navy `#1b2133` bag-and-heart glyph, generated once via a throwaway
+  puppeteer-core + local Chrome script, sizes 72–512 + a 180 apple-touch-icon) make the app
+  installable; `index.html` links the manifest + apple meta tags and its `theme-color` now matches
+  the manifest/nav color (was a stray `#241E1A` that matched nothing else in the codebase). New
+  `InstallPrompt` component (`components/install-prompt/`) surfaces the native
+  `beforeinstallprompt` banner bottom-right, dismissible with a 14-day localStorage cooldown, and
+  is **also** gated on `isDevMode()` — Chrome can fire `beforeinstallprompt` from just the
+  manifest/icons even with no active service worker, so without this gate the install nag would
+  show during plain `ng serve` too. **`serviceWorker: "ngsw-config.json"` lives only on the
+  `production` build configuration** in `angular.json`, not the top-level build options — putting it
+  there would silently enable the SW during `ng serve` dev sessions. Fixed a real caching bug this
+  surfaced: `nginx.conf`'s existing `location ~* \.(?:js|css|...)$` 1-year-immutable rule would have
+  also matched `ngsw-worker.js`/`ngsw.json`, permanently freezing the installed app at whatever
+  version the browser first cached (Angular's SW update check can never see a new deploy if the
+  browser never re-fetches those two files) — added exact-match `location = /ngsw.json` /
+  `location = /ngsw-worker.js` blocks (`Cache-Control: no-cache`) ahead of the regex rule (nginx `=`
+  locations always win over regex ones). Verified: production build emits
+  `ngsw-worker.js`/`ngsw.json`/`manifest.webmanifest`/`icons/`; served statically, the SW registers
+  and activates and the install banner renders with real content; `ng serve` shows neither; `nginx -t`
+  validates the new config; 17 frontend tests still green.
+- ✅ **Accessibility / WCAG 2.1 AA (roadmap #13)** — `e2e/a11y.spec.ts` runs axe-core
+  (`@axe-core/playwright`) against all 12 reachable storefront pages **in both the light and dark
+  theme** (24 checks), reusing the hermetic `mock-backend.ts`. Went from 24 color-contrast + 2 label
+  + 2 select-name violations down to zero by fixing the underlying causes rather than the individual
+  flagged nodes: design-system colors (`--teal`, `--accent-600`) that were tuned for icons/buttons
+  but reused as text got a theme-aware text-safe variant (`--teal-text`, `--accent-text`, plus a
+  `--code-color` for Bootstrap's default code pink) instead of being darkened in place (which would
+  have broken their non-text uses); Bootstrap defaults never bridged to the app's own `[data-theme]`
+  attribute (`.form-text` — ~1.06:1, functionally invisible checkout helper text —
+  `.breadcrumb-item.active`) got explicit themed overrides; `product-category-menu`'s header (locked
+  to `bg-white` on purpose, like the footer is locked dark) got a scoped `--muted` override so its
+  text stays readable regardless of site theme. Also fixed real bugs: checkout's shipping/billing
+  fields had no `for`/`id` association and identical label text in both sections (screen readers
+  couldn't tell them apart) — added `customer-*`/`shipping-*`/`billing-*` prefixed ids; the Search
+  button was `btn-outline-primary` (transparent) sitting on the dark navbar at ~2.56:1 — switched to
+  solid `btn-primary`. See `docs/ACCESSIBILITY.md` for the full writeup + manual (non-automatable)
+  checklist. 17 frontend tests + full `npx ng build --configuration production` still green.
+- ✅ **Header search typeahead (roadmap #14)** — `components/search/` gives the header search box
+  as-you-type suggestions: debounced (250ms) + `distinctUntilChanged` + `switchMap`-cancelled calls
+  against the existing `/api/catalog/search?keyword=&size=6` endpoint (no new backend endpoint —
+  it's already Caffeine-cached). Built with `toObservable`/`toSignal` interop, no manual
+  subscriptions. Implements the ARIA 1.2 combobox pattern: real focus stays on the `<input
+  role="searchbox">`, arrow keys move a virtual selection communicated via `aria-activedescendant`
+  over `role="option"` rows in a `role="listbox"`; `aria-controls`/`aria-owns` are bound
+  conditionally (`null` when the listbox isn't rendered) — a static reference to a
+  conditionally-rendered id is an `aria-valid-attr-value` violation on every page, not just when
+  the dropdown is open. Enter with a suggestion highlighted navigates straight to that product;
+  Enter with none highlighted (or clicking "See all results…") goes to `/search/:keyword`; Escape
+  and click-outside close it. Fixed a pre-existing latent dark-mode bug in the same file: the
+  search icon had hardcoded `bg-white`/`text-muted` classes that would have failed the 3:1
+  non-text-contrast threshold once `--muted` was tuned for the a11y pass (#13) — removed, now
+  inherits the already-themed `.input-group-text` color. New `e2e/search-typeahead.spec.ts` (6
+  tests: suggestions + click-to-navigate, keyboard nav, Enter-with-no-selection, empty state,
+  Escape, click-outside); `mock-backend.ts`'s `/catalog/search` stub is now keyword/size-aware
+  instead of always returning both fixtures unfiltered. 32 E2E tests + 17 frontend unit tests +
+  production build all green.
+- ✅ **Inventory management + CSV (roadmap #15)** — a merged SKU-level stock view across `Product`
+  (products with no variants — the product's own SKU is authoritative) and `ProductVariant`
+  (products sold per-variant — each variant SKU is authoritative; the base product's row is skipped
+  once it has variants, matching the existing checkout-decrement convention). `InventoryAdjustment`
+  (`V12` migration, MySQL-IT-validated) logs every stock change — sku, product name snapshot,
+  previous/new quantity, delta, source (`MANUAL`/`CSV_IMPORT`), optional note, timestamp — whether
+  it came from the admin's inline edit or a bulk CSV import. `InventoryService` owns the merged
+  read (`GET /api/admin/inventory`), the audit log (`GET /api/admin/inventory/adjustments`, paged),
+  a single edit (`PUT /api/admin/inventory/{sku}` — restocking from 0 re-triggers the existing
+  back-in-stock notifications), and CSV export/import (`GET .../export`, `POST .../import` as
+  multipart). The CSV parser is hand-rolled (no new dependency) — minimal RFC-4180-ish quoting, a
+  header row naming `sku`/`quantity`/optional `note` columns (order-independent), and per-row
+  errors (unknown SKU, unparsable quantity) that don't abort the rest of the batch. New admin
+  **Inventory** page (`/admin/inventory`): inline stock edits with a save-per-row, a search/filter
+  box, CSV export/import buttons with an import-result summary, and a "Recent adjustments" table.
+  Browser-verified end to end: inline edit → audit log entry appears; CSV import → partial
+  success + per-row error shown; CSV export → `200` on `/api/admin/inventory/export`. 7 new backend
+  unit tests (`InventoryServiceTest`) + 32 E2E + 17 frontend unit tests + full `./mvnw clean
+  package` (incl. the real-MySQL IT) + production build all green.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.

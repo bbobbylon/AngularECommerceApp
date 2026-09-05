@@ -33,7 +33,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Idempotent seed data. Generates ~100 products across four categories plus reference geo data.
@@ -43,9 +45,27 @@ import java.util.List;
 public class DataLoader implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DataLoader.class);
-    private static final String IMG = "https://placehold.co/600x400/eef2fb/8b93ab?text=";
     /** Below this, a product counts as "low stock" — used to detect an already-varied DB. */
     private static final int LOW_STOCK_FLOOR = 6;
+
+    /** Real, freely-licensed (Unsplash License) category photos, cycled across each category's products. */
+    private static final Map<String, String[]> CATEGORY_IMAGES = Map.of(
+            "Books", new String[]{
+                    "https://images.unsplash.com/photo-1499447155021-4907f71b9ef5?w=600&h=400&fit=crop&auto=format&q=80",
+                    "https://images.unsplash.com/photo-1695773719016-3d033a4aac07?w=600&h=400&fit=crop&auto=format&q=80",
+                    "https://images.unsplash.com/photo-1662304729380-3a7ffb361e63?w=600&h=400&fit=crop&auto=format&q=80"},
+            "Coffee Mugs", new String[]{
+                    "https://images.unsplash.com/photo-1650959858546-d09833d5317b?w=600&h=400&fit=crop&auto=format&q=80",
+                    "https://images.unsplash.com/photo-1635956541203-4625130f761f?w=600&h=400&fit=crop&auto=format&q=80",
+                    "https://images.unsplash.com/photo-1702234844718-5f4f77a93baa?w=600&h=400&fit=crop&auto=format&q=80"},
+            "Mouse Pads", new String[]{
+                    "https://images.unsplash.com/photo-1702561667800-2c49b0182229?w=600&h=400&fit=crop&auto=format&q=80",
+                    "https://images.unsplash.com/photo-1587749091716-f7b291a87f87?w=600&h=400&fit=crop&auto=format&q=80",
+                    "https://images.unsplash.com/photo-1656071830624-06aa347f99a7?w=600&h=400&fit=crop&auto=format&q=80"},
+            "Luggage", new String[]{
+                    "https://images.unsplash.com/photo-1648737967037-96967e9151b5?w=600&h=400&fit=crop&auto=format&q=80",
+                    "https://images.unsplash.com/photo-1639598003276-8a70fcaaad6c?w=600&h=400&fit=crop&auto=format&q=80",
+                    "https://images.unsplash.com/photo-1502301197179-65228ab57f78?w=600&h=400&fit=crop&auto=format&q=80"});
 
     private final ProductRepository productRepository;
     private final ProductCategoryRepository productCategoryRepository;
@@ -93,6 +113,7 @@ public class DataLoader implements CommandLineRunner {
         backfillNewsletterDefaults();
         backfillSalePrices();
         backfillGalleryImages();
+        backfillProductImages();
         backfillStockVariety();
         seedVariants();
         seedTaxAndShipping();
@@ -417,6 +438,43 @@ public class DataLoader implements CommandLineRunner {
     }
 
     /**
+     * Replaces any lingering placehold.co URLs (main image or gallery) with real category photos, for
+     * DBs seeded before real images existed. Idempotent: a product with no placehold.co reference left
+     * is left untouched. Defensive: never crashes the catalog.
+     */
+    private void backfillProductImages() {
+        try {
+            Integer count = txTemplate.execute(status -> {
+                int updated = 0;
+                Map<String, Integer> seenPerCategory = new HashMap<>();
+                for (Product p : productRepository.findAll()) {
+                    boolean staleMain = p.getImageUrl() != null && p.getImageUrl().contains("placehold.co");
+                    boolean staleGallery = p.getAdditionalImages() != null
+                            && p.getAdditionalImages().stream().anyMatch(url -> url.contains("placehold.co"));
+                    if ((!staleMain && !staleGallery) || p.getCategory() == null) {
+                        continue;
+                    }
+                    String categoryName = p.getCategory().getCategoryName();
+                    String[] images = CATEGORY_IMAGES.get(categoryName);
+                    if (images == null) {
+                        continue;
+                    }
+                    int idx = seenPerCategory.merge(categoryName, 1, Integer::sum) - 1;
+                    p.setImageUrl(images[idx % images.length]);
+                    p.setAdditionalImages(galleryFor(p.getCategory()));
+                    updated++;
+                }
+                return updated; // managed entities flush on commit
+            });
+            if (count != null && count > 0) {
+                log.info("Backfilled real photos on {} existing product(s).", count);
+            }
+        } catch (Exception e) {
+            log.warn("Skipped product-image backfill (non-fatal): {}", e.getMessage());
+        }
+    }
+
+    /**
      * One-time backfill so "all users in the database" receive the weekly email (M6 intent).
      * Only touches customers without an unsubscribe token — i.e. rows created before email existed.
      * Customers created at checkout always get a token (even opt-outs), so this never re-subscribes
@@ -499,6 +557,7 @@ public class DataLoader implements CommandLineRunner {
                                    String[] partsA, String[] partsB, String description,
                                    double minPrice, double maxPrice, int count) {
         List<Product> list = new ArrayList<>();
+        String[] images = CATEGORY_IMAGES.get(category.getCategoryName());
         for (int i = 0; i < count; i++) {
             String name = (partsA[i % partsA.length] + " " + partsB[i % partsB.length]).trim();
             double price = minPrice + ((maxPrice - minPrice) * ((i * 37) % 100) / 100.0);
@@ -518,7 +577,7 @@ public class DataLoader implements CommandLineRunner {
                     .description(description)
                     .unitPrice(unitPrice)
                     .originalPrice(originalPrice)
-                    .imageUrl(IMG + category.getCategoryName().replace(" ", "+"))
+                    .imageUrl(images[i % images.length])
                     .additionalImages(galleryFor(category))
                     .active(true)
                     .unitsInStock(stockFor(i))
@@ -539,13 +598,10 @@ public class DataLoader implements CommandLineRunner {
         return 15 + (i * 13) % 200;     // healthy
     }
 
-    /** Extra gallery shots for the product page (placeholder variants until real photos exist). */
+    /** Extra gallery shots for the product page — the category's other real photos. */
     private List<String> galleryFor(ProductCategory category) {
-        String label = category.getCategoryName().replace(" ", "+");
-        return new ArrayList<>(List.of(
-                "https://placehold.co/600x400/f4f6fb/8b93ab?text=" + label + "+Back",
-                "https://placehold.co/600x400/eaf0ff/5b6bb5?text=" + label + "+Detail",
-                "https://placehold.co/600x400/fff4ea/b58a5b?text=" + label + "+In+Use"));
+        String[] images = CATEGORY_IMAGES.get(category.getCategoryName());
+        return images == null ? new ArrayList<>() : new ArrayList<>(List.of(images));
     }
 
     private void seedCountriesAndStates() {

@@ -6,6 +6,7 @@ import { filter, map, startWith } from 'rxjs';
 
 import { BackToTop } from './components/back-to-top/back-to-top';
 import { CartStatus } from './components/cart-status/cart-status';
+import { InstallPrompt } from './components/install-prompt/install-prompt';
 import { LoginStatus } from './components/login-status/login-status';
 import { NewsletterSignup } from './components/newsletter-signup/newsletter-signup';
 import { ProductCategoryMenu } from './components/product-category-menu/product-category-menu';
@@ -21,7 +22,7 @@ import { ThemeService } from './services/theme.service';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Search, ProductCategoryMenu, CartStatus, LoginStatus, Toast, BackToTop, NewsletterSignup, TranslatePipe],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Search, ProductCategoryMenu, CartStatus, LoginStatus, Toast, BackToTop, InstallPrompt, NewsletterSignup, TranslatePipe],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })

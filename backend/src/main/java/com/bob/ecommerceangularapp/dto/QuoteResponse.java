@@ -10,5 +10,7 @@ public record QuoteResponse(
         BigDecimal taxAmount,
         BigDecimal taxRatePercent,
         BigDecimal total,
-        String shippingMethodCode) {
+        String shippingMethodCode,
+        String promotionName,
+        BigDecimal promotionDiscount) {
 }

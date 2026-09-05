@@ -11,7 +11,8 @@
   --surface-2: #eef2fb;
   --ink: #1e2435;
   --ink-soft: #515a73;
-  --muted: #8b93ab;
+  /* WCAG AA requires >=4.5:1 for normal text; #8b93ab only cleared ~3:1 against white/--bg/--surface-2 */
+  --muted: #64707a;
   --line: #e7ecf7;
   --nav: #1b2133;
   --img-bg: #f4f6fc;
@@ -19,9 +20,19 @@
   --accent: #7c5cff;
   --accent-600: #6438f0;
   --accent-soft: #ece8ff;
+  /* accent-600 is a solid-button-background color (paired with white text) — it also only
+     clears ~2.7:1 as *text* on a dark surface, so text usages (links, outline buttons, subnav)
+     read accent-text instead, which stays accent-600 in light mode and lightens in dark mode */
+  --accent-text: var(--accent-600);
   --teal: #10b6a6;
   --teal-soft: #d3f3ef;
+  /* --teal only clears ~2.5:1 as text on white/--teal-soft; teal-text is a darkened,
+     text-safe variant (clears >=5.4:1 in both contexts) */
+  --teal-text: #0d6d63;
   --gold: #f5b400;
+  /* Bootstrap's default code pink (#d63384) only clears ~4.2:1 on --bg and ~3.8:1 on
+     --teal-soft (inside .alert-info); code-color is a darkened, text-safe variant */
+  --code-color: #a02a67;
 
   /* type */
   --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
@@ -39,7 +50,7 @@
   /* bootstrap bridges */
   --bs-primary: var(--accent);
   --bs-primary-rgb: 124, 92, 255;
-  --bs-link-color: var(--accent-600);
+  --bs-link-color: var(--accent-text);
   --bs-link-hover-color: var(--accent);
   --bs-body-bg: var(--bg);
   --bs-body-color: var(--ink);
@@ -54,13 +65,21 @@
   --surface-2: #212739;
   --ink: #eef1fb;
   --ink-soft: #b7bed3;
-  --muted: #7e879f;
+  /* was #7e879f — cleared 4.5:1 on --surface but only ~4.04:1 on the slightly-darker
+     composited backgrounds .text-muted actually sits on (e.g. info-page card bodies) */
+  --muted: #8d97ab;
   --line: #2a3042;
   --nav: #0b0e18;
   --img-bg: #f4f6fc;
 
   --accent-soft: #2c2456;
+  /* accent-600 only clears ~2.7:1 as text on dark surfaces; this lighter tint clears >=4.8:1 */
+  --accent-text: #9a86ff;
   --teal-soft: #133230;
+  /* dark surfaces are dark enough that the base --teal already clears AA as text */
+  --teal-text: var(--teal);
+  /* base code pink only clears ~3.7:1 against these dark surfaces; needs a lighter variant */
+  --code-color: #ff8ac2;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow: 0 16px 36px -16px rgba(0, 0, 0, 0.6);
   --shadow-lg: 0 34px 64px -24px rgba(0, 0, 0, 0.72);
@@ -81,7 +100,7 @@ body {
 }
 app-root { display: flex; flex-direction: column; flex: 1 0 auto; }
 
-::selection { background: var(--accent-soft); color: var(--accent-600); }
+::selection { background: var(--accent-soft); color: var(--accent-text); }
 ::-webkit-scrollbar { width: 12px; height: 12px; }
 ::-webkit-scrollbar-thumb { background: var(--line); border: 3px solid var(--bg); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
@@ -94,7 +113,7 @@ h1, h2, h3, h4, h5, .h1, .h2, .h3 {
   color: var(--ink);
 }
 h1, .h1 { font-weight: 900; letter-spacing: -0.03em; }
-a { color: var(--accent-600); text-decoration: none; transition: color 0.15s var(--ease); }
+a { color: var(--accent-text); text-decoration: none; transition: color 0.15s var(--ease); }
 a:hover { color: var(--accent); }
 .text-primary { color: var(--accent) !important; }
 .text-muted, .text-secondary { color: var(--muted) !important; }
@@ -110,22 +129,23 @@ a:hover { color: var(--accent); }
 }
 .btn:active { transform: translateY(1px) scale(0.97); }
 .btn-primary, .btn-primary:focus {
-  background-color: var(--accent); border-color: var(--accent); color: #fff;
-  box-shadow: 0 10px 20px -8px rgba(124, 92, 255, 0.6);
+  /* accent (#7c5cff) only cleared ~4.3:1 with white text, short of WCAG AA's 4.5:1 — accent-600 clears ~6.2:1 */
+  background-color: var(--accent-600); border-color: var(--accent-600); color: #fff;
+  box-shadow: 0 10px 20px -8px rgba(100, 56, 240, 0.6);
 }
 .btn-primary:hover {
-  background-color: var(--accent-600); border-color: var(--accent-600); color: #fff;
-  transform: translateY(-1px); box-shadow: 0 14px 26px -8px rgba(124, 92, 255, 0.7);
+  background-color: #5228d0; border-color: #5228d0; color: #fff;
+  transform: translateY(-1px); box-shadow: 0 14px 26px -8px rgba(82, 40, 208, 0.7);
 }
 .btn-primary:disabled { background: var(--accent); border-color: var(--accent); opacity: 0.5; }
-.btn-outline-primary { color: var(--accent-600); border-color: var(--accent); }
+.btn-outline-primary { color: var(--accent-text); border-color: var(--accent); }
 .btn-outline-primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; transform: translateY(-1px); }
 .btn-outline-secondary { color: var(--ink-soft); border-color: var(--line); }
 .btn-outline-secondary:hover { background: var(--ink); border-color: var(--ink); color: var(--bg); transform: translateY(-1px); }
 .btn-outline-light { border-color: rgba(255, 255, 255, 0.35); color: #fff; }
 .btn-outline-light:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.5); color: #fff; transform: translateY(-1px); }
 .btn-lg { padding: 0.7rem 1.5rem; font-size: 1.02rem; }
-.btn-link { color: var(--accent-600); }
+.btn-link { color: var(--accent-text); }
 
 /* ---------- Cards ---------- */
 .card {
@@ -148,10 +168,10 @@ a:hover { color: var(--accent); }
 }
 .product-card:hover .card-img-top { transform: scale(1.05) rotate(-0.5deg); }
 .product-card .card-title a { color: var(--ink); }
-.product-card .card-title a:hover { color: var(--accent-600); }
+.product-card .card-title a:hover { color: var(--accent-text); }
 .product-card .product-name { font-family: var(--font-body); font-weight: 700; font-size: 1rem; line-height: 1.25; margin-bottom: 0.15rem; }
 .product-card .product-name a { color: var(--ink); text-decoration: none; }
-.product-card .product-name a:hover { color: var(--accent-600); }
+.product-card .product-name a:hover { color: var(--accent-text); }
 .product-name, .product-sub { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .product-sub { line-height: 1.3; min-height: 2.1em; }
 
@@ -172,13 +192,18 @@ a:hover { color: var(--accent); }
 .form-control::placeholder { color: var(--muted); }
 .input-group-text { border-radius: var(--radius-sm); border-color: var(--line); background: var(--surface-2); color: var(--ink-soft); }
 .form-label { font-weight: 600; font-size: 0.9rem; color: var(--ink-soft); }
+/* Bootstrap's default .form-text color has no dark-theme bridge — it flattens to a
+   near-black rgba that's ~1.06:1 (nearly invisible) on our dark surfaces */
+.form-text { color: var(--muted) !important; }
+/* same issue: Bootstrap's default breadcrumb active-item color has no dark-theme bridge */
+.breadcrumb-item.active { color: var(--ink-soft) !important; }
 
 /* ---------- Badges ---------- */
 .badge { font-weight: 600; border-radius: var(--radius-pill); padding: 0.4em 0.7em; }
 .bg-success-subtle { background: var(--teal-soft) !important; }
-.text-success-emphasis { color: var(--teal) !important; }
+.text-success-emphasis { color: var(--teal-text) !important; }
 .bg-danger-subtle { background: var(--accent-soft) !important; }
-.text-danger-emphasis { color: var(--accent-600) !important; }
+.text-danger-emphasis { color: var(--accent-text) !important; }
 
 /* ---------- Promo / announcement bar ---------- */
 .promo-bar {
@@ -200,9 +225,10 @@ a:hover { color: var(--accent); }
   font-weight: 600; font-size: 0.92rem; white-space: nowrap;
   border-bottom: 2px solid transparent; transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
 }
-.subnav-list a:hover { color: var(--accent-600); }
-.subnav-list a.active { color: var(--accent-600); border-bottom-color: var(--accent); }
-.subnav-list a.subnav-sale { color: var(--accent); }
+.subnav-list a:hover { color: var(--accent-text); }
+.subnav-list a.active { color: var(--accent-text); border-bottom-color: var(--accent); }
+/* accent (#7c5cff) only cleared ~4.3:1 on white, short of WCAG AA's 4.5:1 — accent-text clears >=4.8:1 in both themes */
+.subnav-list a.subnav-sale { color: var(--accent-text); }
 .subnav-list a.subnav-sale.active { border-bottom-color: var(--accent); }
 
 /* ---------- Navbar + footer ---------- */
@@ -222,15 +248,16 @@ a:hover { color: var(--accent); }
 /* ---------- Pagination ---------- */
 .pagination { gap: 0.25rem; }
 .page-link { color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm) !important; font-weight: 600; transition: all 0.15s var(--ease); }
-.page-link:hover { background: var(--accent-soft); color: var(--accent-600); border-color: var(--accent-soft); }
+.page-link:hover { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-soft); }
 .page-item.active .page-link { background: var(--accent); border-color: var(--accent); color: #fff; }
 .page-item.disabled .page-link { color: var(--muted); background: var(--surface); }
 
 /* ---------- Alerts ---------- */
 .alert { border: 1px solid var(--line); border-radius: var(--radius); }
-.alert-info { background: var(--teal-soft); border-color: transparent; color: var(--teal); }
+.alert-info { background: var(--teal-soft); border-color: transparent; color: var(--teal-text); }
+.alert code, code { color: var(--code-color) !important; }
 .alert-warning { background: #fff4e0; border-color: transparent; color: #9a6a00; }
-.alert-danger { background: var(--accent-soft); border-color: transparent; color: var(--accent-600); }
+.alert-danger { background: var(--accent-soft); border-color: transparent; color: var(--accent-text); }
 .alert-secondary { background: var(--surface-2); border-color: var(--line); color: var(--ink-soft); }
 
 /* ---------- Tables ---------- */
@@ -240,11 +267,14 @@ a:hover { color: var(--accent); }
 
 /* ---------- Category sidebar ---------- */
 .category-menu { border-radius: var(--radius); overflow: hidden; }
-.category-menu .card-header { letter-spacing: 0.08em; background: var(--surface); }
+/* the header's `bg-white` class is a Bootstrap !important utility, so it stays white
+   regardless of theme — the themed (dark-mode-lightened) --muted would be unreadable here,
+   so this scopes --muted back to its light-mode value for this white-locked header only */
+.category-menu .card-header { letter-spacing: 0.08em; background: var(--surface); --muted: #64707a; }
 .category-menu .list-group-item { background: var(--surface); border: 0; border-bottom: 1px solid var(--line); color: var(--ink-soft); font-weight: 500; transition: background 0.15s var(--ease), color 0.15s var(--ease), padding-left 0.15s var(--ease); }
 .category-menu .list-group-item:last-child { border-bottom: 0; }
 .category-menu .list-group-item-action:hover { background: var(--surface-2); color: var(--ink); padding-left: 1.15rem; }
-.category-menu .list-group-item-action.active { background: var(--accent-soft); color: var(--accent-600); font-weight: 700; box-shadow: inset 3px 0 0 var(--accent); }
+.category-menu .list-group-item-action.active { background: var(--accent-soft); color: var(--accent-text); font-weight: 700; box-shadow: inset 3px 0 0 var(--accent); }
 
 /* ---------- Hero ---------- */
 .shop-hero {
@@ -266,6 +296,10 @@ a:hover { color: var(--accent); }
 /* ---------- Footer ---------- */
 footer { flex-shrink: 0; }
 footer.bg-dark { background: var(--nav) !important; }
+/* the footer is always dark (bg-dark) regardless of site theme, so .text-muted/.text-secondary
+   inside it needs a light-toned override — the global --muted is dark in light mode for contrast
+   against light card backgrounds, which would be unreadable here. */
+footer { --muted: #8b93ab; }
 footer a.link-light:hover { color: var(--accent) !important; }
 footer h6 { font-family: var(--font-body); }
 
@@ -293,6 +327,27 @@ footer h6 { font-family: var(--font-body); }
   transition: transform 0.15s var(--ease), background 0.2s var(--ease);
 }
 .back-to-top:hover { transform: translateY(-3px); background: var(--accent); color: #fff; }
+
+.install-prompt {
+  position: fixed; right: 1.2rem; bottom: 1.2rem; z-index: 1080;
+  display: flex; align-items: center; gap: 0.75rem;
+  max-width: 340px; padding: 0.9rem 1rem;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow-lg);
+  animation: toastIn 0.3s var(--ease) both;
+}
+.install-prompt-icon { font-size: 1.3rem; color: var(--accent); flex-shrink: 0; }
+.install-prompt-body { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.86rem; }
+.install-prompt-body strong { font-size: 0.92rem; }
+.install-prompt-body span { color: var(--ink-soft); }
+.install-prompt-dismiss {
+  position: absolute; top: 0.4rem; right: 0.5rem; border: 0; background: none;
+  color: var(--muted); padding: 0.2rem; line-height: 1; cursor: pointer;
+}
+.install-prompt-dismiss:hover { color: var(--ink); }
+@media (max-width: 480px) {
+  .install-prompt { left: 1rem; right: 1rem; max-width: none; }
+}
 
 /* ---------- Animations ---------- */
 @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
@@ -418,9 +473,9 @@ footer h6 { font-family: var(--font-body); }
 }
 .admin-nav a i { width: 1.1rem; text-align: center; }
 .admin-nav a:hover { background: var(--surface-2); color: var(--ink); }
-.admin-nav a.active { background: var(--accent-soft); color: var(--accent-600); }
+.admin-nav a.active { background: var(--accent-soft); color: var(--accent-text); }
 .admin-back { display: inline-block; margin-top: 1rem; font-size: 0.85rem; color: var(--muted); }
-.admin-back:hover { color: var(--accent-600); }
+.admin-back:hover { color: var(--accent-text); }
 .admin-content { flex: 1 1 auto; min-width: 0; }
 
 .stat-card {
@@ -526,7 +581,36 @@ footer h6 { font-family: var(--font-body); }
   font-weight: 700; font-size: 0.86rem; line-height: 1.2; margin-top: 0.5rem;
   display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.rv-price { color: var(--accent-600); font-weight: 700; font-size: 0.9rem; margin-top: 0.15rem; }
+.rv-price { color: var(--accent-text); font-weight: 700; font-size: 0.9rem; margin-top: 0.15rem; }
+
+/* ---------- Search typeahead ---------- */
+.search-wrap { position: relative; }
+.search-dropdown {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 1050;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg); overflow-y: auto; max-height: 420px;
+}
+.search-dropdown-status { padding: 0.85rem 1rem; color: var(--muted); font-size: 0.9rem; }
+.search-suggestion {
+  display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.6rem 1rem;
+  text-decoration: none; color: var(--ink); border: 0; border-bottom: 1px solid var(--line);
+  background: transparent; text-align: left; font: inherit;
+  transition: background 0.15s var(--ease);
+}
+.search-suggestion:last-child { border-bottom: 0; }
+.search-suggestion:hover, .search-suggestion.active { background: var(--surface-2); color: var(--ink); }
+.search-suggestion img {
+  width: 42px; height: 42px; object-fit: contain; border-radius: var(--radius-sm);
+  background: #fff; flex-shrink: 0;
+}
+[data-theme="dark"] .search-suggestion img { background: rgba(255, 255, 255, 0.04); }
+.search-suggestion-body { display: flex; flex-direction: column; min-width: 0; }
+.search-suggestion-name {
+  font-weight: 600; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.search-suggestion-price { font-size: 0.85rem; color: var(--accent-text); font-weight: 700; }
+.search-suggestion-was { color: var(--muted); text-decoration: line-through; font-weight: 500; margin-left: 0.4rem; }
+.search-suggestion-all { font-weight: 600; color: var(--accent-text); justify-content: center; cursor: pointer; }
 
 @media (prefers-reduced-motion: reduce) {
   *, .reveal, .toast-item, .btn { animation: none !important; transition: none !important; }

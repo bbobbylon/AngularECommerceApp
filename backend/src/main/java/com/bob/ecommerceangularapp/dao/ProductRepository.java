@@ -9,11 +9,14 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 
 import java.util.List;
+import java.util.Optional;
 
 @RepositoryRestResource(collectionResourceRel = "products", path = "products")
 public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product> {
 
     Page<Product> findByCategoryId(@Param("id") Long id, Pageable pageable);
+
+    Optional<Product> findBySku(String sku);
 
     Page<Product> findByNameContaining(@Param("name") String name, Pageable pageable);
 

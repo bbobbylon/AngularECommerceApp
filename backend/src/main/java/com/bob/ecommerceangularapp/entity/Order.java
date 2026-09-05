@@ -54,6 +54,13 @@ public class Order {
     @Column(name = "discount_amount")
     private BigDecimal discountAmount;
 
+    /** Automatic no-code promotion applied (nullable): the promotion's name and the discount it produced. */
+    @Column(name = "promotion_name")
+    private String promotionName;
+
+    @Column(name = "promotion_discount")
+    private BigDecimal promotionDiscount;
+
     /** Shipping charged (nullable on legacy/demo orders); the {@link #shippingMethod} code chosen. */
     @Column(name = "shipping_amount")
     private BigDecimal shippingAmount;

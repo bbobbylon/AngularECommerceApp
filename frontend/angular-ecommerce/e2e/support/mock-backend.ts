@@ -59,16 +59,25 @@ export async function mockBackend(page: Page): Promise<void> {
     })),
   );
 
-  // Faceted catalog search — backs the product list / home grid.
-  await page.route(/\/api\/catalog\/search/, route =>
+  // Faceted catalog search — backs the product list / home grid and the header typeahead.
+  // Honors `keyword` (case-insensitive contains-on-name, matching the real backend) and `size`
+  // so search-specific tests can assert on filtered results, not just "something came back".
+  await page.route(/\/api\/catalog\/search/, route => {
+    const url = new URL(route.request().url());
+    const keyword = (url.searchParams.get('keyword') ?? '').trim().toLowerCase();
+    const size = Number(url.searchParams.get('size') ?? 12);
+    const matches = keyword
+      ? products.filter(p => p.name.toLowerCase().includes(keyword))
+      : products;
+    const content = matches.slice(0, size);
     route.fulfill(json({
-      content: products,
-      totalElements: products.length,
-      totalPages: 1,
+      content,
+      totalElements: matches.length,
+      totalPages: Math.max(1, Math.ceil(matches.length / size)),
       number: 0,
-      size: 12,
-    })),
-  );
+      size,
+    }));
+  });
 
   // Checkout reference data (HAL).
   await page.route(/\/api\/countries(\?.*)?$/, route =>
@@ -108,4 +117,28 @@ export async function mockBackend(page: Page): Promise<void> {
   await page.route(/\/api\/checkout\/purchase/, route =>
     route.fulfill(json({ orderTrackingNumber: TRACKING_NUMBER })),
   );
+
+  // Product-details page: the product itself, its category (for "related products"), variants,
+  // and reviews (list + summary) — all empty/minimal but shaped like the real contracts.
+  await page.route(/\/api\/products\/\d+$/, route => {
+    const id = Number(route.request().url().match(/\/products\/(\d+)$/)?.[1]);
+    const product = products.find(p => p.id === id) ?? products[0];
+    route.fulfill(json(product));
+  });
+  await page.route(/\/api\/products\/\d+\/category/, route =>
+    route.fulfill(json({ id: 1, categoryName: 'Books' })),
+  );
+  await page.route(/\/api\/catalog\/products\/\d+\/variants/, route => route.fulfill(json([])));
+  await page.route(/\/api\/products\/search\/findByCategoryId/, route =>
+    route.fulfill(json({ _embedded: { products: [] }, page: { totalElements: 0, totalPages: 1, number: 0, size: 12 } })),
+  );
+  await page.route(/\/api\/reviews\/summary/, route =>
+    route.fulfill(json({ average: 0, count: 0, distribution: [0, 0, 0, 0, 0] })),
+  );
+  await page.route(/\/api\/reviews(\?.*)?$/, route =>
+    route.fulfill(json({ content: [], totalElements: 0, totalPages: 1, number: 0, size: 5 })),
+  );
+
+  // Wishlist sync (favorites page) — empty for a guest session.
+  await page.route(/\/api\/wishlist/, route => route.fulfill(json([])));
 }

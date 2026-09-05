@@ -94,6 +94,10 @@ public class CheckoutServiceImpl implements CheckoutService {
                 order.setCouponCode(purchase.getCouponCode());
                 order.setDiscountAmount(quote.discount());
             }
+            if (quote.promotionDiscount() != null && quote.promotionDiscount().signum() > 0) {
+                order.setPromotionName(quote.promotionName());
+                order.setPromotionDiscount(quote.promotionDiscount());
+            }
             order.setShippingAmount(quote.shippingAmount());
             order.setShippingMethod(quote.shippingMethodCode());
             order.setTaxAmount(quote.taxAmount());

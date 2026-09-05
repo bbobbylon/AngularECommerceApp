@@ -1,15 +1,67 @@
-<div class="input-group">
-  <span class="input-group-text bg-white border-end-0">
-    <i class="fa-solid fa-magnifying-glass text-muted"></i>
-  </span>
-  <input
-    #searchInput
-    type="text"
-    class="form-control border-start-0"
-    placeholder="Search products..."
-    (keyup.enter)="doSearch(searchInput.value)" />
-  <button type="button" class="btn btn-outline-primary"
-          (click)="doSearch(searchInput.value)">
-    Search
-  </button>
+<div class="search-wrap" role="combobox" aria-haspopup="listbox"
+     [attr.aria-owns]="showDropdown() ? 'search-listbox' : null"
+     [attr.aria-expanded]="showDropdown()">
+  <div class="input-group">
+    <span class="input-group-text border-end-0">
+      <i class="fa-solid fa-magnifying-glass"></i>
+    </span>
+    <input
+      #searchInput
+      type="text"
+      class="form-control border-start-0"
+      placeholder="Search products..."
+      role="searchbox"
+      aria-autocomplete="list"
+      [attr.aria-controls]="showDropdown() ? 'search-listbox' : null"
+      [attr.aria-activedescendant]="activeDescendantId()"
+      [value]="query()"
+      (input)="onInput(searchInput.value)"
+      (focus)="onFocus()"
+      (keydown)="onKeydown($event)" />
+    <button type="button" class="btn btn-primary" (click)="doSearch(query())">
+      Search
+    </button>
+  </div>
+
+  <span class="visually-hidden" aria-live="polite">{{ resultsAnnouncement() }}</span>
+
+  @if (showDropdown()) {
+    <div class="search-dropdown" id="search-listbox" role="listbox">
+      @if (loading()) {
+        <div class="search-dropdown-status">Searching…</div>
+      } @else if (suggestions().length === 0) {
+        <div class="search-dropdown-status">No products found for "{{ query().trim() }}"</div>
+      } @else {
+        @for (p of suggestions(); track p.id; let i = $index) {
+          <a class="search-suggestion" tabindex="-1"
+             id="search-option-{{ p.id }}"
+             role="option"
+             [class.active]="i === activeIndex()"
+             [attr.aria-selected]="i === activeIndex()"
+             [routerLink]="['/products', p.id]"
+             (click)="close()"
+             (mouseenter)="activeIndex.set(i)">
+            <img [src]="p.imageUrl" alt="" loading="lazy" />
+            <span class="search-suggestion-body">
+              <span class="search-suggestion-name">{{ p.name }}</span>
+              <span class="search-suggestion-price">
+                {{ p.unitPrice | money }}
+                @if (isOnSale(p)) {
+                  <span class="search-suggestion-was">{{ p.originalPrice | money }}</span>
+                }
+              </span>
+            </span>
+          </a>
+        }
+        <button type="button" class="search-suggestion search-suggestion-all" tabindex="-1"
+                id="search-option-all"
+                role="option"
+                [class.active]="activeIndex() === suggestions().length"
+                [attr.aria-selected]="activeIndex() === suggestions().length"
+                (click)="doSearch(query())">
+          <i class="fa-solid fa-arrow-right me-2"></i> See all results for "{{ query().trim() }}"
+        </button>
+      }
+    </div>
+  }
 </div>

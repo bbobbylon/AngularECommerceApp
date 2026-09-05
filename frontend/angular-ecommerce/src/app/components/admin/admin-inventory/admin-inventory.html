@@ -1,0 +1,112 @@
+<div class="mb-4">
+  <h1 class="fw-bold mb-0">Inventory</h1>
+  <p class="text-muted mb-0">Edit stock levels by hand or import/export a CSV for bulk restocks.</p>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body d-flex flex-wrap align-items-center gap-3">
+    <button type="button" class="btn btn-outline-primary btn-sm" (click)="exportCsv()">
+      <i class="fa-solid fa-file-arrow-down me-1"></i> Export CSV
+    </button>
+    <label class="btn btn-outline-primary btn-sm mb-0">
+      <i class="fa-solid fa-file-arrow-up me-1"></i> Import CSV
+      <input type="file" accept=".csv,text/csv" hidden (change)="onFileSelected($event)" [disabled]="importing()" />
+    </label>
+    @if (importing()) {
+      <span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Importing…</span>
+    }
+    <span class="text-muted small ms-auto">CSV needs <code>sku</code> and <code>quantity</code> columns (an optional <code>note</code> column too).</span>
+  </div>
+  @if (importResult(); as result) {
+    <div class="card-body border-top pt-3">
+      <div class="small fw-semibold mb-1">
+        Import result: {{ result.updated }} SKU{{ result.updated === 1 ? '' : 's' }} updated.
+        @if (result.errors.length > 0) {
+          {{ result.errors.length }} error{{ result.errors.length === 1 ? '' : 's' }}.
+        }
+      </div>
+      @if (result.errors.length > 0) {
+        <ul class="small text-danger mb-0">
+          @for (err of result.errors; track err) {
+            <li>{{ err }}</li>
+          }
+        </ul>
+      }
+    </div>
+  }
+</div>
+
+<div class="d-flex align-items-center mb-2">
+  <input type="search" class="form-control form-control-sm w-auto" placeholder="Search SKU or product…"
+         [ngModel]="search()" (ngModelChange)="search.set($event)" />
+</div>
+
+@if (loading()) {
+  <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+} @else if (filteredItems().length === 0) {
+  <div class="alert alert-secondary">No inventory items match.</div>
+} @else {
+  <div class="table-responsive mb-4">
+    <table class="table align-middle">
+      <thead><tr><th>SKU</th><th>Product</th><th>Variant</th><th>Stock</th><th></th><th></th></tr></thead>
+      <tbody>
+        @for (item of filteredItems(); track item.sku) {
+          <tr [class.opacity-50]="!item.active">
+            <td class="font-monospace small">{{ item.sku }}</td>
+            <td>{{ item.productName }}</td>
+            <td class="text-muted small">{{ item.variantLabel || '—' }}</td>
+            <td style="max-width: 7rem;">
+              <input type="number" min="0" class="form-control form-control-sm"
+                     [ngModel]="drafts[item.sku]" (ngModelChange)="drafts[item.sku] = $event" />
+            </td>
+            <td>
+              @if (item.lowStock) {
+                <span class="badge bg-warning-subtle text-warning-emphasis">Low stock</span>
+              }
+            </td>
+            <td class="text-end">
+              <button type="button" class="btn btn-sm btn-primary" (click)="save(item)"
+                      [disabled]="saving() === item.sku || drafts[item.sku] === item.unitsInStock">
+                @if (saving() === item.sku) {
+                  <i class="fa-solid fa-spinner fa-spin"></i>
+                } @else {
+                  Save
+                }
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+<h6 class="fw-bold mb-2">Recent adjustments</h6>
+@if (historyLoading()) {
+  <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+} @else if (history().length === 0) {
+  <div class="alert alert-secondary">No adjustments recorded yet.</div>
+} @else {
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead><tr><th>When</th><th>SKU</th><th>Product</th><th>Change</th><th>Source</th><th>Note</th></tr></thead>
+      <tbody>
+        @for (a of history(); track a.id) {
+          <tr>
+            <td class="small text-muted">{{ a.dateCreated | date:'short' }}</td>
+            <td class="font-monospace small">{{ a.sku }}</td>
+            <td class="small">{{ a.productName }}</td>
+            <td class="small">
+              {{ a.previousQuantity }} → {{ a.newQuantity }}
+              <span [class.text-success]="a.delta > 0" [class.text-danger]="a.delta < 0">
+                ({{ a.delta > 0 ? '+' : '' }}{{ a.delta }})
+              </span>
+            </td>
+            <td class="small text-muted">{{ a.source === 'CSV_IMPORT' ? 'CSV import' : 'Manual' }}</td>
+            <td class="small text-muted">{{ a.note || '—' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

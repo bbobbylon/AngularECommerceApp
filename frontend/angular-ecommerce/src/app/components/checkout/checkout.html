@@ -16,22 +16,22 @@
         <div class="card-body" formGroupName="customer">
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">First name</label>
-              <input type="text" class="form-control" formControlName="firstName" />
+              <label class="form-label" for="customer-firstName">First name</label>
+              <input id="customer-firstName" type="text" class="form-control" formControlName="firstName" />
               @if (firstName?.invalid && (firstName?.dirty || firstName?.touched)) {
                 <div class="text-danger small">First name is required (min 2 characters).</div>
               }
             </div>
             <div class="col-md-6">
-              <label class="form-label">Last name</label>
-              <input type="text" class="form-control" formControlName="lastName" />
+              <label class="form-label" for="customer-lastName">Last name</label>
+              <input id="customer-lastName" type="text" class="form-control" formControlName="lastName" />
               @if (lastName?.invalid && (lastName?.dirty || lastName?.touched)) {
                 <div class="text-danger small">Last name is required (min 2 characters).</div>
               }
             </div>
             <div class="col-12">
-              <label class="form-label">Email</label>
-              <input type="email" class="form-control" formControlName="email" (blur)="onEmailBlur()" />
+              <label class="form-label" for="customer-email">Email</label>
+              <input id="customer-email" type="email" class="form-control" formControlName="email" (blur)="onEmailBlur()" />
               @if (email?.invalid && (email?.dirty || email?.touched)) {
                 <div class="text-danger small">A valid email is required.</div>
               }
@@ -69,22 +69,22 @@
           }
           <div class="row g-3">
             <div class="col-12">
-              <label class="form-label">Street</label>
-              <input type="text" class="form-control" formControlName="street" />
+              <label class="form-label" for="shipping-street">Street</label>
+              <input id="shipping-street" type="text" class="form-control" formControlName="street" />
               @if (shippingStreet?.invalid && (shippingStreet?.dirty || shippingStreet?.touched)) {
                 <div class="text-danger small">Street is required.</div>
               }
             </div>
             <div class="col-md-6">
-              <label class="form-label">City</label>
-              <input type="text" class="form-control" formControlName="city" />
+              <label class="form-label" for="shipping-city">City</label>
+              <input id="shipping-city" type="text" class="form-control" formControlName="city" />
               @if (shippingCity?.invalid && (shippingCity?.dirty || shippingCity?.touched)) {
                 <div class="text-danger small">City is required.</div>
               }
             </div>
             <div class="col-md-6">
-              <label class="form-label">Country</label>
-              <select class="form-select" formControlName="country"
+              <label class="form-label" for="shipping-country">Country</label>
+              <select id="shipping-country" class="form-select" formControlName="country"
                       (change)="onCountryChange('shippingAddress')">
                 <option [ngValue]="''" disabled>Select country</option>
                 @for (country of countries; track country.id) {
@@ -96,8 +96,8 @@
               }
             </div>
             <div class="col-md-6">
-              <label class="form-label">State</label>
-              <select class="form-select" formControlName="state" (change)="onShippingStateChange()">
+              <label class="form-label" for="shipping-state">State</label>
+              <select id="shipping-state" class="form-select" formControlName="state" (change)="onShippingStateChange()">
                 <option [ngValue]="''" disabled>Select state</option>
                 @for (state of shippingAddressStates; track state.id) {
                   <option [ngValue]="state">{{ state.name }}</option>
@@ -108,8 +108,8 @@
               }
             </div>
             <div class="col-md-6">
-              <label class="form-label">Zip code</label>
-              <input type="text" class="form-control" formControlName="zipCode" />
+              <label class="form-label" for="shipping-zipCode">Zip code</label>
+              <input id="shipping-zipCode" type="text" class="form-control" formControlName="zipCode" />
               @if (shippingZipCode?.invalid && (shippingZipCode?.dirty || shippingZipCode?.touched)) {
                 <div class="text-danger small">Zip code is required.</div>
               }
@@ -164,22 +164,22 @@
         <div class="card-body" formGroupName="billingAddress">
           <div class="row g-3">
             <div class="col-12">
-              <label class="form-label">Street</label>
-              <input type="text" class="form-control" formControlName="street" />
+              <label class="form-label" for="billing-street">Street</label>
+              <input id="billing-street" type="text" class="form-control" formControlName="street" />
               @if (billingStreet?.invalid && (billingStreet?.dirty || billingStreet?.touched)) {
                 <div class="text-danger small">Street is required.</div>
               }
             </div>
             <div class="col-md-6">
-              <label class="form-label">City</label>
-              <input type="text" class="form-control" formControlName="city" />
+              <label class="form-label" for="billing-city">City</label>
+              <input id="billing-city" type="text" class="form-control" formControlName="city" />
               @if (billingCity?.invalid && (billingCity?.dirty || billingCity?.touched)) {
                 <div class="text-danger small">City is required.</div>
               }
             </div>
             <div class="col-md-6">
-              <label class="form-label">Country</label>
-              <select class="form-select" formControlName="country"
+              <label class="form-label" for="billing-country">Country</label>
+              <select id="billing-country" class="form-select" formControlName="country"
                       (change)="onCountryChange('billingAddress')">
                 <option [ngValue]="''" disabled>Select country</option>
                 @for (country of countries; track country.id) {
@@ -191,8 +191,8 @@
               }
             </div>
             <div class="col-md-6">
-              <label class="form-label">State</label>
-              <select class="form-select" formControlName="state">
+              <label class="form-label" for="billing-state">State</label>
+              <select id="billing-state" class="form-select" formControlName="state">
                 <option [ngValue]="''" disabled>Select state</option>
                 @for (state of billingAddressStates; track state.id) {
                   <option [ngValue]="state">{{ state.name }}</option>
@@ -203,8 +203,8 @@
               }
             </div>
             <div class="col-md-6">
-              <label class="form-label">Zip code</label>
-              <input type="text" class="form-control" formControlName="zipCode" />
+              <label class="form-label" for="billing-zipCode">Zip code</label>
+              <input id="billing-zipCode" type="text" class="form-control" formControlName="zipCode" />
               @if (billingZipCode?.invalid && (billingZipCode?.dirty || billingZipCode?.touched)) {
                 <div class="text-danger small">Zip code is required.</div>
               }
