@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -17,10 +18,10 @@ import java.math.BigDecimal;
 /**
  * A selectable shipping option at checkout. {@code baseRate} is the flat charge; when
  * {@code freeOverThreshold} is set and the merchandise subtotal reaches it, shipping is free.
- * Identified by a stable {@code code} (the order records this).
+ * Identified by a per-tenant-stable {@code code} (the order records this).
  */
 @Entity
-@Table(name = "shipping_method")
+@Table(name = "shipping_method", uniqueConstraints = @UniqueConstraint(name = "uk_shipping_method_tenant_code", columnNames = {"tenant_id", "code"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -32,6 +33,10 @@ public class ShippingMethod {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
+
+    /** Roadmap #21 (multi-tenancy, Milestone C). See {@link Product#getTenantId()} for the isolation rationale. */
+    @Column(name = "tenant_id")
+    private Long tenantId;
 
     @Column(name = "code")
     private String code;

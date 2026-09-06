@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.GiftCardRepository;
 import com.bob.ecommerceangularapp.dto.AdminGiftCardRequest;
 import com.bob.ecommerceangularapp.dto.GiftCardView;
@@ -34,7 +35,7 @@ public class GiftCardService {
         if (code == null || code.isBlank()) {
             return GiftCardView.invalid(code, "Enter a gift card code.");
         }
-        GiftCard card = giftCardRepository.findByCodeIgnoreCase(code.trim()).orElse(null);
+        GiftCard card = giftCardRepository.findByCodeIgnoreCaseAndTenantId(code.trim(), TenantContext.currentTenantId()).orElse(null);
         if (card == null || !card.isActive()) {
             return GiftCardView.invalid(code, "That gift card code isn't valid.");
         }
@@ -54,7 +55,7 @@ public class GiftCardService {
         if (code == null || code.isBlank() || orderTotal == null || orderTotal.signum() <= 0) {
             return BigDecimal.ZERO;
         }
-        GiftCard card = giftCardRepository.findByCodeIgnoreCase(code.trim()).orElse(null);
+        GiftCard card = giftCardRepository.findByCodeIgnoreCaseAndTenantId(code.trim(), TenantContext.currentTenantId()).orElse(null);
         if (card == null || !card.isActive() || card.getBalance() == null || card.getBalance().signum() <= 0) {
             return BigDecimal.ZERO;
         }
@@ -68,14 +69,16 @@ public class GiftCardService {
 
     @Transactional(readOnly = true)
     public List<GiftCard> listAll() {
-        return giftCardRepository.findAll();
+        return giftCardRepository.findAllByTenantId(TenantContext.currentTenantId());
     }
 
     @Transactional
     public GiftCard issue(AdminGiftCardRequest request) {
+        Long tenantId = TenantContext.currentTenantId();
         String code = (request.code() == null || request.code().isBlank())
-                ? generateUniqueCode() : request.code().trim().toUpperCase();
+                ? generateUniqueCode(tenantId) : request.code().trim().toUpperCase();
         GiftCard card = GiftCard.builder()
+                .tenantId(tenantId)
                 .code(code)
                 .initialBalance(request.initialBalance())
                 .balance(request.initialBalance())
@@ -88,18 +91,18 @@ public class GiftCardService {
 
     @Transactional
     public void deactivate(Long id) {
-        GiftCard card = giftCardRepository.findById(id)
+        GiftCard card = giftCardRepository.findByIdAndTenantId(id, TenantContext.currentTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Gift card not found: " + id));
         card.setActive(false);
         giftCardRepository.save(card);
     }
 
     /** Human-friendly grouped code, e.g. GIFT-AB12-CD34. */
-    private String generateUniqueCode() {
+    private String generateUniqueCode(Long tenantId) {
         String code;
         do {
             code = "GIFT-" + randomGroup() + "-" + randomGroup();
-        } while (giftCardRepository.existsByCodeIgnoreCase(code));
+        } while (giftCardRepository.existsByCodeIgnoreCaseAndTenantId(code, tenantId));
         return code;
     }
 

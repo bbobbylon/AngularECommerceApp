@@ -11,7 +11,11 @@ import java.util.Optional;
 @RepositoryRestResource(exported = false)
 public interface ShippingMethodRepository extends JpaRepository<ShippingMethod, Long> {
 
-    List<ShippingMethod> findByActiveTrueOrderBySortOrderAscIdAsc();
+    List<ShippingMethod> findByActiveTrueAndTenantIdOrderBySortOrderAscIdAsc(Long tenantId);
 
-    Optional<ShippingMethod> findByCode(String code);
+    Optional<ShippingMethod> findByCodeAndTenantId(String code, Long tenantId);
+
+    List<ShippingMethod> findAllByTenantId(Long tenantId);
+
+    Optional<ShippingMethod> findByIdAndTenantId(Long id, Long tenantId);
 }

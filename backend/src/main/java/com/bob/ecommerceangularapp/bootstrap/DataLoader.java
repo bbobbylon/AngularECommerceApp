@@ -146,11 +146,11 @@ public class DataLoader implements CommandLineRunner {
         backfillProductImages();
         backfillStockVariety();
         seedVariants(tenant);
-        seedTaxAndShipping();
-        seedGiftCards();
+        seedTaxAndShipping(tenant);
+        seedGiftCards(tenant);
         seedReviews();
-        seedCoupons();
-        seedContent();
+        seedCoupons(tenant);
+        seedContent(tenant);
         seedWarehouses();
     }
 
@@ -247,24 +247,24 @@ public class DataLoader implements CommandLineRunner {
      * rates, matched by the same display names the checkout sends. Idempotent: skips once any shipping
      * method exists. Defensive — never crashes the catalog. (Unlisted regions resolve to 0% tax.)
      */
-    private void seedTaxAndShipping() {
+    private void seedTaxAndShipping(Tenant tenant) {
         try {
             if (shippingMethodRepository.count() == 0) {
                 shippingMethodRepository.saveAll(List.of(
-                        shippingMethod("STANDARD", "Standard shipping", "5.99", "50.00", "3–5 business days", 0),
-                        shippingMethod("EXPRESS", "Express shipping", "14.99", null, "1–2 business days", 1)));
+                        shippingMethod(tenant, "STANDARD", "Standard shipping", "5.99", "50.00", "3–5 business days", 0),
+                        shippingMethod(tenant, "EXPRESS", "Express shipping", "14.99", null, "1–2 business days", 1)));
                 log.info("Seeded 2 shipping methods.");
             }
             if (taxRateRepository.count() == 0) {
                 taxRateRepository.saveAll(List.of(
-                        taxRate("United States", "California", "7.25"),
-                        taxRate("United States", "New York", "8.88"),
-                        taxRate("United States", "Texas", "6.25"),
-                        taxRate("United States", "Washington", "6.50"),
-                        taxRate("United States", "Florida", "6.00"),
-                        taxRate("United States", "Illinois", "6.25"),
-                        taxRate("United States", "Ohio", "5.75"),
-                        taxRate("United States", "Pennsylvania", "6.00")));
+                        taxRate(tenant, "United States", "California", "7.25"),
+                        taxRate(tenant, "United States", "New York", "8.88"),
+                        taxRate(tenant, "United States", "Texas", "6.25"),
+                        taxRate(tenant, "United States", "Washington", "6.50"),
+                        taxRate(tenant, "United States", "Florida", "6.00"),
+                        taxRate(tenant, "United States", "Illinois", "6.25"),
+                        taxRate(tenant, "United States", "Ohio", "5.75"),
+                        taxRate(tenant, "United States", "Pennsylvania", "6.00")));
                 log.info("Seeded {} tax rates.", taxRateRepository.count());
             }
         } catch (Exception e) {
@@ -272,9 +272,10 @@ public class DataLoader implements CommandLineRunner {
         }
     }
 
-    private ShippingMethod shippingMethod(String code, String name, String baseRate, String freeOver,
+    private ShippingMethod shippingMethod(Tenant tenant, String code, String name, String baseRate, String freeOver,
                                           String estimatedDays, int sortOrder) {
         return ShippingMethod.builder()
+                .tenantId(tenant.getId())
                 .code(code)
                 .name(name)
                 .baseRate(new BigDecimal(baseRate))
@@ -285,8 +286,9 @@ public class DataLoader implements CommandLineRunner {
                 .build();
     }
 
-    private TaxRate taxRate(String country, String state, String ratePercent) {
+    private TaxRate taxRate(Tenant tenant, String country, String state, String ratePercent) {
         return TaxRate.builder()
+                .tenantId(tenant.getId())
                 .country(country)
                 .state(state)
                 .ratePercent(new BigDecimal(ratePercent))
@@ -295,23 +297,24 @@ public class DataLoader implements CommandLineRunner {
     }
 
     /** Seeds two demo gift cards (GIFT25 / GIFT50). Idempotent + defensive. */
-    private void seedGiftCards() {
+    private void seedGiftCards(Tenant tenant) {
         try {
             if (giftCardRepository.count() > 0) {
                 return;
             }
             giftCardRepository.saveAll(List.of(
-                    giftCard("GIFT25", "25.00"),
-                    giftCard("GIFT50", "50.00")));
+                    giftCard(tenant, "GIFT25", "25.00"),
+                    giftCard(tenant, "GIFT50", "50.00")));
             log.info("Seeded 2 gift cards (GIFT25, GIFT50).");
         } catch (Exception e) {
             log.warn("Skipped gift-card seeding (non-fatal): {}", e.getMessage());
         }
     }
 
-    private GiftCard giftCard(String code, String balance) {
+    private GiftCard giftCard(Tenant tenant, String code, String balance) {
         BigDecimal amount = new BigDecimal(balance);
         return GiftCard.builder()
+                .tenantId(tenant.getId())
                 .code(code)
                 .initialBalance(amount)
                 .balance(amount)
@@ -319,19 +322,20 @@ public class DataLoader implements CommandLineRunner {
                 .build();
     }
 
-    private void seedCoupons() {
+    private void seedCoupons(Tenant tenant) {
         if (couponRepository.count() > 0) {
             return;
         }
         couponRepository.saveAll(List.of(
-                coupon("WELCOME10", "10% off your first order", 10, null, null),
-                coupon("SAVE5", "$5 off orders over $25", null, new BigDecimal("5.00"), new BigDecimal("25.00")),
-                coupon("SUMMER20", "20% off — summer sale", 20, null, null)));
+                coupon(tenant, "WELCOME10", "10% off your first order", 10, null, null),
+                coupon(tenant, "SAVE5", "$5 off orders over $25", null, new BigDecimal("5.00"), new BigDecimal("25.00")),
+                coupon(tenant, "SUMMER20", "20% off — summer sale", 20, null, null)));
         log.info("Seeded 3 coupon codes.");
     }
 
-    private Coupon coupon(String code, String description, Integer percentOff, BigDecimal amountOff, BigDecimal minSpend) {
+    private Coupon coupon(Tenant tenant, String code, String description, Integer percentOff, BigDecimal amountOff, BigDecimal minSpend) {
         Coupon c = new Coupon();
+        c.setTenantId(tenant.getId());
         c.setCode(code);
         c.setDescription(description);
         c.setPercentOff(percentOff);
@@ -346,10 +350,11 @@ public class DataLoader implements CommandLineRunner {
      * a fresh DB looks the same as before this feature — from here on an admin owns both. Idempotent
      * + defensive, like the other reference-data seeds.
      */
-    private void seedContent() {
+    private void seedContent(Tenant tenant) {
         try {
             if (siteBannerRepository.count() == 0) {
                 SiteBanner banner = new SiteBanner();
+                banner.setTenantId(tenant.getId());
                 banner.setMessage("This week's sale — up to 49% off · free shipping over $50.");
                 banner.setLinkUrl("/sale");
                 banner.setLinkText("Shop now");
@@ -359,17 +364,17 @@ public class DataLoader implements CommandLineRunner {
             }
             if (faqEntryRepository.count() == 0) {
                 faqEntryRepository.saveAll(List.of(
-                        faqEntry("How long does shipping take?",
+                        faqEntry(tenant, "How long does shipping take?",
                                 "Standard shipping is 3–5 business days. Orders over $50 ship free; expedited options are shown at checkout.", 1),
-                        faqEntry("What is your return policy?",
+                        faqEntry(tenant, "What is your return policy?",
                                 "Returns are accepted within 30 days of delivery, in original condition. See Shipping & Returns for the full details.", 2),
-                        faqEntry("Which payment methods do you accept?",
+                        faqEntry(tenant, "Which payment methods do you accept?",
                                 "All major credit and debit cards via Stripe. Your card details are entered directly into Stripe and never touch our servers.", 3),
-                        faqEntry("Do you ship internationally?",
+                        faqEntry(tenant, "Do you ship internationally?",
                                 "We ship to the United States, Canada, Brazil, Germany, India and Australia, with more regions on the way.", 4),
-                        faqEntry("How do I track my order?",
+                        faqEntry(tenant, "How do I track my order?",
                                 "You'll get an order confirmation email with a tracking number, and you can view past orders under My account → My orders.", 5),
-                        faqEntry("How do I manage marketing emails?",
+                        faqEntry(tenant, "How do I manage marketing emails?",
                                 "Update your preferences anytime in Account settings, or use the unsubscribe link at the bottom of any marketing email.", 6)));
                 log.info("Seeded 6 FAQ entries.");
             }
@@ -440,8 +445,9 @@ public class DataLoader implements CommandLineRunner {
         return s;
     }
 
-    private FaqEntry faqEntry(String question, String answer, int sortOrder) {
+    private FaqEntry faqEntry(Tenant tenant, String question, String answer, int sortOrder) {
         FaqEntry entry = new FaqEntry();
+        entry.setTenantId(tenant.getId());
         entry.setQuestion(question);
         entry.setAnswer(answer);
         entry.setSortOrder(sortOrder);

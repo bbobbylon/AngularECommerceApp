@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.PromotionRepository;
 import com.bob.ecommerceangularapp.dto.AppliedPromotion;
 import com.bob.ecommerceangularapp.dto.PromotionRequest;
@@ -35,7 +36,7 @@ public class PromotionService {
         BigDecimal safeSubtotal = subtotal == null ? BigDecimal.ZERO : subtotal;
         LocalDate today = LocalDate.now();
 
-        return promotionRepository.findByActiveTrue().stream()
+        return promotionRepository.findByActiveTrueAndTenantId(TenantContext.currentTenantId()).stream()
                 .filter(p -> p.getStartsAt() == null || !p.getStartsAt().isAfter(today))
                 .filter(p -> p.getEndsAt() == null || !p.getEndsAt().isBefore(today))
                 .filter(p -> p.getMinSpend() == null || safeSubtotal.compareTo(p.getMinSpend()) >= 0)
@@ -60,15 +61,17 @@ public class PromotionService {
 
     @Transactional(readOnly = true)
     public List<Promotion> list() {
-        return promotionRepository.findAll();
+        return promotionRepository.findAllByTenantId(TenantContext.currentTenantId());
     }
 
     @Transactional
     public Promotion save(PromotionRequest request) {
+        Long tenantId = TenantContext.currentTenantId();
         Promotion promotion = request.id() != null
-                ? promotionRepository.findById(request.id())
+                ? promotionRepository.findByIdAndTenantId(request.id(), tenantId)
                         .orElseThrow(() -> new IllegalArgumentException("Promotion not found: " + request.id()))
                 : new Promotion();
+        promotion.setTenantId(tenantId);
         promotion.setName(request.name().trim());
         promotion.setDescription(request.description());
         promotion.setPercentOff(request.percentOff());
@@ -82,9 +85,8 @@ public class PromotionService {
 
     @Transactional
     public void delete(Long id) {
-        if (!promotionRepository.existsById(id)) {
-            throw new IllegalArgumentException("Promotion not found: " + id);
-        }
-        promotionRepository.deleteById(id);
+        Promotion promotion = promotionRepository.findByIdAndTenantId(id, TenantContext.currentTenantId())
+                .orElseThrow(() -> new IllegalArgumentException("Promotion not found: " + id));
+        promotionRepository.delete(promotion);
     }
 }

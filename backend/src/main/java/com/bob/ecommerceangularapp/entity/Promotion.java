@@ -29,6 +29,10 @@ public class Promotion {
     @Column(name = "id")
     private Long id;
 
+    /** Roadmap #21 (multi-tenancy, Milestone C). See {@link Product#getTenantId()} for the isolation rationale. */
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
     @Column(name = "name", nullable = false)
     private String name;
 

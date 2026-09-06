@@ -5,12 +5,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 
 import java.util.List;
+import java.util.Optional;
 
 /** Managed via ContentService + AdminContentController; not exposed by SDR. */
 @RepositoryRestResource(exported = false)
 public interface FaqEntryRepository extends JpaRepository<FaqEntry, Long> {
 
-    List<FaqEntry> findByActiveTrueOrderBySortOrderAscIdAsc();
+    List<FaqEntry> findByActiveTrueAndTenantIdOrderBySortOrderAscIdAsc(Long tenantId);
 
-    List<FaqEntry> findAllByOrderBySortOrderAscIdAsc();
+    List<FaqEntry> findAllByTenantIdOrderBySortOrderAscIdAsc(Long tenantId);
+
+    Optional<FaqEntry> findByIdAndTenantId(Long id, Long tenantId);
 }

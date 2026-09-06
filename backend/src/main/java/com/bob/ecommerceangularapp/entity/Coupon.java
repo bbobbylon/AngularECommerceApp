@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -14,7 +15,7 @@ import java.time.LocalDate;
 
 /** A discount code. Either percentOff or amountOff is set (percent takes precedence if both). */
 @Entity
-@Table(name = "coupon")
+@Table(name = "coupon", uniqueConstraints = @UniqueConstraint(name = "uk_coupon_tenant_code", columnNames = {"tenant_id", "code"}))
 @Getter
 @Setter
 public class Coupon {
@@ -24,7 +25,11 @@ public class Coupon {
     @Column(name = "id")
     private Long id;
 
-    @Column(name = "code", unique = true, nullable = false)
+    /** Roadmap #21 (multi-tenancy, Milestone C). See {@link Product#getTenantId()} for the isolation rationale. */
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
+    @Column(name = "code", nullable = false)
     private String code;
 
     @Column(name = "description")

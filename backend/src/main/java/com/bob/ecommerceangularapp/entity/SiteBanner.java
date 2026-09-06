@@ -10,9 +10,9 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * The single site-wide announcement banner shown above the header (roadmap #17 — simple CMS). Only
- * ever has one row in practice — {@link com.bob.ecommerceangularapp.service.ContentService} upserts
- * it — so the storefront never has to choose between several.
+ * The single per-tenant announcement banner shown above the header (roadmap #17 — simple CMS). Only
+ * ever has one row per tenant in practice — {@link com.bob.ecommerceangularapp.service.ContentService}
+ * upserts it — so the storefront never has to choose between several.
  */
 @Entity
 @Table(name = "site_banner")
@@ -24,6 +24,10 @@ public class SiteBanner {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
+
+    /** Roadmap #21 (multi-tenancy, Milestone C). See {@link Product#getTenantId()} for the isolation rationale. */
+    @Column(name = "tenant_id")
+    private Long tenantId;
 
     @Column(name = "message", nullable = false)
     private String message;

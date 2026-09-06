@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.ShippingMethodRepository;
 import com.bob.ecommerceangularapp.dao.TaxRateRepository;
 import com.bob.ecommerceangularapp.dto.AppliedPromotion;
@@ -48,7 +49,7 @@ public class TaxShippingService {
 
     @Transactional(readOnly = true)
     public List<ShippingMethodView> listShippingMethods() {
-        return shippingMethodRepository.findByActiveTrueOrderBySortOrderAscIdAsc().stream()
+        return shippingMethodRepository.findByActiveTrueAndTenantIdOrderBySortOrderAscIdAsc(TenantContext.currentTenantId()).stream()
                 .map(m -> new ShippingMethodView(m.getId(), m.getCode(), m.getName(),
                         m.getBaseRate(), m.getFreeOverThreshold(), m.getEstimatedDays()))
                 .toList();
@@ -93,14 +94,15 @@ public class TaxShippingService {
     }
 
     private ShippingMethod resolveShippingMethod(String code) {
+        Long tenantId = TenantContext.currentTenantId();
         if (code != null && !code.isBlank()) {
-            ShippingMethod m = shippingMethodRepository.findByCode(code).orElse(null);
+            ShippingMethod m = shippingMethodRepository.findByCodeAndTenantId(code, tenantId).orElse(null);
             if (m != null && m.isActive()) {
                 return m;
             }
         }
         // fall back to the cheapest active method so a quote always has a shipping basis
-        return shippingMethodRepository.findByActiveTrueOrderBySortOrderAscIdAsc().stream()
+        return shippingMethodRepository.findByActiveTrueAndTenantIdOrderBySortOrderAscIdAsc(tenantId).stream()
                 .min(Comparator.comparing(ShippingMethod::getBaseRate))
                 .orElse(null);
     }
@@ -121,7 +123,7 @@ public class TaxShippingService {
         if (country == null || country.isBlank()) {
             return BigDecimal.ZERO;
         }
-        List<TaxRate> rates = taxRateRepository.findByActiveTrue();
+        List<TaxRate> rates = taxRateRepository.findByActiveTrueAndTenantId(TenantContext.currentTenantId());
         TaxRate countryWide = null;
         for (TaxRate r : rates) {
             if (!country.equalsIgnoreCase(r.getCountry())) {
@@ -142,15 +144,17 @@ public class TaxShippingService {
 
     @Transactional(readOnly = true)
     public List<TaxRate> listTaxRates() {
-        return taxRateRepository.findAll();
+        return taxRateRepository.findAllByTenantId(TenantContext.currentTenantId());
     }
 
     @Transactional
     public TaxRate saveTaxRate(TaxRateRequest req) {
+        Long tenantId = TenantContext.currentTenantId();
         TaxRate rate = req.id() != null
-                ? taxRateRepository.findById(req.id())
+                ? taxRateRepository.findByIdAndTenantId(req.id(), tenantId)
                         .orElseThrow(() -> new IllegalArgumentException("Tax rate not found: " + req.id()))
                 : new TaxRate();
+        rate.setTenantId(tenantId);
         rate.setCountry(req.country().trim());
         rate.setState(req.state() == null || req.state().isBlank() ? null : req.state().trim());
         rate.setRatePercent(req.ratePercent());
@@ -160,23 +164,24 @@ public class TaxShippingService {
 
     @Transactional
     public void deleteTaxRate(Long id) {
-        if (!taxRateRepository.existsById(id)) {
-            throw new IllegalArgumentException("Tax rate not found: " + id);
-        }
-        taxRateRepository.deleteById(id);
+        TaxRate rate = taxRateRepository.findByIdAndTenantId(id, TenantContext.currentTenantId())
+                .orElseThrow(() -> new IllegalArgumentException("Tax rate not found: " + id));
+        taxRateRepository.delete(rate);
     }
 
     @Transactional(readOnly = true)
     public List<ShippingMethod> listAllShippingMethods() {
-        return shippingMethodRepository.findAll();
+        return shippingMethodRepository.findAllByTenantId(TenantContext.currentTenantId());
     }
 
     @Transactional
     public ShippingMethod saveShippingMethod(ShippingMethodRequest req) {
+        Long tenantId = TenantContext.currentTenantId();
         ShippingMethod method = req.id() != null
-                ? shippingMethodRepository.findById(req.id())
+                ? shippingMethodRepository.findByIdAndTenantId(req.id(), tenantId)
                         .orElseThrow(() -> new IllegalArgumentException("Shipping method not found: " + req.id()))
                 : new ShippingMethod();
+        method.setTenantId(tenantId);
         method.setCode(req.code().trim());
         method.setName(req.name().trim());
         method.setBaseRate(req.baseRate());
@@ -189,10 +194,9 @@ public class TaxShippingService {
 
     @Transactional
     public void deleteShippingMethod(Long id) {
-        if (!shippingMethodRepository.existsById(id)) {
-            throw new IllegalArgumentException("Shipping method not found: " + id);
-        }
-        shippingMethodRepository.deleteById(id);
+        ShippingMethod method = shippingMethodRepository.findByIdAndTenantId(id, TenantContext.currentTenantId())
+                .orElseThrow(() -> new IllegalArgumentException("Shipping method not found: " + id));
+        shippingMethodRepository.delete(method);
     }
 
     private static BigDecimal nz(BigDecimal v) {

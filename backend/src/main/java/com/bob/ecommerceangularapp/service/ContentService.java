@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.FaqEntryRepository;
 import com.bob.ecommerceangularapp.dao.SiteBannerRepository;
 import com.bob.ecommerceangularapp.dto.FaqEntryRequest;
@@ -37,7 +38,7 @@ public class ContentService {
 
     @Transactional(readOnly = true)
     public List<FaqEntry> listActiveFaq() {
-        return faqEntryRepository.findByActiveTrueOrderBySortOrderAscIdAsc();
+        return faqEntryRepository.findByActiveTrueAndTenantIdOrderBySortOrderAscIdAsc(TenantContext.currentTenantId());
     }
 
     // ----- admin -----
@@ -50,7 +51,11 @@ public class ContentService {
 
     @Transactional
     public SiteBanner saveBanner(SiteBannerRequest request) {
-        SiteBanner banner = currentBanner().orElseGet(SiteBanner::new);
+        SiteBanner banner = currentBanner().orElseGet(() -> {
+            SiteBanner fresh = new SiteBanner();
+            fresh.setTenantId(TenantContext.currentTenantId());
+            return fresh;
+        });
         banner.setMessage(request.message().trim());
         banner.setLinkUrl(blankToNull(request.linkUrl()));
         banner.setLinkText(blankToNull(request.linkText()));
@@ -60,15 +65,17 @@ public class ContentService {
 
     @Transactional(readOnly = true)
     public List<FaqEntry> listFaqForAdmin() {
-        return faqEntryRepository.findAllByOrderBySortOrderAscIdAsc();
+        return faqEntryRepository.findAllByTenantIdOrderBySortOrderAscIdAsc(TenantContext.currentTenantId());
     }
 
     @Transactional
     public FaqEntry saveFaq(FaqEntryRequest request) {
+        Long tenantId = TenantContext.currentTenantId();
         FaqEntry entry = request.id() != null
-                ? faqEntryRepository.findById(request.id())
+                ? faqEntryRepository.findByIdAndTenantId(request.id(), tenantId)
                         .orElseThrow(() -> new IllegalArgumentException("FAQ entry not found: " + request.id()))
                 : new FaqEntry();
+        entry.setTenantId(tenantId);
         entry.setQuestion(request.question().trim());
         entry.setAnswer(request.answer().trim());
         entry.setSortOrder(request.sortOrder());
@@ -78,14 +85,13 @@ public class ContentService {
 
     @Transactional
     public void deleteFaq(Long id) {
-        if (!faqEntryRepository.existsById(id)) {
-            throw new IllegalArgumentException("FAQ entry not found: " + id);
-        }
-        faqEntryRepository.deleteById(id);
+        FaqEntry entry = faqEntryRepository.findByIdAndTenantId(id, TenantContext.currentTenantId())
+                .orElseThrow(() -> new IllegalArgumentException("FAQ entry not found: " + id));
+        faqEntryRepository.delete(entry);
     }
 
     private Optional<SiteBanner> currentBanner() {
-        return siteBannerRepository.findAll().stream().findFirst();
+        return siteBannerRepository.findFirstByTenantId(TenantContext.currentTenantId());
     }
 
     private static String blankToNull(String s) {

@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.CouponRepository;
 import com.bob.ecommerceangularapp.dto.CouponRequest;
 import com.bob.ecommerceangularapp.dto.CouponResponse;
@@ -31,7 +32,7 @@ public class CouponService {
             subtotal = BigDecimal.ZERO;
         }
 
-        Coupon coupon = couponRepository.findByCodeIgnoreCase(code);
+        Coupon coupon = couponRepository.findByCodeIgnoreCaseAndTenantId(code, TenantContext.currentTenantId());
         if (coupon == null || !coupon.isActive()) {
             return CouponResponse.invalid(code, "That code isn't valid.");
         }
@@ -66,14 +67,16 @@ public class CouponService {
     // ----- admin -----
 
     public List<Coupon> list() {
-        return couponRepository.findAll();
+        return couponRepository.findAllByTenantId(TenantContext.currentTenantId());
     }
 
     @Transactional
     public Coupon create(CouponRequest request) {
-        Coupon coupon = couponRepository.findByCodeIgnoreCase(request.code().trim());
+        Long tenantId = TenantContext.currentTenantId();
+        Coupon coupon = couponRepository.findByCodeIgnoreCaseAndTenantId(request.code().trim(), tenantId);
         if (coupon == null) {
             coupon = new Coupon();
+            coupon.setTenantId(tenantId);
             coupon.setCode(request.code().trim().toUpperCase());
         }
         coupon.setDescription(request.description());
@@ -87,9 +90,8 @@ public class CouponService {
 
     @Transactional
     public void delete(Long id) {
-        if (!couponRepository.existsById(id)) {
-            throw new IllegalArgumentException("Coupon not found: " + id);
-        }
-        couponRepository.deleteById(id);
+        Coupon coupon = couponRepository.findByIdAndTenantId(id, TenantContext.currentTenantId())
+                .orElseThrow(() -> new IllegalArgumentException("Coupon not found: " + id));
+        couponRepository.delete(coupon);
     }
 }

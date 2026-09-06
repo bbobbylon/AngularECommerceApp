@@ -21,6 +21,10 @@ public class FaqEntry {
     @Column(name = "id")
     private Long id;
 
+    /** Roadmap #21 (multi-tenancy, Milestone C). See {@link Product#getTenantId()} for the isolation rationale. */
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
     @Column(name = "question", nullable = false)
     private String question;
 

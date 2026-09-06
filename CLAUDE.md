@@ -636,6 +636,47 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   via the browser: demo's dashboard/products/orders show its real data (100 products, orders, revenue);
   switching "viewed as" to a second tenant zeroes out every admin surface (dashboard stats, products
   list, orders list) instead of mirroring demo's; Reset correctly restores demo's original view.
+- ✅ **Multi-tenancy, Milestone C — financial + storefront-config entities (roadmap #21)** — extends
+  `tenant_id` to the 7 highest-severity entities left unscoped after Milestone A/B: `Coupon`,
+  `Promotion`, `GiftCard`, `TaxRate`, `ShippingMethod`, `SiteBanner`, `FaqEntry`. These weren't a
+  cosmetic gap — three parallel research agents confirmed a real cross-tenant money/content leak:
+  `CouponRepository.findByCodeIgnoreCase`, `PromotionRepository.findByActiveTrue`, and
+  `GiftCardRepository.findByCodeIgnoreCase` took no tenant param at all, so a code created by one
+  tenant was redeemable at another tenant's checkout; every tenant shared the same tax/shipping
+  config; and `SiteBanner` was a literal one-row-for-the-whole-app singleton
+  (`findAll().stream().findFirst()`) with `FaqEntry` unfiltered alongside it. The remaining ~16
+  entities (customer-PII-keyed and ops-only) are explicitly deferred to a future Milestone D — this
+  pass targeted only the entities with a real leak vector, per the same "partial isolation implies a
+  false guarantee, so scope deliberately" principle Milestone A established. `V18` adds `tenant_id`
+  (nullable FK + index, backfilled to `demo`) to all 7 tables; `coupon.code`/`gift_card.code`/
+  `shipping_method.code` each had a single-column DB-unique constraint that would have blocked two
+  tenants from both using e.g. `"WELCOME10"` — replaced with a composite `(tenant_id, code)` unique
+  constraint instead of just dropping it outright, matching this schema's existing preference for
+  real DB invariants where cheap (`Warehouse.code`, `ProductVariant.sku`, `Tenant.slug`).
+  `ContentService.currentBanner()`'s `findAll().stream().findFirst()` singleton became
+  `findFirstByTenantId(tenantId)` — one banner row per tenant, not a column bolted onto the old
+  whole-app singleton design. Every read/write in `CouponService`, `PromotionService`,
+  `GiftCardService`, `TaxShippingService`, and `ContentService` now threads
+  `TenantContext.currentTenantId()`, and every update/delete moved from bare `findById`/`existsById`
+  to `findByIdAndTenantId(id, tenantId).orElseThrow(...)` — the same ownership-check pattern
+  `AdminService.updateProduct`/`deleteProduct` established in the Milestone B follow-up, so a
+  superadmin "viewing as" tenant A can never mutate tenant B's coupon/promotion/gift card/tax
+  rate/shipping method/banner/FAQ entry even by guessing an id. Confirmed via a controller-layer grep
+  that none of `AdminCouponController`/`AdminPromotionController`/`AdminGiftCardController`/
+  `AdminTaxShippingController`/`AdminContentController`/`CouponController`/`GiftCardController`
+  touch a repository directly, so no controller or frontend changes were needed — the frontend
+  already sends `X-Tenant-Id` (storefront resolution or the Milestone B superadmin switcher) before
+  any of these services run. `DataLoader`'s `seedTaxAndShipping`/`seedGiftCards`/`seedCoupons`/
+  `seedContent` now take a `Tenant` parameter and stamp it on every seeded row, mirroring
+  `seedVariants(tenant)`'s existing idiom — a fresh DB seeds identically, just tenant-scoped. Also
+  confirmed, via the same research pass, that a real Okta JWT tenant claim remains structurally
+  infeasible for the primary storefront path (`TenantResolutionFilter` runs before Spring Security
+  parses any JWT) — the `X-Tenant-Id` mechanism from Milestone B stays the durable design going
+  forward, not a stopgap. Tests: extended `CouponServiceTest`/`PromotionServiceTest`/
+  `GiftCardServiceTest`/`TaxShippingServiceTest`/`ContentServiceTest` with `TenantContext.set()`/
+  `clear()` scaffolding, tenant-scoped mock signatures, and new regression tests asserting reads stay
+  scoped and creates get stamped. Full `./mvnw clean package` (incl. the real-MySQL IT validating
+  `V18`) + `npx ng build` green.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
