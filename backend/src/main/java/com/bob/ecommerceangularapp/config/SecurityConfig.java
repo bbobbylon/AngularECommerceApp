@@ -72,6 +72,17 @@ public class SecurityConfig {
     private String viewerRole;
 
     /**
+     * Platform-level tier above the three tenant-scoped admin roles above (roadmap #21, Milestone B):
+     * can manage the {@code Tenant} table itself via {@code /api/platform/**}, read through the same
+     * groups-claim mechanism as {@link #adminRole}/{@link #orderManagerRole}/{@link #viewerRole} — no new
+     * Okta claims config needed, just a new membership value. A real superadmin needs this role AND one
+     * of the admin-tier roles above if they also intend to browse a tenant's back office (see
+     * docs/SECURITY.md).
+     */
+    @Value("${app.security.superadmin-role:SuperAdmin}")
+    private String superAdminRole;
+
+    /**
      * Browser origins allowed to call the API cross-origin. Comma-separated; defaults to the two
      * local dev/compose origins. In a cloud deploy set {@code APP_CORS_ALLOWED_ORIGINS} to the
      * deployed frontend's URL (e.g. the Cloud Run frontend URL) — see docs/DEPLOYMENT.md.
@@ -130,6 +141,9 @@ public class SecurityConfig {
                         // Every other admin mutation (products, coupons, promotions, gift cards, tax/shipping,
                         // content, categories, reviews, inventory) requires full Admin.
                         .requestMatchers("/api/admin/**").hasAuthority(adminRole)
+                        // Platform-level, not tenant-scoped (roadmap #21 Milestone B) — a disjoint prefix from
+                        // /api/admin/**, so it can't collide with any rule above regardless of placement.
+                        .requestMatchers("/api/platform/**").hasAuthority(superAdminRole)
                         .anyRequest().permitAll())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(adminAwareConverter())))
                 .cors(Customizer.withDefaults())

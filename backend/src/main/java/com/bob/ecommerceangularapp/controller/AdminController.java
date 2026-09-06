@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.controller;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.ProductCategoryRepository;
 import com.bob.ecommerceangularapp.dto.AdminStats;
 import com.bob.ecommerceangularapp.dto.CategoryRequest;
@@ -41,6 +42,8 @@ public class AdminController {
     private String orderManagerRole;
     @Value("${app.security.viewer-role:Viewer}")
     private String viewerRole;
+    @Value("${app.security.superadmin-role:SuperAdmin}")
+    private String superAdminRole;
 
     private final AdminService adminService;
     private final ProductCategoryRepository productCategoryRepository;
@@ -64,25 +67,26 @@ public class AdminController {
 
     /**
      * The caller's admin-tier role(s), so the SPA can tailor its UI (e.g. hide actions a Viewer can't
-     * perform). Falls back to full {@code Admin} when the open (no-Okta) chain is active — there's no
-     * authentication to derive a role from, and the rest of the app already treats that mode as a
-     * full-access local/demo convenience.
+     * perform). Falls back to full {@code Admin} plus {@code SuperAdmin} when the open (no-Okta) chain is
+     * active — there's no authentication to derive a role from, and the rest of the app already treats
+     * that mode as a full-access local/demo convenience, now including the platform tier (roadmap #21
+     * Milestone B) so local dev can reach {@code /platform} without standing up Okta groups.
      */
     @GetMapping("/me")
     public CurrentAdminView me(Authentication authentication) {
-        Set<String> known = Set.of(adminRole, orderManagerRole, viewerRole);
+        Set<String> known = Set.of(adminRole, orderManagerRole, viewerRole, superAdminRole);
         List<String> roles = authentication == null
                 ? List.of()
                 : authentication.getAuthorities().stream()
                         .map(GrantedAuthority::getAuthority)
                         .filter(known::contains)
                         .toList();
-        return new CurrentAdminView(roles.isEmpty() ? List.of(adminRole) : roles);
+        return new CurrentAdminView(roles.isEmpty() ? List.of(adminRole, superAdminRole) : roles);
     }
 
     @GetMapping("/categories")
     public List<ProductCategory> categories() {
-        return productCategoryRepository.findAll();
+        return productCategoryRepository.findAllByTenantId(TenantContext.currentTenantId());
     }
 
     @PostMapping("/categories")

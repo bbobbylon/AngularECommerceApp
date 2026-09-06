@@ -31,13 +31,19 @@ import java.util.Optional;
  * by default, so inert locally); (3) {@code app.tenant.default-slug} — keeps the app working with zero
  * tenant config, matching the existing Okta/Stripe/Mail graceful-degradation precedent. An unknown or
  * inactive tenant 404s immediately.
+ *
+ * <p>{@code /api/platform/**} (roadmap #21, Milestone B) is skipped like actuator/swagger below — it's
+ * platform-level, not scoped to any single tenant, and skipping it here (rather than resolving normally)
+ * avoids a real lockout: a superadmin's browser could still carry a stale {@code X-Tenant-Id} for a
+ * tenant they just deactivated through that very API, which would otherwise 404 here before the request
+ * ever reaches the {@code SuperAdmin}-gated route.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 5)
 public class TenantResolutionFilter extends OncePerRequestFilter {
 
     /** Paths with no meaningful "current tenant" — skipped entirely. */
-    private static final String[] SKIPPED_PREFIXES = {"/actuator", "/swagger-ui", "/v3/api-docs"};
+    private static final String[] SKIPPED_PREFIXES = {"/actuator", "/swagger-ui", "/v3/api-docs", "/api/platform"};
 
     private static final String MDC_KEY = "tenant";
 

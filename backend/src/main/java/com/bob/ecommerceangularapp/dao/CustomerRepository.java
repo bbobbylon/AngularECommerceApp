@@ -23,4 +23,9 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     List<Customer> findByNewsletterSubscribedTrue();
 
     long countByNewsletterSubscribedTrue();
+
+    // ----- admin back office, tenant-scoped (roadmap #21, Milestone B) -----
+    long countByTenantId(Long tenantId);
+
+    long countByTenantIdAndNewsletterSubscribedTrue(Long tenantId);
 }

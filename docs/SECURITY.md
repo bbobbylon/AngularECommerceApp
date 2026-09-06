@@ -119,6 +119,18 @@ come from a configurable JWT array claim (Okta's default is `groups`) via a `Jwt
 Set these only if your IdP names its claim/group differently. While no issuer is configured the **open
 chain** applies and `/api/admin/**` is reachable for development, exactly as before.
 
+### Platform-superadmin tier (roadmap #21, Milestone B)
+
+`/api/platform/**` (tenant create/list/edit/deactivate) is gated on a separate, higher authority —
+`app.security.superadmin-role`, default `SuperAdmin` — read through the same groups-claim mechanism as
+`adminRole`/`orderManagerRole`/`viewerRole` above, not a new Okta claim. **A real superadmin needs two
+Okta group memberships**: `SuperAdmin` to manage tenants, plus one of the admin-tier roles above if they
+also intend to use the platform tenant switcher to browse a given tenant's `/api/admin/**` back office
+(the switcher just sets `X-Tenant-Id` on those calls — it doesn't grant `/api/admin/**` access by
+itself). While no issuer is configured, the open chain's `GET /api/admin/me` defaults to
+`[Admin, SuperAdmin]` so local dev can reach `/platform` with zero Okta setup, matching this app's
+existing graceful-degradation default.
+
 ### Security response headers
 
 `SecurityConfig.applyHardening()` runs on **both** chains, so every response carries:

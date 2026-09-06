@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dao.NewsletterSubscriberRepository;
 import com.bob.ecommerceangularapp.dao.OrderRepository;
@@ -9,7 +10,9 @@ import com.bob.ecommerceangularapp.dto.AdminProductRequest;
 import com.bob.ecommerceangularapp.dto.AdminStats;
 import com.bob.ecommerceangularapp.entity.Product;
 import com.bob.ecommerceangularapp.entity.ProductCategory;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -19,7 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -38,16 +43,43 @@ class AdminServiceTest {
     private final AdminService service = new AdminService(productRepository, categoryRepository,
             orderRepository, customerRepository, subscriberRepository, stockNotificationService);
 
+    @AfterEach
+    void clearTenantContext() {
+        TenantContext.clear();
+    }
+
+    @Test
+    void listProducts_scopesToCurrentTenant() {
+        TenantContext.set(7L);
+
+        service.listProducts(PageRequest.of(0, 10));
+
+        verify(productRepository).findAllByTenantId(eq(7L), any());
+    }
+
+    @Test
+    void createProduct_stampsCurrentTenantOntoTheNewProduct() {
+        TenantContext.set(7L);
+        when(categoryRepository.findByIdAndTenantId(eq(1L), eq(7L))).thenReturn(Optional.of(new ProductCategory("Books")));
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+        AdminProductRequest request = new AdminProductRequest(
+                "SKU3", "Notebook", "desc", new BigDecimal("4.00"), null, "https://img/c.png", null, true, 2, 1L);
+
+        Product saved = service.createProduct(request);
+
+        assertThat(saved.getTenantId()).isEqualTo(7L);
+    }
+
     @Test
     void stats_aggregatesRepositoryCounts() {
-        when(productRepository.count()).thenReturn(40L);
-        when(productRepository.countByActiveTrue()).thenReturn(35L);
-        when(productRepository.countByUnitsInStockLessThan(anyInt())).thenReturn(4L);
-        when(productRepository.countByOriginalPriceNotNull()).thenReturn(9L);
-        when(orderRepository.count()).thenReturn(12L);
+        when(productRepository.countByTenantId(any())).thenReturn(40L);
+        when(productRepository.countByTenantIdAndActiveTrue(any())).thenReturn(35L);
+        when(productRepository.countByTenantIdAndUnitsInStockLessThan(any(), anyInt())).thenReturn(4L);
+        when(productRepository.countByTenantIdAndOriginalPriceNotNull(any())).thenReturn(9L);
+        when(orderRepository.countByTenantId(any())).thenReturn(12L);
         when(orderRepository.sumTotalRevenue(any())).thenReturn(new BigDecimal("1234.56"));
-        when(customerRepository.count()).thenReturn(8L);
-        when(customerRepository.countByNewsletterSubscribedTrue()).thenReturn(5L);
+        when(customerRepository.countByTenantId(any())).thenReturn(8L);
+        when(customerRepository.countByTenantIdAndNewsletterSubscribedTrue(any())).thenReturn(5L);
         when(subscriberRepository.countBySubscribedTrue()).thenReturn(3L);
 
         AdminStats stats = service.stats();
@@ -65,7 +97,7 @@ class AdminServiceTest {
     @Test
     void createProduct_dropsSalePriceNotAboveUnitPrice_andFillsImageFallback() {
         ProductCategory category = new ProductCategory("Books");
-        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(categoryRepository.findByIdAndTenantId(eq(1L), any())).thenReturn(Optional.of(category));
         when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // originalPrice == unitPrice -> not a real sale -> normalized to null; blank image -> fallback;
@@ -84,7 +116,7 @@ class AdminServiceTest {
 
     @Test
     void createProduct_keepsSalePriceAboveUnitPrice() {
-        when(categoryRepository.findById(1L)).thenReturn(Optional.of(new ProductCategory("Books")));
+        when(categoryRepository.findByIdAndTenantId(eq(1L), any())).thenReturn(Optional.of(new ProductCategory("Books")));
         when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
 
         AdminProductRequest request = new AdminProductRequest(
@@ -100,7 +132,7 @@ class AdminServiceTest {
 
     @Test
     void updateProduct_throwsWhenMissing() {
-        when(productRepository.findById(99L)).thenReturn(Optional.empty());
+        when(productRepository.findByIdAndTenantId(eq(99L), any())).thenReturn(Optional.empty());
         AdminProductRequest request = new AdminProductRequest(
                 "S", "N", null, new BigDecimal("1.00"), null, "x", null, true, 1, 1L);
 

@@ -55,27 +55,30 @@ public class AdminService {
     }
 
     public AdminStats stats() {
-        long subscribers = customerRepository.countByNewsletterSubscribedTrue()
+        Long tenantId = TenantContext.currentTenantId();
+        long subscribers = customerRepository.countByTenantIdAndNewsletterSubscribedTrue(tenantId)
                 + subscriberRepository.countBySubscribedTrue();
         return new AdminStats(
-                productRepository.count(),
-                productRepository.countByActiveTrue(),
-                productRepository.countByUnitsInStockLessThan(LOW_STOCK_THRESHOLD),
-                productRepository.countByOriginalPriceNotNull(),
-                orderRepository.count(),
-                orderRepository.sumTotalRevenue(TenantContext.currentTenantId()),
-                customerRepository.count(),
+                productRepository.countByTenantId(tenantId),
+                productRepository.countByTenantIdAndActiveTrue(tenantId),
+                productRepository.countByTenantIdAndUnitsInStockLessThan(tenantId, LOW_STOCK_THRESHOLD),
+                productRepository.countByTenantIdAndOriginalPriceNotNull(tenantId),
+                orderRepository.countByTenantId(tenantId),
+                orderRepository.sumTotalRevenue(tenantId),
+                customerRepository.countByTenantId(tenantId),
                 subscribers);
     }
 
     // ----- products -----
+    // Reads/writes below are scoped to TenantContext.currentTenantId() (roadmap #21, Milestone B) so the
+    // platform-superadmin tenant switcher actually isolates the back office, not just the storefront.
 
     public Page<Product> listProducts(Pageable pageable) {
-        return productRepository.findAll(pageable);
+        return productRepository.findAllByTenantId(TenantContext.currentTenantId(), pageable);
     }
 
     public Product getProduct(Long id) {
-        return productRepository.findById(id)
+        return productRepository.findByIdAndTenantId(id, TenantContext.currentTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
     }
 
@@ -83,6 +86,7 @@ public class AdminService {
     @CacheEvict(value = CacheConfig.CATALOG_SEARCH, allEntries = true)
     public Product createProduct(AdminProductRequest request) {
         Product product = new Product();
+        product.setTenantId(TenantContext.currentTenantId());
         apply(product, request);
         return productRepository.save(product);
     }
@@ -90,7 +94,7 @@ public class AdminService {
     @Transactional
     @CacheEvict(value = CacheConfig.CATALOG_SEARCH, allEntries = true)
     public Product updateProduct(Long id, AdminProductRequest request) {
-        Product product = productRepository.findById(id)
+        Product product = productRepository.findByIdAndTenantId(id, TenantContext.currentTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
         apply(product, request);
         Product saved = productRepository.save(product);
@@ -104,14 +108,13 @@ public class AdminService {
     @Transactional
     @CacheEvict(value = CacheConfig.CATALOG_SEARCH, allEntries = true)
     public void deleteProduct(Long id) {
-        if (!productRepository.existsById(id)) {
-            throw new IllegalArgumentException("Product not found: " + id);
-        }
-        productRepository.deleteById(id);
+        Product product = productRepository.findByIdAndTenantId(id, TenantContext.currentTenantId())
+                .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
+        productRepository.delete(product);
     }
 
     private void apply(Product product, AdminProductRequest request) {
-        ProductCategory category = productCategoryRepository.findById(request.categoryId())
+        ProductCategory category = productCategoryRepository.findByIdAndTenantId(request.categoryId(), TenantContext.currentTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Category not found: " + request.categoryId()));
         product.setSku(request.sku());
         product.setName(request.name());
@@ -156,12 +159,13 @@ public class AdminService {
     // ----- orders -----
 
     public Page<AdminOrderView> listOrders(Pageable pageable) {
-        return orderRepository.findAllByOrderByDateCreatedDesc(pageable).map(this::toOrderView);
+        return orderRepository.findAllByTenantIdOrderByDateCreatedDesc(TenantContext.currentTenantId(), pageable)
+                .map(this::toOrderView);
     }
 
     @Transactional
     public AdminOrderView updateOrderStatus(Long id, String status) {
-        Order order = orderRepository.findById(id)
+        Order order = orderRepository.findByIdAndTenantId(id, TenantContext.currentTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
         order.setStatus(status);
         return toOrderView(orderRepository.save(order));
@@ -185,6 +189,8 @@ public class AdminService {
 
     @Transactional
     public ProductCategory createCategory(String name) {
-        return productCategoryRepository.save(new ProductCategory(name.trim()));
+        ProductCategory category = new ProductCategory(name.trim());
+        category.setTenantId(TenantContext.currentTenantId());
+        return productCategoryRepository.save(category);
     }
 }

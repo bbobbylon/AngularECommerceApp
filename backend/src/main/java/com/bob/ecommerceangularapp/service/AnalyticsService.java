@@ -29,7 +29,9 @@ import java.util.stream.Collectors;
 /**
  * Sales analytics for the admin dashboard (roadmap #18) — revenue trend, best sellers, order-status
  * mix, and top-line KPIs. Purely a read-side aggregation over the existing Order/OrderItem/Product
- * data (no new entity/migration): every number here is derived, never stored.
+ * data (no new entity/migration): every number here is derived, never stored. Every read is scoped to
+ * {@link TenantContext#currentTenantId()} (roadmap #21, Milestone B) so a platform superadmin viewing
+ * "as" a tenant sees that tenant's own numbers, not every tenant's combined.
  */
 @Service
 public class AnalyticsService {
@@ -93,7 +95,7 @@ public class AnalyticsService {
 
     /** All-time order count by status (missing/blank status reported as "UNKNOWN"). */
     public List<StatusCount> orderStatusBreakdown() {
-        return orderRepository.findAll().stream()
+        return orderRepository.findByTenantId(TenantContext.currentTenantId()).stream()
                 .collect(Collectors.groupingBy(
                         o -> Optional.ofNullable(o.getStatus()).filter(s -> !s.isBlank()).orElse("UNKNOWN"),
                         Collectors.counting()))
@@ -105,8 +107,9 @@ public class AnalyticsService {
 
     /** Average order value (all time) plus this-month-vs-last-month revenue growth. */
     public AnalyticsSummary summary() {
-        long totalOrders = orderRepository.count();
-        BigDecimal totalRevenue = orderRepository.sumTotalRevenue(TenantContext.currentTenantId());
+        Long tenantId = TenantContext.currentTenantId();
+        long totalOrders = orderRepository.countByTenantId(tenantId);
+        BigDecimal totalRevenue = orderRepository.sumTotalRevenue(tenantId);
         BigDecimal averageOrderValue = totalOrders == 0
                 ? BigDecimal.ZERO
                 : totalRevenue.divide(BigDecimal.valueOf(totalOrders), 2, RoundingMode.HALF_UP);
@@ -117,7 +120,7 @@ public class AnalyticsService {
 
         BigDecimal revenueThisMonth = BigDecimal.ZERO;
         BigDecimal revenueLastMonth = BigDecimal.ZERO;
-        for (Order order : orderRepository.findByDateCreatedGreaterThanEqual(toDate(lastMonthStart))) {
+        for (Order order : orderRepository.findByTenantIdAndDateCreatedGreaterThanEqual(tenantId, toDate(lastMonthStart))) {
             BigDecimal price = order.getTotalPrice() == null ? BigDecimal.ZERO : order.getTotalPrice();
             LocalDate day = toLocalDate(order.getDateCreated());
             if (!day.isBefore(thisMonthStart)) {
@@ -138,7 +141,8 @@ public class AnalyticsService {
     }
 
     private List<Order> ordersSince(int days) {
-        return orderRepository.findByDateCreatedGreaterThanEqual(toDate(LocalDate.now().minusDays(days - 1L)));
+        return orderRepository.findByTenantIdAndDateCreatedGreaterThanEqual(
+                TenantContext.currentTenantId(), toDate(LocalDate.now().minusDays(days - 1L)));
     }
 
     private static LocalDate toLocalDate(Date date) {

@@ -14,6 +14,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -121,6 +122,21 @@ class TenantResolutionFilterTest {
         filter("").doFilter(request, response, new MockFilterChain());
 
         assertThat(TenantContext.currentTenantId()).isNull();
+    }
+
+    @Test
+    void platformRoutesAreSkippedEntirelyAndNeverResolveATenant() throws ServletException, IOException {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/platform/tenants");
+        request.addHeader("X-Tenant-Id", "some-stale-slug");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        RecordingFilterChain chain = new RecordingFilterChain();
+
+        filter("").doFilter(request, response, chain);
+
+        assertThat(chain.invoked).isTrue();
+        assertThat(chain.tenantIdSeen).isNull();
+        assertThat(response.getStatus()).isEqualTo(200);
+        verifyNoInteractions(tenantResolutionService);
     }
 
     /** Records the tenant id visible to downstream code, mirroring how a real controller would see it. */

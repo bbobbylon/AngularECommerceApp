@@ -575,6 +575,67 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   a manually-inserted second tenant's product is invisible to the demo tenant's search and 404s on direct
   item GET, while visible/200 under its own `X-Tenant-Id`. 152 backend tests (H2/unit) + the real-MySQL IT
   (validating `V17`) all green via full `./mvnw package`.
+- ✅ **Multi-tenancy, Milestone B (roadmap #21)** — closes the gap Milestone A's own `TenantRepository`
+  javadoc had been deferring: there was no way to create/list/edit/deactivate a `Tenant` at all except a
+  raw SQL insert or `DataLoader`'s one-time `demo` seed. Adds a **platform-superadmin tier** above the
+  tenant-scoped `Admin`/`OrderManager`/`Viewer` roles (#19): a new `SuperAdmin` authority, read through the
+  *exact same* JWT groups-claim mechanism (`adminAwareConverter()`) — no new Okta claims config, just a new
+  role name — gates a new `/api/platform/tenants` CRUD (`PlatformTenantController`/`PlatformTenantService`,
+  no schema change, `Tenant.plan` already existed unused since V17). **Deliberately did not build a literal
+  new Okta custom claim** for "tenant identity": research confirmed it would need external per-user Okta
+  console config (or the Management API) and collides with a real ordering problem —
+  `TenantResolutionFilter` runs at `@Order(HIGHEST_PRECEDENCE+5)`, *before* Spring Security parses the JWT,
+  so nothing that early can read a claim. Instead, reused the app's own existing escape hatch: a
+  superadmin "views as" a tenant by having the frontend send the same `X-Tenant-Id` header
+  `TenantResolutionFilter` already treats as highest-precedence — same substitution-over-new-mechanism
+  call as Milestone A dropping Hibernate `@TenantId`. `/api/platform/**` is excluded from tenant
+  resolution/guarding entirely by adding it to `TenantResolutionFilter`'s existing `SKIPPED_PREFIXES`
+  array (same mechanism already used for `/actuator`/`/swagger-ui` — not a new pattern); this isn't
+  cosmetic — without it, a superadmin's browser still carrying a stale `X-Tenant-Id` for a tenant it just
+  deactivated would 404 *inside* the filter before ever reaching the `SuperAdmin`-gated route, locking
+  them out exactly when cleanup is needed. `AdminController.me()`'s open/no-Okta fallback now includes
+  `SuperAdmin` alongside `Admin`, matching the existing graceful-degradation default. Frontend: new
+  `/platform` route tier (`PlatformLayout`/`PlatformTenants`, `PlatformService`), a `TenantContextService`
+  signal threaded through `authInterceptor` (sets `X-Tenant-Id` on `/admin` calls only — `/platform`
+  itself is tenant-agnostic), and an admin-sidebar "Viewing: {slug} (platform) · Reset" banner + a
+  `SuperAdmin`-gated "Platform" nav link (courtesy UI, not the enforcement boundary — same principle as
+  #19's role badge). **Operational note**: a real superadmin needs *two* Okta group memberships —
+  `SuperAdmin` plus an admin-tier role — to both manage tenants and browse a tenant's back office via the
+  switcher (documented in `docs/SECURITY.md`). Explicitly out of scope: extending `tenant_id` to the other
+  ~22 entities, and roadmap #22 (tenant billing) itself. Tests: extended `TenantResolutionFilterTest`
+  (platform routes skip resolution entirely, zero interaction with `TenantResolutionService`), extended
+  `SecurityFilterChainIntegrationTest` (anonymous/regular-admin/superadmin cases against
+  `/api/platform/tenants`), new `PlatformTenantServiceTest`. 165 backend tests (3 auto-skipped without
+  Docker — the real-MySQL IT) + 17 frontend unit tests + full `./mvnw clean package` + production
+  `ng build` all green. **Runtime-verified**: created a second tenant ("Verify Co") via `/platform/tenants`;
+  deactivating it (soft — `active=false`, never a hard delete) makes its storefront requests 404
+  immediately while `demo` (explicit header or no header) keeps working; the audit log records both the
+  `PLATFORM_TENANT_CREATE` and `PLATFORM_TENANT_DEACTIVATE` entries.
+- ✅ **Multi-tenancy, Milestone B follow-up — admin back office was never actually tenant-scoped
+  (roadmap #21)** — live verification of the tenant switcher above surfaced a real **pre-existing gap
+  from Milestone A**, not a Milestone B bug: `AdminService`/`AdminController`/`AnalyticsService` never
+  consulted `TenantContext` for reads (only `OrderRepository.sumTotalRevenue` did), so switching "viewed
+  as" tenant changed the `X-Tenant-Id` header correctly but the back office kept showing `demo`'s data —
+  contradicting Milestone A's own stated principle that partial isolation is worse than none. Worse,
+  `AdminService.createProduct()`/`createCategory()` never stamped `tenantId` on newly created rows, so
+  every admin-created product/category since Milestone A shipped had `tenant_id = null` and was
+  **invisible to the tenant-scoped storefront search** (`ProductQueryService`'s `cb.equal(tenantId, …)`
+  never matches `NULL`). Fixed by adding tenant-scoped derived-query methods (`findAllByTenantId`,
+  `findByIdAndTenantId`, `countByTenantId`, etc., matching the existing `existsByIdAndTenantId`/
+  `findByEmailAndTenantId` convention) to `ProductRepository`/`OrderRepository`/`CustomerRepository`/
+  `ProductCategoryRepository`, rewiring every read in `AdminService`, `AdminController.categories()`,
+  and `AnalyticsService` through `TenantContext.currentTenantId()`, and stamping the tenant onto new
+  products/categories at creation (same pattern `CheckoutServiceImpl` already used for customers/orders).
+  Removed two `OrderRepository` methods left dead by this change (`findAllByOrderByDateCreatedDesc`,
+  `findByDateCreatedGreaterThanEqual`) after confirming no remaining callers. Deliberately bounded to
+  the 7 entities Milestone A already scoped — no new migration, no change to non-tenant admin surfaces
+  (inventory, reviews, coupons, promotions, gift cards, tax/shipping, content, warehouses, audit log).
+  Tests: extended `AdminServiceTest` (incl. new regression tests asserting the exact tenant id threads
+  through to the repository call / gets stamped on save) and `AnalyticsServiceTest` for the new method
+  signatures. Full `./mvnw clean package` (167 tests incl. the real-MySQL IT) green. **Runtime-verified**
+  via the browser: demo's dashboard/products/orders show its real data (100 products, orders, revenue);
+  switching "viewed as" to a second tenant zeroes out every admin surface (dashboard stats, products
+  list, orders list) instead of mirroring demo's; Reset correctly restores demo's original view.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.

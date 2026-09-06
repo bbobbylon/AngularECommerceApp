@@ -35,7 +35,7 @@ class AnalyticsServiceTest {
     void revenueOverTime_zeroFillsQuietDaysAndSumsBusyOnes() {
         Order today1 = orderOn(LocalDate.now(), "50.00");
         Order today2 = orderOn(LocalDate.now(), "25.00");
-        when(orderRepository.findByDateCreatedGreaterThanEqual(any())).thenReturn(List.of(today1, today2));
+        when(orderRepository.findByTenantIdAndDateCreatedGreaterThanEqual(any(), any())).thenReturn(List.of(today1, today2));
 
         List<RevenuePoint> points = service.revenueOverTime(7);
 
@@ -52,7 +52,7 @@ class AnalyticsServiceTest {
     void topProducts_aggregatesUnitsAndRevenueAcrossOrdersAndSortsDescending() {
         Order order1 = orderWithItems(orderItem(1L, 2, "10.00"), orderItem(2L, 1, "40.00"));
         Order order2 = orderWithItems(orderItem(1L, 3, "10.00"));
-        when(orderRepository.findByDateCreatedGreaterThanEqual(any())).thenReturn(List.of(order1, order2));
+        when(orderRepository.findByTenantIdAndDateCreatedGreaterThanEqual(any(), any())).thenReturn(List.of(order1, order2));
         when(productRepository.findAllById(any())).thenReturn(List.of(
                 Product.builder().id(1L).name("Mug").build(),
                 Product.builder().id(2L).name("Book").build()));
@@ -71,7 +71,7 @@ class AnalyticsServiceTest {
     @Test
     void topProducts_fallsBackToUnknownForADeletedProduct() {
         Order order = orderWithItems(orderItem(99L, 1, "5.00"));
-        when(orderRepository.findByDateCreatedGreaterThanEqual(any())).thenReturn(List.of(order));
+        when(orderRepository.findByTenantIdAndDateCreatedGreaterThanEqual(any(), any())).thenReturn(List.of(order));
         when(productRepository.findAllById(any())).thenReturn(List.of());
 
         List<TopProduct> top = service.topProducts(30, 5);
@@ -83,7 +83,7 @@ class AnalyticsServiceTest {
     @Test
     void topProducts_respectsTheLimit() {
         Order order = orderWithItems(orderItem(1L, 1, "10.00"), orderItem(2L, 1, "20.00"), orderItem(3L, 1, "30.00"));
-        when(orderRepository.findByDateCreatedGreaterThanEqual(any())).thenReturn(List.of(order));
+        when(orderRepository.findByTenantIdAndDateCreatedGreaterThanEqual(any(), any())).thenReturn(List.of(order));
         when(productRepository.findAllById(any())).thenReturn(List.of(
                 Product.builder().id(1L).name("A").build(),
                 Product.builder().id(2L).name("B").build(),
@@ -100,7 +100,7 @@ class AnalyticsServiceTest {
         shipped2.setStatus("SHIPPED");
         Order noStatus = new Order();
         noStatus.setStatus(null);
-        when(orderRepository.findAll()).thenReturn(List.of(shipped1, shipped2, noStatus));
+        when(orderRepository.findByTenantId(any())).thenReturn(List.of(shipped1, shipped2, noStatus));
 
         List<StatusCount> breakdown = service.orderStatusBreakdown();
 
@@ -113,14 +113,14 @@ class AnalyticsServiceTest {
 
     @Test
     void summary_computesAverageOrderValueAndMonthOverMonthGrowth() {
-        when(orderRepository.count()).thenReturn(4L);
+        when(orderRepository.countByTenantId(any())).thenReturn(4L);
         when(orderRepository.sumTotalRevenue(any())).thenReturn(new BigDecimal("400.00"));
 
         LocalDate thisMonthStart = LocalDate.now().withDayOfMonth(1);
         LocalDate lastMonthDay = thisMonthStart.minusDays(1);
         Order thisMonthOrder = orderOn(thisMonthStart, "150.00");
         Order lastMonthOrder = orderOn(lastMonthDay, "100.00");
-        when(orderRepository.findByDateCreatedGreaterThanEqual(any()))
+        when(orderRepository.findByTenantIdAndDateCreatedGreaterThanEqual(any(), any()))
                 .thenReturn(List.of(thisMonthOrder, lastMonthOrder));
 
         AnalyticsSummary summary = service.summary();
@@ -133,9 +133,9 @@ class AnalyticsServiceTest {
 
     @Test
     void summary_growthIsNullWhenThereWasNoRevenueLastMonthToCompareAgainst() {
-        when(orderRepository.count()).thenReturn(1L);
+        when(orderRepository.countByTenantId(any())).thenReturn(1L);
         when(orderRepository.sumTotalRevenue(any())).thenReturn(new BigDecimal("20.00"));
-        when(orderRepository.findByDateCreatedGreaterThanEqual(any()))
+        when(orderRepository.findByTenantIdAndDateCreatedGreaterThanEqual(any(), any()))
                 .thenReturn(List.of(orderOn(LocalDate.now(), "20.00")));
 
         AnalyticsSummary summary = service.summary();
@@ -146,9 +146,9 @@ class AnalyticsServiceTest {
 
     @Test
     void summary_averageOrderValueIsZeroWhenThereAreNoOrders() {
-        when(orderRepository.count()).thenReturn(0L);
+        when(orderRepository.countByTenantId(any())).thenReturn(0L);
         when(orderRepository.sumTotalRevenue(any())).thenReturn(BigDecimal.ZERO);
-        when(orderRepository.findByDateCreatedGreaterThanEqual(any())).thenReturn(List.of());
+        when(orderRepository.findByTenantIdAndDateCreatedGreaterThanEqual(any(), any())).thenReturn(List.of());
 
         assertThat(service.summary().averageOrderValue()).isEqualByComparingTo(BigDecimal.ZERO);
     }

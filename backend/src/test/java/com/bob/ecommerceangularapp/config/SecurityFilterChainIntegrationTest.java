@@ -191,4 +191,25 @@ class SecurityFilterChainIntegrationTest {
                         .with(jwt().authorities(new SimpleGrantedAuthority("Admin"))))
                 .andExpect(status().isCreated());
     }
+
+    // ----- Multi-tenancy platform tier (roadmap #21, Milestone B): SuperAdmin only, separate from RBAC -----
+
+    @Test
+    void platformRejectsAnonymous() throws Exception {
+        mvc.perform(get("/api/platform/tenants")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void platformRejectsRegularAdmin() throws Exception {
+        mvc.perform(get("/api/platform/tenants")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("Admin"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void platformAllowsSuperAdmin() throws Exception {
+        mvc.perform(get("/api/platform/tenants")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SuperAdmin"))))
+                .andExpect(status().isOk());
+    }
 }

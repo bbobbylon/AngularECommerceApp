@@ -41,6 +41,16 @@ export const routes: Routes = [
     ],
   },
   {
+    // Platform (superadmin) tier (roadmap #21, Milestone B) — above the tenant-scoped admin area above.
+    path: 'platform',
+    loadComponent: () => import('./components/platform/platform-layout/platform-layout').then(m => m.PlatformLayout),
+    canActivate: [devOrAuthGuard],
+    children: [
+      { path: '', redirectTo: 'tenants', pathMatch: 'full' },
+      { path: 'tenants', loadComponent: () => import('./components/platform/platform-tenants/platform-tenants').then(m => m.PlatformTenants) },
+    ],
+  },
+  {
     path: 'about',
     loadComponent: () => import('./components/about/about').then(m => m.About),
   },

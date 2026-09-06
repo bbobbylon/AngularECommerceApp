@@ -35,4 +35,17 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     /** Backs {@code TenantResourceGuardFilter} — closes the SDR {@code findById} gap (roadmap #21). */
     boolean existsByIdAndTenantId(Long id, Long tenantId);
+
+    // ----- admin back office, tenant-scoped (roadmap #21, Milestone B) -----
+    Page<Product> findAllByTenantId(Long tenantId, Pageable pageable);
+
+    Optional<Product> findByIdAndTenantId(Long id, Long tenantId);
+
+    long countByTenantId(Long tenantId);
+
+    long countByTenantIdAndActiveTrue(Long tenantId);
+
+    long countByTenantIdAndUnitsInStockLessThan(Long tenantId, int threshold);
+
+    long countByTenantIdAndOriginalPriceNotNull(Long tenantId);
 }
