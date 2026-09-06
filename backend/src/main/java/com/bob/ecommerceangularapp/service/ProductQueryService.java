@@ -1,6 +1,7 @@
 package com.bob.ecommerceangularapp.service;
 
 import com.bob.ecommerceangularapp.config.CacheConfig;
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
 import com.bob.ecommerceangularapp.dto.ProductCardView;
 import com.bob.ecommerceangularapp.entity.Product;
@@ -29,7 +30,8 @@ public class ProductQueryService {
      * filter combination (short TTL); admin product writes evict the cache (see AdminService).
      */
     @Cacheable(value = CacheConfig.CATALOG_SEARCH,
-            key = "#categoryId + '|' + #keyword + '|' + #minPrice + '|' + #maxPrice + '|' "
+            key = "T(com.bob.ecommerceangularapp.config.TenantContext).currentTenantId() + '|' "
+                    + "+ #categoryId + '|' + #keyword + '|' + #minPrice + '|' + #maxPrice + '|' "
                     + "+ #inStock + '|' + #onSale + '|' + #minRating + '|' + #pageable")
     public Page<ProductCardView> search(Long categoryId, String keyword, BigDecimal minPrice, BigDecimal maxPrice,
                                         Boolean inStock, Boolean onSale, Integer minRating, Pageable pageable) {
@@ -37,6 +39,11 @@ public class ProductQueryService {
         List<Specification<Product>> specs = new ArrayList<>();
         // Storefront only shows active products.
         specs.add((root, query, cb) -> cb.isTrue(root.get("active")));
+        // Tenant isolation is explicit here — see the tenant_id javadoc on Product.
+        Long tenantId = TenantContext.currentTenantId();
+        if (tenantId != null) {
+            specs.add((root, query, cb) -> cb.equal(root.get("tenantId"), tenantId));
+        }
 
         if (categoryId != null) {
             specs.add((root, query, cb) -> cb.equal(root.get("category").get("id"), categoryId));

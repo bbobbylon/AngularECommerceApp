@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dto.PaymentInfo;
 import com.bob.ecommerceangularapp.dto.Purchase;
@@ -63,19 +64,28 @@ public class CheckoutServiceImpl implements CheckoutService {
     public PurchaseResponse placeOrder(Purchase purchase) {
 
         Order order = purchase.getOrder();
+        Long tenantId = TenantContext.currentTenantId();
 
         String orderTrackingNumber = generateOrderTrackingNumber();
         order.setOrderTrackingNumber(orderTrackingNumber);
         order.setPaymentIntentId(purchase.getPaymentIntentId());
+        order.setTenantId(tenantId);
 
         // populate order with its items (maintains the bidirectional link)
         Set<OrderItem> orderItems = purchase.getOrderItems();
+        orderItems.forEach(item -> item.setTenantId(tenantId));
         orderItems.forEach(order::add);
 
         // Draw down SKU-level inventory for any lines bought by variant (no-op for single-SKU items).
         productVariantService.decrementForOrderItems(orderItems);
 
         // populate order with its addresses
+        if (purchase.getShippingAddress() != null) {
+            purchase.getShippingAddress().setTenantId(tenantId);
+        }
+        if (purchase.getBillingAddress() != null) {
+            purchase.getBillingAddress().setTenantId(tenantId);
+        }
         order.setShippingAddress(purchase.getShippingAddress());
         order.setBillingAddress(purchase.getBillingAddress());
 
@@ -114,8 +124,11 @@ public class CheckoutServiceImpl implements CheckoutService {
         }
 
         // populate customer with the order, reusing an existing customer if the email matches
+        // *within this tenant* — email is not globally unique, so an unscoped lookup here could
+        // silently merge a new tenant-A customer into an existing same-email tenant-B record.
         Customer customer = purchase.getCustomer();
-        Customer existingCustomer = customerRepository.findByEmail(customer.getEmail());
+        customer.setTenantId(tenantId);
+        Customer existingCustomer = customerRepository.findByEmailAndTenantId(customer.getEmail(), tenantId);
         if (existingCustomer != null) {
             customer = existingCustomer;
         }

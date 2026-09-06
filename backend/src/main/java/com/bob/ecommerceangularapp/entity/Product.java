@@ -42,6 +42,18 @@ public class Product {
     @Column(name = "id")
     private Long id;
 
+    /**
+     * Roadmap #21 (multi-tenancy, Milestone A). Isolation is enforced explicitly — services add a
+     * {@code tenant_id} predicate to every query/specification, and {@code TenantResourceGuardFilter}
+     * closes the {@code findById}-shaped gap (SDR item resources) that a query-level predicate can't
+     * reach. (Hibernate's {@code @TenantId} discriminator was evaluated as a secondary safety net but
+     * dropped: it requires every {@code EntityManager} in the app — including ones Spring Data JPA
+     * opens at repository-bootstrap time, for entities with no tenant dimension at all — to resolve a
+     * tenant id up front, which breaks on a fresh/empty database before any tenant row exists.)
+     */
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
     @Column(name = "sku")
     private String sku;
 

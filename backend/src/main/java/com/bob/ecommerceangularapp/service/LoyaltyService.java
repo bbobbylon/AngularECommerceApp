@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dao.LoyaltyTransactionRepository;
 import com.bob.ecommerceangularapp.dto.LoyaltySummary;
@@ -38,7 +39,8 @@ public class LoyaltyService {
 
     @Transactional(readOnly = true)
     public LoyaltySummary summary(String email) {
-        Customer customer = email == null ? null : customerRepository.findByEmail(email);
+        Customer customer = email == null ? null
+                : customerRepository.findByEmailAndTenantId(email, TenantContext.currentTenantId());
         int balance = customer == null ? 0 : nz(customer.getLoyaltyPoints());
         int lifetime = customer == null ? 0 : nz(customer.getLifetimePoints());
         List<LoyaltyTransactionView> history = (email == null ? List.<LoyaltyTransaction>of()

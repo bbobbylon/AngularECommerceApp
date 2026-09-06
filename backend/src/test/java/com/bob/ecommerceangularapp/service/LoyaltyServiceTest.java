@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -67,7 +68,7 @@ class LoyaltyServiceTest {
 
     @Test
     void summary_computesTierAndProgress() {
-        when(customerRepository.findByEmail("a@b.com")).thenReturn(customer("a@b.com", 300, 600));
+        when(customerRepository.findByEmailAndTenantId(eq("a@b.com"), any())).thenReturn(customer("a@b.com", 300, 600));
         when(ledger.findTop20ByCustomerEmailIgnoreCaseOrderByDateCreatedDesc(any())).thenReturn(java.util.List.of());
 
         LoyaltySummary s = service.summary("a@b.com");

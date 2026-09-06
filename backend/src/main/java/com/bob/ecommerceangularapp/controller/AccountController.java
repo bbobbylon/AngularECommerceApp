@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.controller;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dao.NewsletterSubscriberRepository;
 import com.bob.ecommerceangularapp.dto.AccountPreferences;
@@ -42,7 +43,7 @@ public class AccountController {
     public ResponseEntity<AccountPreferences> getPreferences(@RequestParam String email) {
         String normalized = normalize(email);
 
-        Customer customer = customerRepository.findByEmail(normalized);
+        Customer customer = customerRepository.findByEmailAndTenantId(normalized, TenantContext.currentTenantId());
         if (customer != null) {
             return ResponseEntity.ok(new AccountPreferences(
                     customer.getFirstName(), customer.getLastName(), customer.getEmail(),
@@ -65,7 +66,7 @@ public class AccountController {
         String normalized = normalize(request.email());
         AccountPreferences updated = null;
 
-        Customer customer = customerRepository.findByEmail(normalized);
+        Customer customer = customerRepository.findByEmailAndTenantId(normalized, TenantContext.currentTenantId());
         if (customer != null) {
             if (request.firstName() != null) {
                 customer.setFirstName(request.firstName().trim());

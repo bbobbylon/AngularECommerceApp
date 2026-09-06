@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dao.NewsletterSubscriberRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
@@ -66,7 +67,7 @@ public class NewsletterService {
         subscriberRepository.save(subscriber);
 
         // Keep a matching customer's preference in sync.
-        Customer customer = customerRepository.findByEmail(email);
+        Customer customer = customerRepository.findByEmailAndTenantId(email, TenantContext.currentTenantId());
         if (customer != null && !customer.isNewsletterSubscribed()) {
             customer.setNewsletterSubscribed(true);
             customer.ensureUnsubscribeToken();
@@ -115,7 +116,7 @@ public class NewsletterService {
             subscriberRepository.save(subscriber);
             changed = true;
         }
-        Customer customer = customerRepository.findByEmail(email);
+        Customer customer = customerRepository.findByEmailAndTenantId(email, TenantContext.currentTenantId());
         if (customer != null) {
             customer.setNewsletterSubscribed(false);
             customerRepository.save(customer);

@@ -23,8 +23,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Backed by Caffeine (already on the classpath) so there's no extra dependency and no shared state to
  * manage — swap in Redis/Bucket4j if you need limits shared across instances.
  *
- * <p>Runs just after {@link RequestIdFilter} so rejections still carry a correlation id. Read paths
- * and the core checkout flow are deliberately not limited.
+ * <p>Runs just after {@link RequestIdFilter} and {@link TenantResolutionFilter} so rejections still
+ * carry a correlation id and the rate-limit key can include the current tenant (roadmap #21) — without
+ * that, one tenant's traffic could exhaust the shared limit for every other tenant hitting the same
+ * path. Read paths and the core checkout flow are deliberately not limited.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
@@ -55,7 +57,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        String key = clientIp(request) + "|" + request.getRequestURI();
+        String key = TenantContext.currentTenantId() + "|" + clientIp(request) + "|" + request.getRequestURI();
         int count = hits.get(key, k -> new AtomicInteger()).incrementAndGet();
         if (count > MAX_REQUESTS_PER_MINUTE) {
             response.setHeader("Retry-After", "60");

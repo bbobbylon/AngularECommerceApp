@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dao.ReferralRepository;
 import com.bob.ecommerceangularapp.dto.ReferralSummary;
@@ -43,7 +44,8 @@ public class ReferralService {
     /** Summary for a customer (assigning their code on first view). Empty code for unknown emails. */
     @Transactional
     public ReferralSummary summary(String email) {
-        Customer customer = email == null ? null : customerRepository.findByEmail(email);
+        Customer customer = email == null ? null
+                : customerRepository.findByEmailAndTenantId(email, TenantContext.currentTenantId());
         if (customer == null) {
             return new ReferralSummary(email, null, 0, 0, REFERRER_REWARD, REFEREE_REWARD);
         }

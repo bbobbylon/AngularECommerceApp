@@ -35,6 +35,15 @@ public class Order {
     @Column(name = "id")
     private Long id;
 
+    /**
+     * Roadmap #21 (multi-tenancy) — see {@link Product#getTenantId()}. Note {@code Order} is one of
+     * only 5 Spring Data REST-exported repos, so its item resource (GET/PUT/DELETE /api/orders/{id})
+     * is exactly the {@code findById}-shaped gap a query-level predicate doesn't cover —
+     * {@code TenantResourceGuardFilter} closes it explicitly.
+     */
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
     @Column(name = "order_tracking_number")
     private String orderTrackingNumber;
 

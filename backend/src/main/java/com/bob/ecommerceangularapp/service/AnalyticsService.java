@@ -2,6 +2,7 @@ package com.bob.ecommerceangularapp.service;
 
 import com.bob.ecommerceangularapp.dao.OrderRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dto.AnalyticsSummary;
 import com.bob.ecommerceangularapp.dto.RevenuePoint;
 import com.bob.ecommerceangularapp.dto.StatusCount;
@@ -105,7 +106,7 @@ public class AnalyticsService {
     /** Average order value (all time) plus this-month-vs-last-month revenue growth. */
     public AnalyticsSummary summary() {
         long totalOrders = orderRepository.count();
-        BigDecimal totalRevenue = orderRepository.sumTotalRevenue();
+        BigDecimal totalRevenue = orderRepository.sumTotalRevenue(TenantContext.currentTenantId());
         BigDecimal averageOrderValue = totalOrders == 0
                 ? BigDecimal.ZERO
                 : totalRevenue.divide(BigDecimal.valueOf(totalOrders), 2, RoundingMode.HALF_UP);

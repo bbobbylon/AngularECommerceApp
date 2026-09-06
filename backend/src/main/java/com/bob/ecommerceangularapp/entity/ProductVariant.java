@@ -43,6 +43,10 @@ public class ProductVariant {
     @Column(name = "id")
     private Long id;
 
+    /** Roadmap #21 (multi-tenancy) — see {@link Product#getTenantId()}. */
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
     /** Owning product. LAZY so catalog/list queries never drag variants in unless asked. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id")

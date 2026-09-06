@@ -114,7 +114,7 @@ class AnalyticsServiceTest {
     @Test
     void summary_computesAverageOrderValueAndMonthOverMonthGrowth() {
         when(orderRepository.count()).thenReturn(4L);
-        when(orderRepository.sumTotalRevenue()).thenReturn(new BigDecimal("400.00"));
+        when(orderRepository.sumTotalRevenue(any())).thenReturn(new BigDecimal("400.00"));
 
         LocalDate thisMonthStart = LocalDate.now().withDayOfMonth(1);
         LocalDate lastMonthDay = thisMonthStart.minusDays(1);
@@ -134,7 +134,7 @@ class AnalyticsServiceTest {
     @Test
     void summary_growthIsNullWhenThereWasNoRevenueLastMonthToCompareAgainst() {
         when(orderRepository.count()).thenReturn(1L);
-        when(orderRepository.sumTotalRevenue()).thenReturn(new BigDecimal("20.00"));
+        when(orderRepository.sumTotalRevenue(any())).thenReturn(new BigDecimal("20.00"));
         when(orderRepository.findByDateCreatedGreaterThanEqual(any()))
                 .thenReturn(List.of(orderOn(LocalDate.now(), "20.00")));
 
@@ -147,7 +147,7 @@ class AnalyticsServiceTest {
     @Test
     void summary_averageOrderValueIsZeroWhenThereAreNoOrders() {
         when(orderRepository.count()).thenReturn(0L);
-        when(orderRepository.sumTotalRevenue()).thenReturn(BigDecimal.ZERO);
+        when(orderRepository.sumTotalRevenue(any())).thenReturn(BigDecimal.ZERO);
         when(orderRepository.findByDateCreatedGreaterThanEqual(any())).thenReturn(List.of());
 
         assertThat(service.summary().averageOrderValue()).isEqualByComparingTo(BigDecimal.ZERO);

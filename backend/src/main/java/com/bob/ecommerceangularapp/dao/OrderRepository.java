@@ -30,9 +30,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     // ----- admin -----
     Page<Order> findAllByOrderByDateCreatedDesc(Pageable pageable);
 
-    @Query("select coalesce(sum(o.totalPrice), 0) from Order o")
-    BigDecimal sumTotalRevenue();
+    @Query("select coalesce(sum(o.totalPrice), 0) from Order o where o.tenantId = :tenantId")
+    BigDecimal sumTotalRevenue(@Param("tenantId") Long tenantId);
 
     // ----- analytics (roadmap #18) -----
     List<Order> findByDateCreatedGreaterThanEqual(Date cutoff);
+
+    /** Backs {@code TenantResourceGuardFilter} — closes the SDR {@code findById} gap (roadmap #21). */
+    boolean existsByIdAndTenantId(Long id, Long tenantId);
 }

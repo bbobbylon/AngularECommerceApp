@@ -32,4 +32,7 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     long countByUnitsInStockLessThan(int threshold);
 
     long countByOriginalPriceNotNull();
+
+    /** Backs {@code TenantResourceGuardFilter} — closes the SDR {@code findById} gap (roadmap #21). */
+    boolean existsByIdAndTenantId(Long id, Long tenantId);
 }

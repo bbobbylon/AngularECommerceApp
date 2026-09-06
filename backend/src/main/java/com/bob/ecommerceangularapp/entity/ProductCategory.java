@@ -27,6 +27,10 @@ public class ProductCategory {
     @Column(name = "id")
     private Long id;
 
+    /** Roadmap #21 (multi-tenancy) — see {@link Product#getTenantId()}. */
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
     @Column(name = "category_name")
     private String categoryName;
 

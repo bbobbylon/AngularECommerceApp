@@ -20,6 +20,10 @@ public class Address {
     @Column(name = "id")
     private Long id;
 
+    /** Roadmap #21 (multi-tenancy) — see {@link Product#getTenantId()}. */
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
     @Column(name = "street")
     private String street;
 

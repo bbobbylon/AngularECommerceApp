@@ -28,6 +28,14 @@ public class Customer {
     @Column(name = "id")
     private Long id;
 
+    /**
+     * Roadmap #21 (multi-tenancy) — see {@link Product#getTenantId()}. Because {@code email} is
+     * deliberately not unique, every {@code findByEmail}-style lookup must be scoped by tenant too
+     * (a bare email lookup could otherwise merge two different tenants' customers).
+     */
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
     @Column(name = "first_name")
     private String firstName;
 

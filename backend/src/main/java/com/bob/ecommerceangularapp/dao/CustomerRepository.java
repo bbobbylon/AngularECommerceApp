@@ -10,7 +10,9 @@ import java.util.List;
 @RepositoryRestResource(exported = false)
 public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
-    Customer findByEmail(String email);
+    // Renamed from findByEmail(String) (roadmap #21): email is not unique across tenants, so every
+    // lookup must be scoped or two tenants' same-email customers could merge into one record.
+    Customer findByEmailAndTenantId(String email, Long tenantId);
 
     Customer findByReferralCode(String referralCode);
 

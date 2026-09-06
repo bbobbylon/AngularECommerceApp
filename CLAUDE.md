@@ -529,6 +529,52 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   `SecurityFilterChainIntegrationTest` RBAC cases + full `./mvnw clean package` (146 tests, incl. the
   real-MySQL IT validating `V16`) + 17 frontend unit tests + production build all green. (No new E2E
   spec added this round — verification leaned on the backend suite + live browser testing instead.)
+- ✅ **Multi-tenancy foundation, Milestone A (roadmap #21)** — a real, narrow, end-to-end-verified
+  tenant boundary around the core catalog/checkout path only: `Product`, `ProductCategory`,
+  `ProductVariant`, `Customer`, `Order`, `OrderItem`, `Address`. The remaining ~23 entities, the whole
+  frontend, a platform-superadmin tier, and an Okta tenant claim are **explicitly deferred** to future
+  Milestones B–D — per the RBAC feature (#19)'s precedent, partial isolation is worse than none because
+  it implies a guarantee it doesn't have, so this stayed scoped rather than touching everything shallowly.
+  New `Tenant` entity (slug/displayName/contactEmail/active/plan) + `V17` migration: creates `tenant`,
+  seeds one `demo` row, and adds a nullable `tenant_id` (real FK + index — a deliberate exception to the
+  codebase's mostly-FK-less convention, since this is the single most important isolation boundary in
+  the schema) to the 7 scoped tables, backfilling every existing row to the demo tenant (zero regression).
+  **Isolation is enforced explicitly, not via Hibernate's `@TenantId`** — that discriminator approach was
+  built and then deliberately ripped back out after empirically confirming it breaks Spring Data JPA
+  repository bootstrap for *every* repository in the app (not just tenant-scoped ones): Hibernate
+  multi-tenancy requires any `EntityManager` — including ones Spring Data opens at startup to check named
+  queries — to resolve a tenant id up front, which fails hard on a fresh/empty database before any tenant
+  row exists (confirmed via a real stack trace: `HibernateException: SessionFactory configured for
+  multi-tenancy, but no tenant identifier specified`, thrown from plain `ProductRepository` bean creation
+  in an H2 test). The plan had pre-authorized dropping this exact layer if it proved friction-prone, since
+  the explicit mechanism alone is already sufficient — so `@TenantId`, `TenantHibernateConfig` and
+  `TenantIdentifierResolver` were removed; `tenant_id` stays a plain mapped column everywhere. **Request-time
+  resolution**: `TenantContext` (thread-local, mirrors `RequestIdFilter`'s idiom) + `TenantResolutionFilter`
+  (`@Order(HIGHEST_PRECEDENCE+5)`) resolves `X-Tenant-Id` header/`?tenant=` query param → subdomain (against
+  `app.tenant.base-domain`) → `app.tenant.default-slug` (default `demo`) fallback, 404ing unknown/inactive
+  tenants; `RateLimitFilter`'s key gained a tenant dimension. **`TenantResourceGuardFilter`**
+  (`@Order(+6)`) closes the one gap an explicit query-level predicate can't reach: Spring Data REST's
+  single-item resources (`GET/PUT/PATCH/DELETE /api/products/{id}`, `/api/product-category/{id}`,
+  `/api/orders/{id}`) go straight to `findById` with no query-building step to hook, so this filter does a
+  cheap `existsByIdAndTenantId` check first and 404s (never 403) a cross-tenant id. `ProductQueryService`
+  adds an explicit tenant predicate to every faceted-search specification (and to its `@Cacheable` key —
+  a real cross-tenant cache-leak risk once catalogs diverge); `OrderRepository.sumTotalRevenue` takes an
+  explicit `tenantId` param. A real cross-tenant bug was caught and fixed while wiring this up:
+  `CustomerRepository.findByEmail` merged same-email customers globally — renamed to
+  `findByEmailAndTenantId` (email is deliberately not unique) and fixed everywhere it was called
+  (`CheckoutServiceImpl`, `AccountController`, `LoyaltyService`, `NewsletterService`, `ReferralService`).
+  `CheckoutServiceImpl.placeOrder` stamps `tenantId` (from `TenantContext`) onto the customer, order, every
+  order item, and both addresses before the cascading save. `DataLoader` creates the demo tenant on first
+  boot and stamps it onto every seeded category/product/variant; the other ~12 seed methods are untouched
+  since their target entities don't carry `tenant_id` in this milestone. Tests: new
+  `TenantResolutionFilterTest` (precedence order, unknown-tenant 404, context cleared post-request) +
+  `CustomerRepositoryTest` (same email never merges across tenants) + an extended `MySqlIntegrationTest`
+  seeding a second tenant via raw JDBC and proving, through the real filter chain, isolation both ways on
+  faceted search, a 404 on a cross-tenant item GET, and revenue scoping. **Runtime-verified** via
+  `docker compose up --build`: no-header request still renders the demo catalog with zero regression;
+  a manually-inserted second tenant's product is invisible to the demo tenant's search and 404s on direct
+  item GET, while visible/200 under its own `X-Tenant-Id`. 152 backend tests (H2/unit) + the real-MySQL IT
+  (validating `V17`) all green via full `./mvnw package`.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.

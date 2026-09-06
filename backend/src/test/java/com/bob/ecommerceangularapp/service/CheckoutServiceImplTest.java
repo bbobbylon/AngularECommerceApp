@@ -18,6 +18,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,7 +49,7 @@ class CheckoutServiceImplTest {
     @Test
     void placeOrder_generatesTrackingNumberAndLinksEntities() {
         Purchase purchase = buildPurchase();
-        when(customerRepository.findByEmail(anyString())).thenReturn(null);
+        when(customerRepository.findByEmailAndTenantId(anyString(), any())).thenReturn(null);
 
         PurchaseResponse response = service.placeOrder(purchase);
 
@@ -73,7 +74,7 @@ class CheckoutServiceImplTest {
         Purchase purchase = buildPurchase();
         Customer existing = new Customer();
         existing.setEmail("a@b.com");
-        when(customerRepository.findByEmail("a@b.com")).thenReturn(existing);
+        when(customerRepository.findByEmailAndTenantId(eq("a@b.com"), any())).thenReturn(existing);
 
         service.placeOrder(purchase);
 

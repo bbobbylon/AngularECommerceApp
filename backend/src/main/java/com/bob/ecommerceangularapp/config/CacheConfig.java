@@ -21,9 +21,12 @@ public class CacheConfig {
     /** Catalog search results — short TTL so rating/stock changes self-heal even without an evict. */
     public static final String CATALOG_SEARCH = "catalogSearch";
 
+    /** Slug -&gt; {@code Tenant} lookups (roadmap #21) — resolved on every request, so this must be cached. */
+    public static final String TENANT_LOOKUP = "tenantLookup";
+
     @Bean
     CacheManager cacheManager() {
-        CaffeineCacheManager manager = new CaffeineCacheManager(CATALOG_SEARCH);
+        CaffeineCacheManager manager = new CaffeineCacheManager(CATALOG_SEARCH, TENANT_LOOKUP);
         manager.setCaffeine(Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofSeconds(60))
                 .maximumSize(500));

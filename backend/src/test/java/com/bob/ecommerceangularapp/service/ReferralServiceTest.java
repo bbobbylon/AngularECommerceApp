@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -67,7 +68,7 @@ class ReferralServiceTest {
 
     @Test
     void summary_assignsCodeForKnownCustomer() {
-        when(customerRepository.findByEmail("a@b.com")).thenReturn(customer("a@b.com", null));
+        when(customerRepository.findByEmailAndTenantId(eq("a@b.com"), any())).thenReturn(customer("a@b.com", null));
         when(customerRepository.existsByReferralCode(anyString())).thenReturn(false);
         when(customerRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(referralRepository.findByReferrerCode(anyString())).thenReturn(List.of());

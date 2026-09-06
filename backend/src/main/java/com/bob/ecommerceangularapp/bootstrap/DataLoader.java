@@ -13,6 +13,7 @@ import com.bob.ecommerceangularapp.dao.ShippingMethodRepository;
 import com.bob.ecommerceangularapp.dao.SiteBannerRepository;
 import com.bob.ecommerceangularapp.dao.StateRepository;
 import com.bob.ecommerceangularapp.dao.TaxRateRepository;
+import com.bob.ecommerceangularapp.dao.TenantRepository;
 import com.bob.ecommerceangularapp.dao.WarehouseRepository;
 import com.bob.ecommerceangularapp.dao.WarehouseStockRepository;
 import com.bob.ecommerceangularapp.entity.Country;
@@ -28,10 +29,12 @@ import com.bob.ecommerceangularapp.entity.ShippingMethod;
 import com.bob.ecommerceangularapp.entity.SiteBanner;
 import com.bob.ecommerceangularapp.entity.State;
 import com.bob.ecommerceangularapp.entity.TaxRate;
+import com.bob.ecommerceangularapp.entity.Tenant;
 import com.bob.ecommerceangularapp.entity.Warehouse;
 import com.bob.ecommerceangularapp.entity.WarehouseStock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
@@ -90,6 +93,8 @@ public class DataLoader implements CommandLineRunner {
     private final FaqEntryRepository faqEntryRepository;
     private final WarehouseRepository warehouseRepository;
     private final WarehouseStockRepository warehouseStockRepository;
+    private final TenantRepository tenantRepository;
+    private final String defaultTenantSlug;
     private final TransactionTemplate txTemplate;
 
     public DataLoader(ProductRepository productRepository,
@@ -107,6 +112,8 @@ public class DataLoader implements CommandLineRunner {
                       FaqEntryRepository faqEntryRepository,
                       WarehouseRepository warehouseRepository,
                       WarehouseStockRepository warehouseStockRepository,
+                      TenantRepository tenantRepository,
+                      @Value("${app.tenant.default-slug:demo}") String defaultTenantSlug,
                       PlatformTransactionManager transactionManager) {
         this.productRepository = productRepository;
         this.productCategoryRepository = productCategoryRepository;
@@ -123,19 +130,22 @@ public class DataLoader implements CommandLineRunner {
         this.faqEntryRepository = faqEntryRepository;
         this.warehouseRepository = warehouseRepository;
         this.warehouseStockRepository = warehouseStockRepository;
+        this.tenantRepository = tenantRepository;
+        this.defaultTenantSlug = defaultTenantSlug;
         this.txTemplate = new TransactionTemplate(transactionManager);
     }
 
     @Override
     public void run(String... args) {
-        seedCatalog();
+        Tenant tenant = ensureDemoTenant();
+        seedCatalog(tenant);
         seedCountriesAndStates();
         backfillNewsletterDefaults();
         backfillSalePrices();
         backfillGalleryImages();
         backfillProductImages();
         backfillStockVariety();
-        seedVariants();
+        seedVariants(tenant);
         seedTaxAndShipping();
         seedGiftCards();
         seedReviews();
@@ -145,11 +155,27 @@ public class DataLoader implements CommandLineRunner {
     }
 
     /**
+     * Ensures the default tenant row exists (roadmap #21, Milestone A). On real MySQL, {@code V17}
+     * already inserts it via Flyway; this only actually creates a row on the H2 test profile, where
+     * Flyway is disabled — matching this file's established idempotent "check, then create" convention.
+     */
+    private Tenant ensureDemoTenant() {
+        return tenantRepository.findBySlugAndActiveTrue(defaultTenantSlug)
+                .orElseGet(() -> {
+                    Tenant tenant = new Tenant();
+                    tenant.setSlug(defaultTenantSlug);
+                    tenant.setDisplayName("Demo Store");
+                    tenant.setActive(true);
+                    return tenantRepository.save(tenant);
+                });
+    }
+
+    /**
      * Seeds SKU-level variants on the categories where they make sense (mugs/mouse-pads get sizes,
      * luggage gets colours); Books stay single-SKU to demonstrate a mixed catalog. Idempotent + safe
      * to run on an existing DB (it only seeds when there are products and no variants yet). Defensive.
      */
-    private void seedVariants() {
+    private void seedVariants(Tenant tenant) {
         try {
             if (productRepository.count() == 0 || variantRepository.count() > 0) {
                 return;
@@ -176,6 +202,7 @@ public class DataLoader implements CommandLineRunner {
                 }
             }
             if (!variants.isEmpty()) {
+                variants.forEach(v -> v.setTenantId(tenant.getId()));
                 variantRepository.saveAll(variants);
                 log.info("Seeded {} product variants.", variants.size());
             }
@@ -632,7 +659,7 @@ public class DataLoader implements CommandLineRunner {
         }
     }
 
-    private void seedCatalog() {
+    private void seedCatalog(Tenant tenant) {
         if (productRepository.count() > 0) {
             return;
         }
@@ -641,7 +668,9 @@ public class DataLoader implements CommandLineRunner {
         ProductCategory mugs = new ProductCategory("Coffee Mugs");
         ProductCategory mousePads = new ProductCategory("Mouse Pads");
         ProductCategory luggage = new ProductCategory("Luggage");
-        productCategoryRepository.saveAll(List.of(books, mugs, mousePads, luggage));
+        List<ProductCategory> categories = List.of(books, mugs, mousePads, luggage);
+        categories.forEach(c -> c.setTenantId(tenant.getId()));
+        productCategoryRepository.saveAll(categories);
 
         List<Product> products = new ArrayList<>();
 
@@ -679,6 +708,7 @@ public class DataLoader implements CommandLineRunner {
                 "Durable, lightweight travel gear built for the desk, the commute, and everywhere in between.",
                 24.99, 149.99, 25));
 
+        products.forEach(p -> p.setTenantId(tenant.getId()));
         productRepository.saveAll(products);
     }
 

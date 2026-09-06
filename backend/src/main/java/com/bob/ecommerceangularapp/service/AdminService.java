@@ -5,6 +5,7 @@ import com.bob.ecommerceangularapp.dao.NewsletterSubscriberRepository;
 import com.bob.ecommerceangularapp.dao.OrderRepository;
 import com.bob.ecommerceangularapp.dao.ProductCategoryRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dto.AdminOrderView;
 import com.bob.ecommerceangularapp.dto.AdminProductRequest;
 import com.bob.ecommerceangularapp.dto.AdminStats;
@@ -62,7 +63,7 @@ public class AdminService {
                 productRepository.countByUnitsInStockLessThan(LOW_STOCK_THRESHOLD),
                 productRepository.countByOriginalPriceNotNull(),
                 orderRepository.count(),
-                orderRepository.sumTotalRevenue(),
+                orderRepository.sumTotalRevenue(TenantContext.currentTenantId()),
                 customerRepository.count(),
                 subscribers);
     }

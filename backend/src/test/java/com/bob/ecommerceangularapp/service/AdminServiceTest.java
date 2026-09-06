@@ -45,7 +45,7 @@ class AdminServiceTest {
         when(productRepository.countByUnitsInStockLessThan(anyInt())).thenReturn(4L);
         when(productRepository.countByOriginalPriceNotNull()).thenReturn(9L);
         when(orderRepository.count()).thenReturn(12L);
-        when(orderRepository.sumTotalRevenue()).thenReturn(new BigDecimal("1234.56"));
+        when(orderRepository.sumTotalRevenue(any())).thenReturn(new BigDecimal("1234.56"));
         when(customerRepository.count()).thenReturn(8L);
         when(customerRepository.countByNewsletterSubscribedTrue()).thenReturn(5L);
         when(subscriberRepository.countBySubscribedTrue()).thenReturn(3L);
