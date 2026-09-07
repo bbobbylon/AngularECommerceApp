@@ -1,8 +1,11 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.SavedAddressRepository;
 import com.bob.ecommerceangularapp.dto.SavedAddressRequest;
 import com.bob.ecommerceangularapp.entity.SavedAddress;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -18,8 +21,20 @@ import static org.mockito.Mockito.when;
 /** Pure unit tests (no Spring/DB) for the address book. */
 class AddressBookServiceTest {
 
+    private static final Long TENANT_ID = 7L;
+
     private final SavedAddressRepository repo = mock(SavedAddressRepository.class);
     private final AddressBookService service = new AddressBookService(repo);
+
+    @BeforeEach
+    void setTenantContext() {
+        TenantContext.set(TENANT_ID);
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContext.clear();
+    }
 
     private SavedAddress addr(Long id, String email, boolean def) {
         SavedAddress a = new SavedAddress();
@@ -39,7 +54,7 @@ class AddressBookServiceTest {
             }
             return a;
         });
-        when(repo.findByEmailIgnoreCaseOrderByDefaultAddressDescIdDesc("a@b.com"))
+        when(repo.findByEmailIgnoreCaseAndTenantIdOrderByDefaultAddressDescIdDesc("a@b.com", TENANT_ID))
                 .thenReturn(List.of(addr(1L, "a@b.com", true), other));
 
         SavedAddress saved = service.save("a@b.com",
@@ -52,14 +67,14 @@ class AddressBookServiceTest {
     @Test
     void delete_onlyOwnerCanDelete() {
         SavedAddress a = addr(5L, "a@b.com", false);
-        when(repo.findById(5L)).thenReturn(Optional.of(a));
+        when(repo.findByIdAndTenantId(5L, TENANT_ID)).thenReturn(Optional.of(a));
         service.delete("a@b.com", 5L);
         verify(repo).delete(a);
     }
 
     @Test
     void delete_ignoresWrongOwner() {
-        when(repo.findById(5L)).thenReturn(Optional.of(addr(5L, "someone@else.com", false)));
+        when(repo.findByIdAndTenantId(5L, TENANT_ID)).thenReturn(Optional.of(addr(5L, "someone@else.com", false)));
         service.delete("a@b.com", 5L);
         verify(repo, never()).delete(any());
     }

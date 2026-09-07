@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.AbandonedCartRepository;
 import com.bob.ecommerceangularapp.dto.AbandonedCartRequest;
 import com.bob.ecommerceangularapp.email.EmailService;
@@ -43,9 +44,11 @@ public class AbandonedCartService {
         if (request.email() == null || request.email().isBlank() || request.itemCount() <= 0) {
             return;
         }
+        Long tenantId = TenantContext.currentTenantId();
         AbandonedCart cart = repository
-                .findFirstByEmailIgnoreCaseAndRecoveredFalseOrderByIdDesc(request.email().trim())
+                .findFirstByEmailIgnoreCaseAndRecoveredFalseAndTenantIdOrderByIdDesc(request.email().trim(), tenantId)
                 .orElseGet(AbandonedCart::new);
+        cart.setTenantId(tenantId);
         cart.setEmail(request.email().trim());
         cart.setItemCount(request.itemCount());
         cart.setTotal(request.total() == null ? BigDecimal.ZERO : request.total());
@@ -61,7 +64,7 @@ public class AbandonedCartService {
         if (email == null || email.isBlank()) {
             return;
         }
-        List<AbandonedCart> carts = repository.findByEmailIgnoreCaseAndRecoveredFalse(email);
+        List<AbandonedCart> carts = repository.findByEmailIgnoreCaseAndRecoveredFalseAndTenantId(email, TenantContext.currentTenantId());
         carts.forEach(c -> c.setRecovered(true));
         repository.saveAll(carts);
     }

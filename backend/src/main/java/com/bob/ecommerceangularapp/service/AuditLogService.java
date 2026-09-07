@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.AuditLogRepository;
 import com.bob.ecommerceangularapp.dto.AuditLogView;
 import com.bob.ecommerceangularapp.entity.AuditLogEntry;
@@ -27,6 +28,7 @@ public class AuditLogService {
 
     public void record(Authentication authentication, String action, String entityType, String entityId, String details) {
         AuditLogEntry entry = new AuditLogEntry();
+        entry.setTenantId(TenantContext.currentTenantId());
         entry.setActor(resolveActor(authentication));
         entry.setAction(action);
         entry.setEntityType(entityType);
@@ -36,9 +38,10 @@ public class AuditLogService {
     }
 
     public Page<AuditLogView> list(Pageable pageable, String entityType) {
+        Long tenantId = TenantContext.currentTenantId();
         Page<AuditLogEntry> page = (entityType == null || entityType.isBlank())
-                ? auditLogRepository.findAllByOrderByCreatedAtDesc(pageable)
-                : auditLogRepository.findByEntityTypeOrderByCreatedAtDesc(entityType, pageable);
+                ? auditLogRepository.findAllByTenantIdOrderByCreatedAtDesc(tenantId, pageable)
+                : auditLogRepository.findByTenantIdAndEntityTypeOrderByCreatedAtDesc(tenantId, entityType, pageable);
         return page.map(AuditLogView::from);
     }
 

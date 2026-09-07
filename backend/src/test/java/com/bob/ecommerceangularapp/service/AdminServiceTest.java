@@ -80,7 +80,7 @@ class AdminServiceTest {
         when(orderRepository.sumTotalRevenue(any())).thenReturn(new BigDecimal("1234.56"));
         when(customerRepository.countByTenantId(any())).thenReturn(8L);
         when(customerRepository.countByTenantIdAndNewsletterSubscribedTrue(any())).thenReturn(5L);
-        when(subscriberRepository.countBySubscribedTrue()).thenReturn(3L);
+        when(subscriberRepository.countByTenantIdAndSubscribedTrue(any())).thenReturn(3L);
 
         AdminStats stats = service.stats();
 

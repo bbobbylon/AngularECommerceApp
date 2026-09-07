@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.OrderRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
 import com.bob.ecommerceangularapp.dao.ShipmentRepository;
@@ -15,6 +16,8 @@ import com.bob.ecommerceangularapp.entity.Product;
 import com.bob.ecommerceangularapp.entity.Shipment;
 import com.bob.ecommerceangularapp.entity.Warehouse;
 import com.bob.ecommerceangularapp.entity.WarehouseStock;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -31,6 +34,8 @@ import static org.mockito.Mockito.when;
 /** Pure unit tests (no Spring/DB) for fulfillment: shipment lifecycle, stock draw-down, coverage ranking. */
 class FulfillmentServiceTest {
 
+    private static final Long TENANT_ID = 7L;
+
     private final WarehouseRepository warehouseRepo = mock(WarehouseRepository.class);
     private final WarehouseStockRepository stockRepo = mock(WarehouseStockRepository.class);
     private final ShipmentRepository shipmentRepo = mock(ShipmentRepository.class);
@@ -41,9 +46,20 @@ class FulfillmentServiceTest {
     private final FulfillmentService service = new FulfillmentService(
             warehouseRepo, stockRepo, shipmentRepo, orderRepo, productRepo, inventoryService);
 
+    @BeforeEach
+    void setTenantContext() {
+        TenantContext.set(TENANT_ID);
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContext.clear();
+    }
+
     private Warehouse warehouse(Long id, String code, boolean active) {
         Warehouse w = new Warehouse();
         w.setId(id);
+        w.setTenantId(TENANT_ID);
         w.setCode(code);
         w.setName(code + " warehouse");
         w.setActive(active);
@@ -53,6 +69,7 @@ class FulfillmentServiceTest {
     private Order order(Long id, String status, OrderItem... items) {
         Order order = new Order();
         order.setId(id);
+        order.setTenantId(TENANT_ID);
         order.setOrderTrackingNumber("TRACK-" + id);
         order.setStatus(status);
         for (OrderItem item : items) {
@@ -86,8 +103,8 @@ class FulfillmentServiceTest {
         WarehouseStock mugRow = stock(w, "MUG-L", 2);   // short pick: 2 on hand, 3 needed
         WarehouseStock bookRow = stock(w, "BOOK-1", 9);
 
-        when(orderRepo.findById(10L)).thenReturn(Optional.of(order));
-        when(warehouseRepo.findById(1L)).thenReturn(Optional.of(w));
+        when(orderRepo.findByIdAndTenantId(10L, TENANT_ID)).thenReturn(Optional.of(order));
+        when(warehouseRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(w));
         when(productRepo.findById(6L)).thenReturn(Optional.of(p6));
         when(stockRepo.findByWarehouseIdAndSku(1L, "MUG-L")).thenReturn(Optional.of(mugRow));
         when(stockRepo.findByWarehouseIdAndSku(1L, "BOOK-1")).thenReturn(Optional.of(bookRow));
@@ -105,8 +122,8 @@ class FulfillmentServiceTest {
     void createShipment_withCarrierGoesStraightToShippedAndSyncsOrder() {
         Warehouse w = warehouse(1L, "ATL", true);
         Order order = order(10L, "Received", line(5L, "MUG-L", 1));
-        when(orderRepo.findById(10L)).thenReturn(Optional.of(order));
-        when(warehouseRepo.findById(1L)).thenReturn(Optional.of(w));
+        when(orderRepo.findByIdAndTenantId(10L, TENANT_ID)).thenReturn(Optional.of(order));
+        when(warehouseRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(w));
         when(stockRepo.findByWarehouseIdAndSku(1L, "MUG-L")).thenReturn(Optional.empty());
         when(shipmentRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -120,8 +137,8 @@ class FulfillmentServiceTest {
     @Test
     void createShipment_rejectsInactiveWarehouse() {
         Order order = order(10L, null, line(5L, "MUG-L", 1));
-        when(orderRepo.findById(10L)).thenReturn(Optional.of(order));
-        when(warehouseRepo.findById(1L)).thenReturn(Optional.of(warehouse(1L, "OLD", false)));
+        when(orderRepo.findByIdAndTenantId(10L, TENANT_ID)).thenReturn(Optional.of(order));
+        when(warehouseRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(warehouse(1L, "OLD", false)));
 
         assertThatThrownBy(() -> service.createShipment(10L, new CreateShipmentRequest(1L, null, null, null)))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -132,17 +149,17 @@ class FulfillmentServiceTest {
     @Test
     void createShipment_neverDowngradesOrderStatusOrTouchesCancelled() {
         Warehouse w = warehouse(1L, "ATL", true);
-        when(warehouseRepo.findById(1L)).thenReturn(Optional.of(w));
+        when(warehouseRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(w));
         when(stockRepo.findByWarehouseIdAndSku(any(), any())).thenReturn(Optional.empty());
         when(shipmentRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         Order delivered = order(10L, "Delivered", line(5L, "MUG-L", 1));
-        when(orderRepo.findById(10L)).thenReturn(Optional.of(delivered));
+        when(orderRepo.findByIdAndTenantId(10L, TENANT_ID)).thenReturn(Optional.of(delivered));
         service.createShipment(10L, new CreateShipmentRequest(1L, null, null, null));
         assertThat(delivered.getStatus()).isEqualTo("Delivered"); // not dragged back to Processing
 
         Order cancelled = order(11L, "Cancelled", line(5L, "MUG-L", 1));
-        when(orderRepo.findById(11L)).thenReturn(Optional.of(cancelled));
+        when(orderRepo.findByIdAndTenantId(11L, TENANT_ID)).thenReturn(Optional.of(cancelled));
         service.createShipment(11L, new CreateShipmentRequest(1L, "UPS", "1Z", null));
         assertThat(cancelled.getStatus()).isEqualTo("Cancelled"); // off the ladder — untouched
     }
@@ -151,11 +168,12 @@ class FulfillmentServiceTest {
     void updateShipmentStatus_movesForwardSetsTimestampsAndSyncsOrder() {
         Shipment shipment = new Shipment();
         shipment.setId(7L);
+        shipment.setTenantId(TENANT_ID);
         shipment.setOrderId(10L);
         shipment.setStatus("PENDING");
         Order order = order(10L, "Processing", line(5L, "MUG-L", 1));
-        when(shipmentRepo.findById(7L)).thenReturn(Optional.of(shipment));
-        when(orderRepo.findById(10L)).thenReturn(Optional.of(order));
+        when(shipmentRepo.findByIdAndTenantId(7L, TENANT_ID)).thenReturn(Optional.of(shipment));
+        when(orderRepo.findByIdAndTenantId(10L, TENANT_ID)).thenReturn(Optional.of(order));
         when(shipmentRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         ShipmentView shipped = service.updateShipmentStatus(7L, "SHIPPED", "FedEx", "FX123");
@@ -173,9 +191,10 @@ class FulfillmentServiceTest {
     void updateShipmentStatus_rejectsBackwardOrUnknownMoves() {
         Shipment shipment = new Shipment();
         shipment.setId(7L);
+        shipment.setTenantId(TENANT_ID);
         shipment.setOrderId(10L);
         shipment.setStatus("SHIPPED");
-        when(shipmentRepo.findById(7L)).thenReturn(Optional.of(shipment));
+        when(shipmentRepo.findByIdAndTenantId(7L, TENANT_ID)).thenReturn(Optional.of(shipment));
 
         assertThatThrownBy(() -> service.updateShipmentStatus(7L, "PENDING", null, null))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -192,8 +211,8 @@ class FulfillmentServiceTest {
         Warehouse full = warehouse(2L, "F", true);
         full.setPriority(1);
         Warehouse inactive = warehouse(3L, "X", false);
-        when(orderRepo.findById(10L)).thenReturn(Optional.of(order));
-        when(warehouseRepo.findAllByOrderByPriorityAscNameAsc()).thenReturn(List.of(partial, full, inactive));
+        when(orderRepo.findByIdAndTenantId(10L, TENANT_ID)).thenReturn(Optional.of(order));
+        when(warehouseRepo.findAllByTenantIdOrderByPriorityAscNameAsc(TENANT_ID)).thenReturn(List.of(partial, full, inactive));
         when(stockRepo.findByWarehouseId(1L)).thenReturn(List.of(stock(partial, "MUG-L", 5)));
         when(stockRepo.findByWarehouseId(2L)).thenReturn(List.of(stock(full, "MUG-L", 2), stock(full, "MUG-S", 1)));
 
@@ -223,6 +242,7 @@ class FulfillmentServiceTest {
 
     @Test
     void deleteWarehouse_refusesWhenShipmentsReferenceIt() {
+        when(warehouseRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(warehouse(1L, "ATL", true)));
         when(shipmentRepo.existsByWarehouseId(1L)).thenReturn(true);
         assertThatThrownBy(() -> service.deleteWarehouse(1L))
                 .isInstanceOf(IllegalArgumentException.class)

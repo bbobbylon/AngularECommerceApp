@@ -10,7 +10,9 @@ import java.util.List;
 @RepositoryRestResource(exported = false)
 public interface ReferralRepository extends JpaRepository<Referral, Long> {
 
-    boolean existsByRefereeEmailIgnoreCase(String refereeEmail);
+    // Scoped to tenant (roadmap #21, Milestone D): email isn't unique across tenants, so an unscoped
+    // check could wrongly block (or allow) a referral based on another tenant's referee history.
+    boolean existsByRefereeEmailIgnoreCaseAndTenantId(String refereeEmail, Long tenantId);
 
-    List<Referral> findByReferrerCode(String referrerCode);
+    List<Referral> findByReferrerCodeAndTenantId(String referrerCode, Long tenantId);
 }

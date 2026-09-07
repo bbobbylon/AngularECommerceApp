@@ -14,9 +14,14 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     // lookup must be scoped or two tenants' same-email customers could merge into one record.
     Customer findByEmailAndTenantId(String email, Long tenantId);
 
-    Customer findByReferralCode(String referralCode);
-
+    // Global by design: the code itself is a random, DB-unique string, so collision-checking a
+    // freshly-generated one doesn't need to be tenant-scoped.
     boolean existsByReferralCode(String referralCode);
+
+    // Scoped to tenant (roadmap #21, Milestone D): a referral code is unique across all tenants, but a
+    // referee on tenant B's storefront must never be able to reward tenant A's referrer with points —
+    // that's a real cross-tenant financial leak, not just a data-visibility one.
+    Customer findByReferralCodeAndTenantId(String referralCode, Long tenantId);
 
     Customer findByUnsubscribeToken(String unsubscribeToken);
 

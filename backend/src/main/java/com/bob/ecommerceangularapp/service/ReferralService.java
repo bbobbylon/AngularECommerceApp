@@ -50,7 +50,7 @@ public class ReferralService {
             return new ReferralSummary(email, null, 0, 0, REFERRER_REWARD, REFEREE_REWARD);
         }
         String code = ensureCode(customer);
-        List<Referral> referrals = referralRepository.findByReferrerCode(code);
+        List<Referral> referrals = referralRepository.findByReferrerCodeAndTenantId(code, TenantContext.currentTenantId());
         int pointsEarned = referrals.stream().mapToInt(Referral::getReferrerPoints).sum();
         return new ReferralSummary(customer.getEmail(), code, referrals.size(), pointsEarned,
                 REFERRER_REWARD, REFEREE_REWARD);
@@ -66,15 +66,17 @@ public class ReferralService {
         if (referrerCode == null || referrerCode.isBlank() || referee == null) {
             return;
         }
-        if (referralRepository.existsByRefereeEmailIgnoreCase(referee.getEmail())) {
+        Long tenantId = TenantContext.currentTenantId();
+        if (referralRepository.existsByRefereeEmailIgnoreCaseAndTenantId(referee.getEmail(), tenantId)) {
             return; // already referred
         }
-        Customer referrer = customerRepository.findByReferralCode(referrerCode.trim().toUpperCase());
+        Customer referrer = customerRepository.findByReferralCodeAndTenantId(referrerCode.trim().toUpperCase(), tenantId);
         if (referrer == null || referrer.getEmail().equalsIgnoreCase(referee.getEmail())) {
-            return; // unknown code or self-referral
+            return; // unknown code (incl. one belonging to another tenant) or self-referral
         }
 
         Referral referral = new Referral();
+        referral.setTenantId(tenantId);
         referral.setReferrerCode(referrer.getReferralCode());
         referral.setRefereeEmail(referee.getEmail());
         referral.setStatus("COMPLETED");

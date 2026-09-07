@@ -16,8 +16,6 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     Page<Product> findByCategoryId(@Param("id") Long id, Pageable pageable);
 
-    Optional<Product> findBySku(String sku);
-
     Page<Product> findByNameContaining(@Param("name") String name, Pageable pageable);
 
     /** On-sale products — anything with a pre-sale ("was") price set. Powers the /sale page. */
@@ -38,6 +36,12 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     // ----- admin back office, tenant-scoped (roadmap #21, Milestone B) -----
     Page<Product> findAllByTenantId(Long tenantId, Pageable pageable);
+
+    // Unpaged variant backs the roadmap-#15 merged inventory view (roadmap #21, Milestone D — replaces
+    // an unscoped findAll()/findBySku() that mixed every tenant's stock into one admin inventory screen).
+    List<Product> findAllByTenantId(Long tenantId);
+
+    Optional<Product> findBySkuAndTenantId(String sku, Long tenantId);
 
     Optional<Product> findByIdAndTenantId(Long id, Long tenantId);
 

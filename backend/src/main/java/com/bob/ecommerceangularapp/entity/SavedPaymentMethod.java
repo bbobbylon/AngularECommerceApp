@@ -27,6 +27,10 @@ public class SavedPaymentMethod {
     @Column(name = "id")
     private Long id;
 
+    /** Roadmap #21 (multi-tenancy, Milestone D). See {@link Product#getTenantId()} for the isolation rationale. */
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
     @Column(name = "email")
     private String email;
 

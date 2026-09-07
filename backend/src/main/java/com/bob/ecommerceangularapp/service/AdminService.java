@@ -57,7 +57,7 @@ public class AdminService {
     public AdminStats stats() {
         Long tenantId = TenantContext.currentTenantId();
         long subscribers = customerRepository.countByTenantIdAndNewsletterSubscribedTrue(tenantId)
-                + subscriberRepository.countBySubscribedTrue();
+                + subscriberRepository.countByTenantIdAndSubscribedTrue(tenantId);
         return new AdminStats(
                 productRepository.countByTenantId(tenantId),
                 productRepository.countByTenantIdAndActiveTrue(tenantId),

@@ -10,7 +10,8 @@ import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 @RepositoryRestResource(exported = false)
 public interface AuditLogRepository extends JpaRepository<AuditLogEntry, Long> {
 
-    Page<AuditLogEntry> findAllByOrderByCreatedAtDesc(Pageable pageable);
+    // ----- tenant-scoped (roadmap #21, Milestone D) -----
+    Page<AuditLogEntry> findAllByTenantIdOrderByCreatedAtDesc(Long tenantId, Pageable pageable);
 
-    Page<AuditLogEntry> findByEntityTypeOrderByCreatedAtDesc(String entityType, Pageable pageable);
+    Page<AuditLogEntry> findByTenantIdAndEntityTypeOrderByCreatedAtDesc(Long tenantId, String entityType, Pageable pageable);
 }

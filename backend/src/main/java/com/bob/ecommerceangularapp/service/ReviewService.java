@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
 import com.bob.ecommerceangularapp.dao.ReviewRepository;
 import com.bob.ecommerceangularapp.dto.ReviewRequest;
@@ -30,7 +31,7 @@ public class ReviewService {
     }
 
     public Page<ReviewView> listAll(Pageable pageable) {
-        return reviewRepository.findAll(pageable).map(ReviewView::of);
+        return reviewRepository.findAllByTenantId(TenantContext.currentTenantId(), pageable).map(ReviewView::of);
     }
 
     public ReviewSummary summary(Long productId) {
@@ -43,6 +44,7 @@ public class ReviewService {
                 .orElseThrow(() -> new IllegalArgumentException("Product not found: " + request.productId()));
 
         Review review = new Review();
+        review.setTenantId(TenantContext.currentTenantId());
         review.setProductId(request.productId());
         review.setAuthorName(request.authorName().trim());
         review.setRating(request.rating());
@@ -56,7 +58,7 @@ public class ReviewService {
 
     @Transactional
     public void delete(Long id) {
-        Review review = reviewRepository.findById(id)
+        Review review = reviewRepository.findByIdAndTenantId(id, TenantContext.currentTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Review not found: " + id));
         Long productId = review.getProductId();
         reviewRepository.deleteById(id);

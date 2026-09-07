@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.OrderRepository;
 import com.bob.ecommerceangularapp.dao.ReturnRequestRepository;
 import com.bob.ecommerceangularapp.dto.CreateReturnRequest;
@@ -69,6 +70,10 @@ public class ReturnService {
         }
 
         ReturnRequest rr = new ReturnRequest();
+        // Stamped from the order's own tenant, not the ambient TenantContext: the order was found via a
+        // tenant-agnostic tracking-number lookup, which may not match the storefront the customer is
+        // currently browsing from.
+        rr.setTenantId(order.getTenantId());
         rr.setOrderId(order.getId());
         rr.setOrderTrackingNumber(order.getOrderTrackingNumber());
         rr.setCustomerEmail(orderEmail);
@@ -79,19 +84,20 @@ public class ReturnService {
 
     @Transactional(readOnly = true)
     public List<ReturnRequestView> listForEmail(String email) {
-        return returnRepository.findByCustomerEmailIgnoreCaseOrderByDateCreatedDesc(email).stream()
+        return returnRepository.findByCustomerEmailIgnoreCaseAndTenantIdOrderByDateCreatedDesc(
+                email, TenantContext.currentTenantId()).stream()
                 .map(ReturnService::toView).toList();
     }
 
     @Transactional(readOnly = true)
     public List<ReturnRequestView> adminList() {
-        return returnRepository.findAllByOrderByDateCreatedDesc().stream()
+        return returnRepository.findAllByTenantIdOrderByDateCreatedDesc(TenantContext.currentTenantId()).stream()
                 .map(ReturnService::toView).toList();
     }
 
     @Transactional
     public ReturnRequestView decide(Long id, ReturnDecisionRequest decision) {
-        ReturnRequest rr = returnRepository.findById(id)
+        ReturnRequest rr = returnRepository.findByIdAndTenantId(id, TenantContext.currentTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Return not found: " + id));
         rr.setAdminNote(decision.adminNote());
 

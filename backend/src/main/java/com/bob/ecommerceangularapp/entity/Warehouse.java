@@ -21,7 +21,7 @@ import java.util.Date;
  * {@code priority} orders warehouses when suggesting where to ship from (lower = preferred).
  */
 @Entity
-@Table(name = "warehouse", uniqueConstraints = @UniqueConstraint(name = "uk_warehouse_code", columnNames = "code"))
+@Table(name = "warehouse", uniqueConstraints = @UniqueConstraint(name = "uk_warehouse_tenant_code", columnNames = {"tenant_id", "code"}))
 @Getter
 @Setter
 public class Warehouse {
@@ -31,7 +31,11 @@ public class Warehouse {
     @Column(name = "id")
     private Long id;
 
-    /** Short unique handle shown on shipments (e.g. "ATL-EAST"). */
+    /** Roadmap #21 (multi-tenancy, Milestone D). See {@link Product#getTenantId()} for the isolation rationale. */
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
+    /** Short handle shown on shipments (e.g. "ATL-EAST"); unique per tenant. */
     @Column(name = "code", nullable = false, length = 32)
     private String code;
 

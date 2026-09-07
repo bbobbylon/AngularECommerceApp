@@ -17,7 +17,15 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
 
     List<ProductVariant> findByProductIdOrderBySortOrderAscIdAsc(Long productId);
 
+    // Unscoped by design: used only by the checkout stock decrement, which operates on a variant SKU
+    // already chosen from the current tenant's own catalog at cart time.
     Optional<ProductVariant> findBySku(String sku);
+
+    // Tenant-scoped variants back the roadmap-#15 merged inventory view (roadmap #21, Milestone D —
+    // replaces an unscoped findAll()/findBySku() that mixed every tenant's stock into one admin screen).
+    List<ProductVariant> findByProduct_TenantId(Long tenantId);
+
+    Optional<ProductVariant> findBySkuAndProduct_TenantId(String sku, Long tenantId);
 
     void deleteByProductId(Long productId);
 }

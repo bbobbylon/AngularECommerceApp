@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.InventoryAdjustmentRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
 import com.bob.ecommerceangularapp.dao.ProductVariantRepository;
@@ -61,8 +62,9 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public List<InventoryItemView> list() {
-        List<Product> products = productRepository.findAll();
-        Map<Long, List<ProductVariant>> variantsByProduct = variantRepository.findAll().stream()
+        Long tenantId = TenantContext.currentTenantId();
+        List<Product> products = productRepository.findAllByTenantId(tenantId);
+        Map<Long, List<ProductVariant>> variantsByProduct = variantRepository.findByProduct_TenantId(tenantId).stream()
                 .collect(Collectors.groupingBy(v -> v.getProduct().getId()));
 
         List<InventoryItemView> items = new ArrayList<>();
@@ -83,7 +85,8 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public Page<InventoryAdjustmentView> history(Pageable pageable) {
-        return adjustmentRepository.findAllByOrderByDateCreatedDesc(pageable).map(InventoryService::toAdjustmentView);
+        return adjustmentRepository.findAllByTenantIdOrderByDateCreatedDesc(TenantContext.currentTenantId(), pageable)
+                .map(InventoryService::toAdjustmentView);
     }
 
     private InventoryItemView toView(Product product) {
@@ -184,8 +187,9 @@ public class InventoryService {
     /** Looks up the SKU as a product first, then a variant; records the adjustment either way. */
     private Optional<InventoryItemView> apply(String sku, int newQuantity, String note, String source) {
         int quantity = Math.max(0, newQuantity);
+        Long tenantId = TenantContext.currentTenantId();
 
-        Optional<Product> product = productRepository.findBySku(sku);
+        Optional<Product> product = productRepository.findBySkuAndTenantId(sku, tenantId);
         if (product.isPresent()) {
             Product p = product.get();
             int previous = p.getUnitsInStock();
@@ -198,7 +202,7 @@ public class InventoryService {
             return Optional.of(toView(p));
         }
 
-        Optional<ProductVariant> variant = variantRepository.findBySku(sku);
+        Optional<ProductVariant> variant = variantRepository.findBySkuAndProduct_TenantId(sku, tenantId);
         if (variant.isPresent()) {
             ProductVariant v = variant.get();
             Product owner = v.getProduct();
@@ -217,6 +221,7 @@ public class InventoryService {
 
     private void log(String sku, String productName, int previous, int newQuantity, String source, String note) {
         InventoryAdjustment adjustment = new InventoryAdjustment();
+        adjustment.setTenantId(TenantContext.currentTenantId());
         adjustment.setSku(sku);
         adjustment.setProductName(productName);
         adjustment.setPreviousQuantity(previous);

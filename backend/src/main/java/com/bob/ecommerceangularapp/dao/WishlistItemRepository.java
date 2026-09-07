@@ -10,9 +10,11 @@ import java.util.List;
 @RepositoryRestResource(exported = false)
 public interface WishlistItemRepository extends JpaRepository<WishlistItem, Long> {
 
-    List<WishlistItem> findByEmail(String email);
+    // Scoped to tenant (roadmap #21, Milestone D): email isn't unique across tenants, so an unscoped
+    // lookup could merge/leak a same-email customer's wishlist across two different storefronts.
+    List<WishlistItem> findByEmailAndTenantId(String email, Long tenantId);
 
-    boolean existsByEmailAndProductId(String email, Long productId);
+    boolean existsByEmailAndProductIdAndTenantId(String email, Long productId, Long tenantId);
 
-    void deleteByEmailAndProductId(String email, Long productId);
+    void deleteByEmailAndProductIdAndTenantId(String email, Long productId, Long tenantId);
 }

@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
@@ -19,7 +20,7 @@ import java.util.UUID;
  * deduplicated by email.
  */
 @Entity
-@Table(name = "newsletter_subscriber")
+@Table(name = "newsletter_subscriber", uniqueConstraints = @UniqueConstraint(name = "uk_newsletter_subscriber_tenant_email", columnNames = {"tenant_id", "email"}))
 @Getter
 @Setter
 public class NewsletterSubscriber {
@@ -29,7 +30,11 @@ public class NewsletterSubscriber {
     @Column(name = "id")
     private Long id;
 
-    @Column(name = "email", unique = true, nullable = false)
+    /** Roadmap #21 (multi-tenancy, Milestone D). See {@link Product#getTenantId()} for the isolation rationale. */
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
+    @Column(name = "email", nullable = false)
     private String email;
 
     @Column(name = "name")

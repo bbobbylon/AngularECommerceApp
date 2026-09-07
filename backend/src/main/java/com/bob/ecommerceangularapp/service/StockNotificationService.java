@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.StockNotificationRepository;
 import com.bob.ecommerceangularapp.dto.StockNotificationRequest;
 import com.bob.ecommerceangularapp.email.EmailService;
@@ -41,6 +42,7 @@ public class StockNotificationService {
             return; // already waiting
         }
         StockNotification n = new StockNotification();
+        n.setTenantId(TenantContext.currentTenantId());
         n.setEmail(email);
         n.setProductId(request.productId());
         n.setVariantSku(sku);

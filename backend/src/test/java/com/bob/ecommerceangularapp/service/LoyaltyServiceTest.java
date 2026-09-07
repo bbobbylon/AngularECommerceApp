@@ -1,26 +1,39 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dao.LoyaltyTransactionRepository;
 import com.bob.ecommerceangularapp.dto.LoyaltySummary;
 import com.bob.ecommerceangularapp.entity.Customer;
 import com.bob.ecommerceangularapp.entity.Order;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /** Pure unit tests (no Spring/DB) for earning, redeeming and tiering loyalty points. */
 class LoyaltyServiceTest {
 
+    private static final Long TENANT_ID = 7L;
+
     private final CustomerRepository customerRepository = mock(CustomerRepository.class);
     private final LoyaltyTransactionRepository ledger = mock(LoyaltyTransactionRepository.class);
     private final LoyaltyService service = new LoyaltyService(customerRepository, ledger);
+
+    @BeforeEach
+    void setTenantContext() {
+        TenantContext.set(TENANT_ID);
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContext.clear();
+    }
 
     private Customer customer(String email, Integer balance, Integer lifetime) {
         Customer c = new Customer();
@@ -68,8 +81,9 @@ class LoyaltyServiceTest {
 
     @Test
     void summary_computesTierAndProgress() {
-        when(customerRepository.findByEmailAndTenantId(eq("a@b.com"), any())).thenReturn(customer("a@b.com", 300, 600));
-        when(ledger.findTop20ByCustomerEmailIgnoreCaseOrderByDateCreatedDesc(any())).thenReturn(java.util.List.of());
+        when(customerRepository.findByEmailAndTenantId("a@b.com", TENANT_ID)).thenReturn(customer("a@b.com", 300, 600));
+        when(ledger.findTop20ByCustomerEmailIgnoreCaseAndTenantIdOrderByDateCreatedDesc("a@b.com", TENANT_ID))
+                .thenReturn(java.util.List.of());
 
         LoyaltySummary s = service.summary("a@b.com");
 

@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.OrderRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
 import com.bob.ecommerceangularapp.dao.ShipmentRepository;
@@ -74,15 +75,20 @@ public class FulfillmentService {
 
     @Transactional(readOnly = true)
     public List<Warehouse> listWarehouses() {
-        return warehouseRepository.findAllByOrderByPriorityAscNameAsc();
+        return warehouseRepository.findAllByTenantIdOrderByPriorityAscNameAsc(TenantContext.currentTenantId());
     }
 
     @Transactional
     public Warehouse saveWarehouse(WarehouseRequest request) {
-        Warehouse warehouse = request.id() == null
-                ? new Warehouse()
-                : warehouseRepository.findById(request.id())
-                        .orElseThrow(() -> new IllegalArgumentException("Warehouse not found: " + request.id()));
+        Long tenantId = TenantContext.currentTenantId();
+        Warehouse warehouse;
+        if (request.id() == null) {
+            warehouse = new Warehouse();
+            warehouse.setTenantId(tenantId);
+        } else {
+            warehouse = warehouseRepository.findByIdAndTenantId(request.id(), tenantId)
+                    .orElseThrow(() -> new IllegalArgumentException("Warehouse not found: " + request.id()));
+        }
         warehouse.setCode(request.code().trim().toUpperCase());
         warehouse.setName(request.name().trim());
         warehouse.setCity(blankToNull(request.city()));
@@ -96,11 +102,12 @@ public class FulfillmentService {
     /** Shipments keep their warehouse for history, so a warehouse that has ever shipped can only be deactivated. */
     @Transactional
     public void deleteWarehouse(Long id) {
-        if (shipmentRepository.existsByWarehouseId(id)) {
+        Warehouse warehouse = requireWarehouse(id);
+        if (shipmentRepository.existsByWarehouseId(warehouse.getId())) {
             throw new IllegalArgumentException("This warehouse has shipments; deactivate it instead of deleting.");
         }
-        stockRepository.deleteByWarehouseId(id);
-        warehouseRepository.deleteById(id);
+        stockRepository.deleteByWarehouseId(warehouse.getId());
+        warehouseRepository.deleteById(warehouse.getId());
     }
 
     // ---------- warehouse stock ----------
@@ -141,15 +148,20 @@ public class FulfillmentService {
 
     // ---------- shipments ----------
 
+    /** Admin-facing: {@link #requireOrder} enforces tenant ownership before any shipment is exposed. */
     @Transactional(readOnly = true)
     public List<ShipmentView> shipmentsForOrder(Long orderId) {
+        requireOrder(orderId);
         return shipmentRepository.findByOrderIdOrderByDateCreatedDesc(orderId).stream()
                 .map(FulfillmentService::toView).toList();
     }
 
     /**
      * Customer-facing lookup, keyed like returns: the order's tracking number plus a matching email.
-     * The mismatch message deliberately doesn't disclose whether the order exists.
+     * The mismatch message deliberately doesn't disclose whether the order exists. Looks up shipments
+     * directly (bypassing {@link #shipmentsForOrder}'s ambient-tenant gate) since the order was already
+     * found tenant-agnostically by tracking number and verified by its own email match — mirrors
+     * {@code ReturnService.createReturn}'s rationale for trusting the found entity over ambient context.
      */
     @Transactional(readOnly = true)
     public List<ShipmentView> trackShipments(String orderTrackingNumber, String email) {
@@ -159,7 +171,8 @@ public class FulfillmentService {
         if (orderEmail == null || !orderEmail.equalsIgnoreCase(email.trim())) {
             throw new IllegalArgumentException("That email doesn't match this order.");
         }
-        return shipmentsForOrder(order.getId());
+        return shipmentRepository.findByOrderIdOrderByDateCreatedDesc(order.getId()).stream()
+                .map(FulfillmentService::toView).toList();
     }
 
     /**
@@ -171,7 +184,7 @@ public class FulfillmentService {
         Order order = requireOrder(orderId);
         Map<String, Integer> needed = neededBySku(order);
         List<FulfillmentOption> options = new ArrayList<>();
-        for (Warehouse warehouse : warehouseRepository.findAllByOrderByPriorityAscNameAsc()) {
+        for (Warehouse warehouse : warehouseRepository.findAllByTenantIdOrderByPriorityAscNameAsc(TenantContext.currentTenantId())) {
             if (!warehouse.isActive()) {
                 continue;
             }
@@ -211,6 +224,7 @@ public class FulfillmentService {
                 }));
 
         Shipment shipment = new Shipment();
+        shipment.setTenantId(order.getTenantId());
         shipment.setOrderId(order.getId());
         shipment.setOrderTrackingNumber(order.getOrderTrackingNumber());
         shipment.setWarehouse(warehouse);
@@ -233,7 +247,7 @@ public class FulfillmentService {
     /** Moves a shipment forward (PENDING → SHIPPED → DELIVERED); carrier/tracking can be filled in here. */
     @Transactional
     public ShipmentView updateShipmentStatus(Long shipmentId, String status, String carrier, String trackingNumber) {
-        Shipment shipment = shipmentRepository.findById(shipmentId)
+        Shipment shipment = shipmentRepository.findByIdAndTenantId(shipmentId, TenantContext.currentTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Shipment not found: " + shipmentId));
 
         String target = status == null ? "" : status.trim().toUpperCase();
@@ -263,7 +277,7 @@ public class FulfillmentService {
             shipment.setDeliveredAt(new Date());
         }
 
-        orderRepository.findById(shipment.getOrderId()).ifPresent(order ->
+        orderRepository.findByIdAndTenantId(shipment.getOrderId(), shipment.getTenantId()).ifPresent(order ->
                 advanceOrderStatus(order, SHIPPED.equals(target) ? "Shipped" : "Delivered"));
         return toView(shipmentRepository.save(shipment));
     }
@@ -317,12 +331,12 @@ public class FulfillmentService {
     }
 
     private Warehouse requireWarehouse(Long id) {
-        return warehouseRepository.findById(id)
+        return warehouseRepository.findByIdAndTenantId(id, TenantContext.currentTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Warehouse not found: " + id));
     }
 
     private Order requireOrder(Long id) {
-        return orderRepository.findById(id)
+        return orderRepository.findByIdAndTenantId(id, TenantContext.currentTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
     }
 

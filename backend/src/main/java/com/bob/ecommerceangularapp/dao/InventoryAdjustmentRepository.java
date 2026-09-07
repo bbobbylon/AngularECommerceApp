@@ -10,5 +10,5 @@ import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 @RepositoryRestResource(exported = false)
 public interface InventoryAdjustmentRepository extends JpaRepository<InventoryAdjustment, Long> {
 
-    Page<InventoryAdjustment> findAllByOrderByDateCreatedDesc(Pageable pageable);
+    Page<InventoryAdjustment> findAllByTenantIdOrderByDateCreatedDesc(Long tenantId, Pageable pageable);
 }

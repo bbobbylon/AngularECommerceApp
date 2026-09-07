@@ -54,9 +54,11 @@ public class NewsletterService {
             throw new IllegalArgumentException("Email is required");
         }
 
-        NewsletterSubscriber subscriber = subscriberRepository.findByEmail(email);
+        Long tenantId = TenantContext.currentTenantId();
+        NewsletterSubscriber subscriber = subscriberRepository.findByEmailAndTenantId(email, tenantId);
         if (subscriber == null) {
             subscriber = new NewsletterSubscriber();
+            subscriber.setTenantId(tenantId);
             subscriber.setEmail(email);
         }
         if (name != null && !name.isBlank()) {
@@ -110,13 +112,14 @@ public class NewsletterService {
         }
         boolean changed = false;
 
-        NewsletterSubscriber subscriber = subscriberRepository.findByEmail(email);
+        Long tenantId = TenantContext.currentTenantId();
+        NewsletterSubscriber subscriber = subscriberRepository.findByEmailAndTenantId(email, tenantId);
         if (subscriber != null) {
             subscriber.setSubscribed(false);
             subscriberRepository.save(subscriber);
             changed = true;
         }
-        Customer customer = customerRepository.findByEmailAndTenantId(email, TenantContext.currentTenantId());
+        Customer customer = customerRepository.findByEmailAndTenantId(email, tenantId);
         if (customer != null) {
             customer.setNewsletterSubscribed(false);
             customerRepository.save(customer);

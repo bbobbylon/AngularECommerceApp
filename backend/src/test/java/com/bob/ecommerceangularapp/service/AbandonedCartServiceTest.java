@@ -1,9 +1,12 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.AbandonedCartRepository;
 import com.bob.ecommerceangularapp.dto.AbandonedCartRequest;
 import com.bob.ecommerceangularapp.email.EmailService;
 import com.bob.ecommerceangularapp.entity.AbandonedCart;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -24,13 +27,25 @@ import static org.mockito.Mockito.when;
 /** Pure unit tests (no Spring/DB) for capture / recover / remind. */
 class AbandonedCartServiceTest {
 
+    private static final Long TENANT_ID = 7L;
+
     private final AbandonedCartRepository repo = mock(AbandonedCartRepository.class);
     private final EmailService emailService = mock(EmailService.class);
     private final AbandonedCartService service = new AbandonedCartService(repo, emailService, 60);
 
+    @BeforeEach
+    void setTenantContext() {
+        TenantContext.set(TENANT_ID);
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContext.clear();
+    }
+
     @Test
     void capture_savesSnapshotForNewEmail() {
-        when(repo.findFirstByEmailIgnoreCaseAndRecoveredFalseOrderByIdDesc("a@b.com"))
+        when(repo.findFirstByEmailIgnoreCaseAndRecoveredFalseAndTenantIdOrderByIdDesc("a@b.com", TENANT_ID))
                 .thenReturn(Optional.empty());
         service.capture(new AbandonedCartRequest("a@b.com", 2, new BigDecimal("30.00"), "2 items"));
         verify(repo).save(any(AbandonedCart.class));
@@ -45,7 +60,7 @@ class AbandonedCartServiceTest {
     @Test
     void markRecovered_flagsAllLiveCarts() {
         AbandonedCart c = new AbandonedCart();
-        when(repo.findByEmailIgnoreCaseAndRecoveredFalse("a@b.com")).thenReturn(List.of(c));
+        when(repo.findByEmailIgnoreCaseAndRecoveredFalseAndTenantId("a@b.com", TENANT_ID)).thenReturn(List.of(c));
         service.markRecovered("a@b.com");
         assertThat(c.isRecovered()).isTrue();
         verify(repo).saveAll(any());

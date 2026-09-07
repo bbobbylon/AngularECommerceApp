@@ -10,11 +10,16 @@ import java.util.List;
 @RepositoryRestResource(exported = false)
 public interface NewsletterSubscriberRepository extends JpaRepository<NewsletterSubscriber, Long> {
 
-    NewsletterSubscriber findByEmail(String email);
+    // Scoped to tenant (roadmap #21, Milestone D): email isn't unique across tenants, so an unscoped
+    // lookup could merge/leak a same-email subscriber across two different storefronts.
+    NewsletterSubscriber findByEmailAndTenantId(String email, Long tenantId);
 
+    // Unscoped by design: the token is a random UUID, globally unique regardless of tenant.
     NewsletterSubscriber findByUnsubscribeToken(String unsubscribeToken);
 
+    // Unscoped by design: only read by the weekly-blast scheduler, a background job with no per-tenant
+    // request context that emails every subscriber across every tenant (see WeeklyAdScheduler).
     List<NewsletterSubscriber> findBySubscribedTrue();
 
-    long countBySubscribedTrue();
+    long countByTenantIdAndSubscribedTrue(Long tenantId);
 }

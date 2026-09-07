@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.controller;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.WishlistItemRepository;
 import com.bob.ecommerceangularapp.dto.WishlistSyncRequest;
 import com.bob.ecommerceangularapp.entity.WishlistItem;
@@ -36,10 +37,12 @@ public class WishlistController {
     @Transactional
     public List<Long> sync(@Valid @RequestBody WishlistSyncRequest request) {
         String email = normalize(request.email());
+        Long tenantId = TenantContext.currentTenantId();
         if (request.productIds() != null) {
             for (Long productId : request.productIds()) {
-                if (productId != null && !wishlistRepository.existsByEmailAndProductId(email, productId)) {
+                if (productId != null && !wishlistRepository.existsByEmailAndProductIdAndTenantId(email, productId, tenantId)) {
                     WishlistItem item = new WishlistItem();
+                    item.setTenantId(tenantId);
                     item.setEmail(email);
                     item.setProductId(productId);
                     wishlistRepository.save(item);
@@ -52,11 +55,11 @@ public class WishlistController {
     @DeleteMapping
     @Transactional
     public void remove(@RequestParam String email, @RequestParam Long productId) {
-        wishlistRepository.deleteByEmailAndProductId(normalize(email), productId);
+        wishlistRepository.deleteByEmailAndProductIdAndTenantId(normalize(email), productId, TenantContext.currentTenantId());
     }
 
     private List<Long> productIds(String email) {
-        return wishlistRepository.findByEmail(email).stream()
+        return wishlistRepository.findByEmailAndTenantId(email, TenantContext.currentTenantId()).stream()
                 .map(WishlistItem::getProductId)
                 .distinct()
                 .sorted()

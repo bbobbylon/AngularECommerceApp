@@ -10,5 +10,7 @@ import java.util.List;
 @RepositoryRestResource(exported = false)
 public interface LoyaltyTransactionRepository extends JpaRepository<LoyaltyTransaction, Long> {
 
-    List<LoyaltyTransaction> findTop20ByCustomerEmailIgnoreCaseOrderByDateCreatedDesc(String email);
+    // Scoped to tenant (roadmap #21, Milestone D): email isn't unique across tenants, so an unscoped
+    // lookup could leak a same-email customer's rewards history across two different storefronts.
+    List<LoyaltyTransaction> findTop20ByCustomerEmailIgnoreCaseAndTenantIdOrderByDateCreatedDesc(String email, Long tenantId);
 }

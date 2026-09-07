@@ -12,9 +12,13 @@ import java.util.Optional;
 @RepositoryRestResource(exported = false)
 public interface AbandonedCartRepository extends JpaRepository<AbandonedCart, Long> {
 
-    Optional<AbandonedCart> findFirstByEmailIgnoreCaseAndRecoveredFalseOrderByIdDesc(String email);
+    // Scoped to tenant (roadmap #21, Milestone D): email isn't unique across tenants, so an unscoped
+    // lookup could merge/recover a same-email customer's cart snapshot across two different storefronts.
+    Optional<AbandonedCart> findFirstByEmailIgnoreCaseAndRecoveredFalseAndTenantIdOrderByIdDesc(String email, Long tenantId);
 
-    List<AbandonedCart> findByEmailIgnoreCaseAndRecoveredFalse(String email);
+    List<AbandonedCart> findByEmailIgnoreCaseAndRecoveredFalseAndTenantId(String email, Long tenantId);
 
+    // Unscoped by design: read only by the reminder scheduler, a background job with no per-tenant
+    // request context that emails every idle cart across every tenant (see AbandonedCartScheduler).
     List<AbandonedCart> findByRecoveredFalseAndRemindedFalseAndLastUpdatedBefore(Date cutoff);
 }

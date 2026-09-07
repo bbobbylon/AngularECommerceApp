@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.SavedAddressRepository;
 import com.bob.ecommerceangularapp.dto.SavedAddressRequest;
 import com.bob.ecommerceangularapp.entity.SavedAddress;
@@ -25,17 +26,19 @@ public class AddressBookService {
     @Transactional(readOnly = true)
     public List<SavedAddress> list(String email) {
         return email == null ? List.of()
-                : repository.findByEmailIgnoreCaseOrderByDefaultAddressDescIdDesc(email.trim());
+                : repository.findByEmailIgnoreCaseAndTenantIdOrderByDefaultAddressDescIdDesc(email.trim(), TenantContext.currentTenantId());
     }
 
     @Transactional
     public SavedAddress save(String email, SavedAddressRequest request) {
         String owner = email.trim();
+        Long tenantId = TenantContext.currentTenantId();
         SavedAddress address = request.id() != null
-                ? repository.findById(request.id())
+                ? repository.findByIdAndTenantId(request.id(), tenantId)
                         .filter(a -> a.getEmail() != null && a.getEmail().equalsIgnoreCase(owner))
                         .orElseThrow(() -> new IllegalArgumentException("Address not found"))
                 : new SavedAddress();
+        address.setTenantId(tenantId);
         address.setEmail(owner);
         address.setLabel(blankToNull(request.label()));
         address.setRecipientName(blankToNull(request.recipientName()));
@@ -49,7 +52,7 @@ public class AddressBookService {
 
         if (saved.isDefaultAddress()) {
             // exactly one default per customer
-            for (SavedAddress other : repository.findByEmailIgnoreCaseOrderByDefaultAddressDescIdDesc(owner)) {
+            for (SavedAddress other : repository.findByEmailIgnoreCaseAndTenantIdOrderByDefaultAddressDescIdDesc(owner, tenantId)) {
                 if (!other.getId().equals(saved.getId()) && other.isDefaultAddress()) {
                     other.setDefaultAddress(false);
                     repository.save(other);
@@ -61,7 +64,7 @@ public class AddressBookService {
 
     @Transactional
     public void delete(String email, Long id) {
-        repository.findById(id)
+        repository.findByIdAndTenantId(id, TenantContext.currentTenantId())
                 .filter(a -> a.getEmail() != null && a.getEmail().equalsIgnoreCase(email.trim()))
                 .ifPresent(repository::delete);
     }

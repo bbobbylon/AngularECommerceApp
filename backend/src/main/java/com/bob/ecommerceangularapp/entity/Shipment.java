@@ -34,6 +34,10 @@ public class Shipment {
     @Column(name = "id")
     private Long id;
 
+    /** Roadmap #21 (multi-tenancy, Milestone D). See {@link Product#getTenantId()} for the isolation rationale. */
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
     @Column(name = "order_id", nullable = false)
     private Long orderId;
 

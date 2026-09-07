@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.SavedPaymentMethodRepository;
 import com.bob.ecommerceangularapp.dto.SetupIntentResponse;
 import com.bob.ecommerceangularapp.entity.SavedPaymentMethod;
@@ -42,7 +43,7 @@ public class PaymentMethodService {
     @Transactional(readOnly = true)
     public List<SavedPaymentMethod> list(String email) {
         return email == null ? List.of()
-                : repository.findByEmailIgnoreCaseOrderByDefaultMethodDescIdDesc(email.trim());
+                : repository.findByEmailIgnoreCaseAndTenantIdOrderByDefaultMethodDescIdDesc(email.trim(), TenantContext.currentTenantId());
     }
 
     /** Begins an "add a card" flow; returns a disabled response when Stripe isn't configured. */
@@ -72,7 +73,9 @@ public class PaymentMethodService {
         try {
             Stripe.apiKey = stripeKey;
             PaymentMethod pm = PaymentMethod.retrieve(paymentMethodId);
+            Long tenantId = TenantContext.currentTenantId();
             SavedPaymentMethod saved = new SavedPaymentMethod();
+            saved.setTenantId(tenantId);
             saved.setEmail(email.trim());
             saved.setStripePaymentMethodId(pm.getId());
             if (pm.getCard() != null) {
@@ -81,7 +84,7 @@ public class PaymentMethodService {
                 saved.setExpMonth(pm.getCard().getExpMonth() == null ? null : pm.getCard().getExpMonth().intValue());
                 saved.setExpYear(pm.getCard().getExpYear() == null ? null : pm.getCard().getExpYear().intValue());
             }
-            saved.setDefaultMethod(repository.findByEmailIgnoreCaseOrderByDefaultMethodDescIdDesc(email.trim()).isEmpty());
+            saved.setDefaultMethod(repository.findByEmailIgnoreCaseAndTenantIdOrderByDefaultMethodDescIdDesc(email.trim(), tenantId).isEmpty());
             return repository.save(saved);
         } catch (IllegalStateException e) {
             throw e;
@@ -92,7 +95,7 @@ public class PaymentMethodService {
 
     @Transactional
     public void delete(String email, Long id) {
-        repository.findById(id)
+        repository.findByIdAndTenantId(id, TenantContext.currentTenantId())
                 .filter(pm -> pm.getEmail() != null && pm.getEmail().equalsIgnoreCase(email.trim()))
                 .ifPresent(pm -> {
                     detachFromStripe(pm.getStripePaymentMethodId());

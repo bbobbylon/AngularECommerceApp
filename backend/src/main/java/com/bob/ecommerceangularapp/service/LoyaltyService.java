@@ -44,7 +44,7 @@ public class LoyaltyService {
         int balance = customer == null ? 0 : nz(customer.getLoyaltyPoints());
         int lifetime = customer == null ? 0 : nz(customer.getLifetimePoints());
         List<LoyaltyTransactionView> history = (email == null ? List.<LoyaltyTransaction>of()
-                : ledger.findTop20ByCustomerEmailIgnoreCaseOrderByDateCreatedDesc(email)).stream()
+                : ledger.findTop20ByCustomerEmailIgnoreCaseAndTenantIdOrderByDateCreatedDesc(email, TenantContext.currentTenantId())).stream()
                 .map(t -> new LoyaltyTransactionView(t.getType(), t.getPoints(), t.getDescription(), t.getDateCreated()))
                 .toList();
         return new LoyaltySummary(email, balance, lifetime, tierFor(lifetime), nextTierFor(lifetime),
@@ -108,6 +108,7 @@ public class LoyaltyService {
 
     private void record(String email, String type, int points, String description, Long orderId) {
         LoyaltyTransaction tx = new LoyaltyTransaction();
+        tx.setTenantId(TenantContext.currentTenantId());
         tx.setCustomerEmail(email);
         tx.setType(type);
         tx.setPoints(points);

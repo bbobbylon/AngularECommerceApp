@@ -148,10 +148,10 @@ public class DataLoader implements CommandLineRunner {
         seedVariants(tenant);
         seedTaxAndShipping(tenant);
         seedGiftCards(tenant);
-        seedReviews();
+        seedReviews(tenant);
         seedCoupons(tenant);
         seedContent(tenant);
-        seedWarehouses();
+        seedWarehouses(tenant);
     }
 
     /**
@@ -389,13 +389,13 @@ public class DataLoader implements CommandLineRunner {
      * Uses the same SKU convention as the inventory view: a product's own SKU only when it has no
      * variants, else each variant's SKU. Idempotent (skips once any warehouse exists) + defensive.
      */
-    private void seedWarehouses() {
+    private void seedWarehouses(Tenant tenant) {
         try {
             if (warehouseRepository.count() > 0) {
                 return;
             }
-            Warehouse east = warehouse("ATL-EAST", "East Coast Fulfillment", "Atlanta", "Georgia", 0);
-            Warehouse west = warehouse("RNO-WEST", "West Coast Fulfillment", "Reno", "Nevada", 1);
+            Warehouse east = warehouse(tenant, "ATL-EAST", "East Coast Fulfillment", "Atlanta", "Georgia", 0);
+            Warehouse west = warehouse(tenant, "RNO-WEST", "West Coast Fulfillment", "Reno", "Nevada", 1);
             warehouseRepository.saveAll(List.of(east, west));
 
             java.util.Set<Long> productsWithVariants = variantRepository.findAll().stream()
@@ -415,8 +415,9 @@ public class DataLoader implements CommandLineRunner {
         }
     }
 
-    private Warehouse warehouse(String code, String name, String city, String state, int priority) {
+    private Warehouse warehouse(Tenant tenant, String code, String name, String city, String state, int priority) {
         Warehouse w = new Warehouse();
+        w.setTenantId(tenant.getId());
         w.setCode(code);
         w.setName(name);
         w.setCity(city);
@@ -468,7 +469,7 @@ public class DataLoader implements CommandLineRunner {
             "Decent product, met my expectations."};
 
     /** Seeds reviews on ~half the catalog (mostly 4–5★) and sets each product's rating aggregates. */
-    private void seedReviews() {
+    private void seedReviews(Tenant tenant) {
         if (reviewRepository.count() > 0) {
             return;
         }
@@ -486,6 +487,7 @@ public class DataLoader implements CommandLineRunner {
             for (int j = 0; j < count; j++) {
                 int rating = ratingFor(i, j);
                 Review review = new Review();
+                review.setTenantId(tenant.getId());
                 review.setProductId(product.getId());
                 review.setAuthorName(REVIEW_AUTHORS[(i + j) % REVIEW_AUTHORS.length]);
                 review.setRating(rating);

@@ -50,7 +50,7 @@ public class AccountController {
                     customer.isNewsletterSubscribed()));
         }
 
-        NewsletterSubscriber subscriber = subscriberRepository.findByEmail(normalized);
+        NewsletterSubscriber subscriber = subscriberRepository.findByEmailAndTenantId(normalized, TenantContext.currentTenantId());
         if (subscriber != null) {
             String[] parts = splitName(subscriber.getName());
             return ResponseEntity.ok(new AccountPreferences(
@@ -83,7 +83,7 @@ public class AccountController {
             updated = new AccountPreferences(customer.getFirstName(), customer.getLastName(),
                     customer.getEmail(), customer.isNewsletterSubscribed());
         } else {
-            NewsletterSubscriber subscriber = subscriberRepository.findByEmail(normalized);
+            NewsletterSubscriber subscriber = subscriberRepository.findByEmailAndTenantId(normalized, TenantContext.currentTenantId());
             if (subscriber != null) {
                 if (request.newsletterSubscribed() != null) {
                     subscriber.setSubscribed(request.newsletterSubscribed());
@@ -106,7 +106,7 @@ public class AccountController {
 
     /** Keep a standalone subscriber row (if any) in sync with the customer's preference. */
     private void syncSubscriber(String email, boolean subscribed) {
-        NewsletterSubscriber subscriber = subscriberRepository.findByEmail(email);
+        NewsletterSubscriber subscriber = subscriberRepository.findByEmailAndTenantId(email, TenantContext.currentTenantId());
         if (subscriber != null && subscriber.isSubscribed() != subscribed) {
             subscriber.setSubscribed(subscribed);
             subscriberRepository.save(subscriber);

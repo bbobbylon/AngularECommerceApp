@@ -1,8 +1,11 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.AuditLogRepository;
 import com.bob.ecommerceangularapp.dto.AuditLogView;
 import com.bob.ecommerceangularapp.entity.AuditLogEntry;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.Page;
@@ -17,6 +20,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -24,8 +28,20 @@ import static org.mockito.Mockito.when;
 /** Pure unit test (mocked repository) for the global admin audit log (roadmap #19). */
 class AuditLogServiceTest {
 
+    private static final Long TENANT_ID = 7L;
+
     private final AuditLogRepository auditLogRepository = mock(AuditLogRepository.class);
     private final AuditLogService service = new AuditLogService(auditLogRepository);
+
+    @BeforeEach
+    void setTenantContext() {
+        TenantContext.set(TENANT_ID);
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContext.clear();
+    }
 
     @Test
     void recordResolvesActorFromAnAuthenticatedPrincipal() {
@@ -73,7 +89,7 @@ class AuditLogServiceTest {
         entry.setAction("PRODUCT_CREATE");
         entry.setEntityType("Product");
         Page<AuditLogEntry> page = new PageImpl<>(List.of(entry));
-        when(auditLogRepository.findAllByOrderByCreatedAtDesc(any())).thenReturn(page);
+        when(auditLogRepository.findAllByTenantIdOrderByCreatedAtDesc(eq(TENANT_ID), any())).thenReturn(page);
 
         Page<AuditLogView> result = service.list(PageRequest.of(0, 20), null);
 
@@ -84,10 +100,10 @@ class AuditLogServiceTest {
     @Test
     void listFiltersByEntityTypeWhenGiven() {
         Page<AuditLogEntry> page = new PageImpl<>(List.of());
-        when(auditLogRepository.findByEntityTypeOrderByCreatedAtDesc(any(), any())).thenReturn(page);
+        when(auditLogRepository.findByTenantIdAndEntityTypeOrderByCreatedAtDesc(any(), any(), any())).thenReturn(page);
 
         service.list(PageRequest.of(0, 20), "Product");
 
-        verify(auditLogRepository).findByEntityTypeOrderByCreatedAtDesc("Product", PageRequest.of(0, 20));
+        verify(auditLogRepository).findByTenantIdAndEntityTypeOrderByCreatedAtDesc(TENANT_ID, "Product", PageRequest.of(0, 20));
     }
 }
