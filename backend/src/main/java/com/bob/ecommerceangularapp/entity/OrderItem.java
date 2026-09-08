@@ -13,6 +13,11 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 
+/**
+ * One line of an {@link Order} — a snapshot of price/image at purchase time (not a live reference,
+ * so later product edits don't rewrite history). Carries {@code variantSku}/{@code variantLabel}
+ * when bought by {@link ProductVariant} (roadmap #1). Tenant-scoped since roadmap #21 Milestone A.
+ */
 @Entity
 @Table(name = "order_item")
 @Getter

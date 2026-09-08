@@ -7,6 +7,7 @@ import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 
 import java.util.List;
 
+/** Read-only reference data (seeded once), exposed via Spring Data REST for checkout's state dropdown. */
 @RepositoryRestResource(collectionResourceRel = "states", path = "states")
 public interface StateRepository extends JpaRepository<State, Integer> {
 

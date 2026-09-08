@@ -7,6 +7,12 @@ Full-stack e-commerce app (Udemy course project) on a modern stack:
 Read **`docs/BUILD_PLAN.md`** before starting work. It has the full milestone
 plan, locked decisions (MySQL-only, repo layout), and verification steps.
 
+## Finding your way around
+- **`docs/FILE_MAP.md`** — a per-file guide: what each backend/frontend file does, what it talks to,
+  and which roadmap feature it belongs to. Start here when you need to know "what is this file for."
+- **`docs/ARCHITECTURE.md`** — the high-level component/pattern picture.
+- **`docs/FLOWS.md`** — how a request actually flows end-to-end through the layers.
+
 ## Current state
 - ✅ **Milestone 0** — project setup/cleanup (backend/ + frontend/ split, clean pom, compose.yaml).
 - ✅ **Milestone 1** — product catalog end-to-end (entities, Spring Data REST repos,
@@ -677,6 +683,40 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   `clear()` scaffolding, tenant-scoped mock signatures, and new regression tests asserting reads stay
   scoped and creates get stamped. Full `./mvnw clean package` (incl. the real-MySQL IT validating
   `V18`) + `npx ng build` green.
+- ✅ **Multi-tenancy, Milestone D — remaining customer/ops entities (roadmap #21)** — closes out the
+  roadmap #21 initiative by extending `tenant_id` to the last 14 previously-global entities: `Review`,
+  `WishlistItem`, `NewsletterSubscriber`, `LoyaltyTransaction`, `Referral`, `ReturnRequest`,
+  `StockNotification`, `AbandonedCart`, `SavedAddress`, `SavedPaymentMethod`, `InventoryAdjustment`,
+  `AuditLogEntry`, `Warehouse`, `Shipment`. `V19` adds `tenant_id` (nullable FK + index, backfilled to
+  `demo`) to all 14 tables, plus composite `(tenant_id, email)`/`(tenant_id, code)` uniques replacing
+  the old single-column uniques on `newsletter_subscriber.email` and `warehouse.code` (same rationale as
+  Milestone C's coupon/gift-card/shipping-method codes — two tenants must be able to reuse the same
+  value). Every repository gained tenant-scoped derived-query methods
+  (`findByXAndTenantId`/`findAllByTenantId`/`findByIdAndTenantId`, or a nested `Product_TenantId`/
+  `Order_TenantId` traversal for entities without their own column, e.g. `ProductVariant`), and every
+  service method that reads/writes one of these entities now threads `TenantContext.currentTenantId()`
+  through the query or stamps it on save — mirroring the ownership-check pattern
+  (`findByIdAndTenantId(id, tenantId).orElseThrow(...)`) Milestone C established for admin mutations.
+  Two real bugs were caught and fixed while wiring this up: `FulfillmentService.deleteWarehouse()` had
+  **no tenant/ownership check at all** — any admin could delete any warehouse by id regardless of
+  tenant, now routed through `requireWarehouse(id)` first; and a pre-existing cross-tenant email-merge
+  risk in `CustomerRepository` (same shape as Milestone A's `findByEmail` bug) was preempted by scoping
+  every one of these entities' email-keyed lookups (`AbandonedCart`, `WishlistItem`,
+  `NewsletterSubscriber`) to `(email, tenantId)` rather than email alone. Deliberately **not** scoped:
+  background/scheduled job lookups (`AbandonedCartScheduler`, `WeeklyAdScheduler`) that run with no
+  `TenantContext` set, and `FulfillmentService.trackShipments()`/`ShipmentRepository.findByOrderId*`,
+  which derive tenant identity from an already email-verified `Order` rather than ambient context —
+  same "derive from a resolved parent, not ambient context" principle `ReturnService.createReturn`
+  established. `DataLoader`'s `seedReviews`/`seedWarehouses` now stamp the demo tenant, matching every
+  other seed method touched since Milestone A. A subtle test-authoring pitfall surfaced while updating
+  the 8 affected test files: a Mockito stub on the inherited bare `findById(Long)` still **compiles**
+  even after production code migrates to `findByIdAndTenantId(Long, Long)` (both exist on
+  `JpaRepository`), so a stale stub is a silent **runtime** test failure invisible to
+  `test-compile` — caught proactively in `ReturnServiceTest` by re-auditing every touched service's
+  tests against its actual production call sites, not just the compiler's error list. This is the
+  fourth and final planned pass under roadmap #21 — all 24 originally-scoped tables now carry
+  `tenant_id`; no further entities are pending. 174 backend tests (incl. all 3 real-MySQL IT cases,
+  run only when Docker is available) + full `./mvnw clean package` + `npx ng build` all green.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.

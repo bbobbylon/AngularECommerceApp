@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/** Admin CRUD for automatic, no-code {@link Promotion}s (roadmap #16). Delegates to {@code PromotionService}. */
 @RestController
 @RequestMapping("/api/admin/promotions")
 public class AdminPromotionController {

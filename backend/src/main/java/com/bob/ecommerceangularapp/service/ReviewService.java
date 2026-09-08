@@ -15,6 +15,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+/**
+ * Product reviews CRUD + moderation. Every write keeps {@link Product#getAverageRating()}/
+ * {@link Product#getReviewCount()} in sync (denormalized so product cards/search don't need a join).
+ * Tenant-scoped since roadmap #21 Milestone D. Called by {@code ReviewController} (public
+ * create/list) and {@code AdminController} (moderation).
+ */
 @Service
 public class ReviewService {
 

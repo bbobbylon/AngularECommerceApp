@@ -13,6 +13,14 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 
+/**
+ * Customer-entered discount codes — requires the customer to type a code, unlike the automatic
+ * {@link PromotionService}. Tenant-scoped since roadmap #21 Milestone C: reads filter by
+ * {@link TenantContext#currentTenantId()} and mutations use
+ * {@code findByIdAndTenantId(...).orElseThrow(...)} so one tenant can never edit another's coupon.
+ * {@code CouponController} exposes {@link #validate} publicly; {@code AdminCouponController} owns
+ * the CRUD side. {@code CheckoutServiceImpl} re-validates server-side at order time.
+ */
 @Service
 public class CouponService {
 

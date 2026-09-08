@@ -23,6 +23,17 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * A placed order. Accumulates one field pair per discount/adjustment mechanism added over time —
+ * {@code couponCode}/{@code discountAmount} (checkout), {@code promotionName}/{@code promotionDiscount}
+ * (#16), {@code giftCardCode}/{@code giftCardAmount} (#4), {@code loyaltyPointsRedeemed}/
+ * {@code loyaltyDiscount} (#5), {@code shippingAmount}/{@code taxAmount} (#2),
+ * {@code paymentIntentId} (Stripe) — all nullable and additive, so none required a breaking change
+ * to existing rows. {@code status} drives the forward-only fulfillment ladder
+ * (Received→Processing→Shipped→Delivered, see {@code FulfillmentService}, #20). See
+ * {@code CheckoutServiceImpl} for how every field here gets populated. Tenant-scoped since roadmap
+ * #21 Milestone A.
+ */
 @Entity
 // Admin order list + order history both sort by recency.
 @Table(name = "orders", indexes = @Index(name = "idx_orders_date_created", columnList = "date_created"))

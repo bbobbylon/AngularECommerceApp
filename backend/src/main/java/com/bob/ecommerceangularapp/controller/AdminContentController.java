@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/** Admin CRUD for the simple CMS (roadmap #17): the singleton-per-tenant site banner + the FAQ list. */
 @RestController
 @RequestMapping("/api/admin/content")
 public class AdminContentController {

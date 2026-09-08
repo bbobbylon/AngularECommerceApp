@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
+/** Public newsletter subscribe/unsubscribe + an admin-token-gated "send the weekly ad now" trigger. */
 @RestController
 @RequestMapping("/api/newsletter")
 public class NewsletterController {

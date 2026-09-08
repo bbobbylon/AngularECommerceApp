@@ -15,6 +15,7 @@ import lombok.Setter;
 import java.util.HashSet;
 import java.util.Set;
 
+/** A catalog category ({@code Product.category}, {@code @ManyToOne}). Tenant-scoped since roadmap #21 Milestone A. */
 @Entity
 @Table(name = "product_category")
 @Getter

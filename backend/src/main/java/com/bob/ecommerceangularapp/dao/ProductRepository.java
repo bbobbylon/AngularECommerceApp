@@ -11,6 +11,11 @@ import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Exposed read-only via Spring Data REST (writes disabled by {@code MyDataRestConfig}) and also a
+ * {@link JpaSpecificationExecutor} — that half backs {@code ProductQueryService}'s faceted search,
+ * which builds its own {@code Specification} rather than using a derived-query method here.
+ */
 @RepositoryRestResource(collectionResourceRel = "products", path = "products")
 public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product> {
 

@@ -27,6 +27,14 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+/**
+ * The catalog core. {@code averageRating}/{@code reviewCount} are denormalized (kept in sync by
+ * {@code ReviewService} on every review write) so product cards/search never need a join.
+ * {@code additionalImages} is a LAZY {@code @ElementCollection} side table (gallery images, never
+ * touches this table's own columns). A product with {@link ProductVariant}s treats its own
+ * {@code unitsInStock} as display-only — checkout decrements variant stock instead once variants
+ * exist. Tenant-scoped since roadmap #21 Milestone A.
+ */
 @Entity
 // The storefront filters on active products within a category on nearly every catalog query.
 @Table(name = "product", indexes = @Index(name = "idx_product_active_category", columnList = "active, category_id"))

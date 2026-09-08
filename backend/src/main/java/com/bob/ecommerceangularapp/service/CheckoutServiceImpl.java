@@ -26,6 +26,19 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * The checkout pipeline. {@link #placeOrder} is where nearly every commerce feature in this app
+ * composes together, in a fixed order: subtotal -&gt; coupon -&gt; promotion -&gt; shipping -&gt; tax (all via
+ * {@link TaxShippingService#quote}) -&gt; gift card ({@link GiftCardService}) -&gt; rewards
+ * ({@link LoyaltyService}) -&gt; amount due, then the order is saved, loyalty points are
+ * redeemed/awarded, a referral is recorded on the customer's first order
+ * ({@link ReferralService}), any abandoned-cart reminder is cleared
+ * ({@link AbandonedCartService}), and confirmation/welcome emails are sent (gated, no-op without
+ * SMTP configured). Stamps the current {@link TenantContext} tenant id onto the customer, order,
+ * order items and addresses before the cascading save (roadmap #21). When adding a new
+ * checkout-adjacent feature, extend this constructor and its dedicated unit test
+ * ({@code CheckoutServiceImplTest}) the same way every prior feature did.
+ */
 @Service
 public class CheckoutServiceImpl implements CheckoutService {
 

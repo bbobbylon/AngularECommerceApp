@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/** Admin CRUD for {@link com.bob.ecommerceangularapp.entity.Coupon} codes. Delegates to {@code CouponService}. */
 @RestController
 @RequestMapping("/api/admin/coupons")
 public class AdminCouponController {

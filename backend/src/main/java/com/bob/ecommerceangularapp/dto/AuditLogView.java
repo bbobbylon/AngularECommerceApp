@@ -4,6 +4,7 @@ import com.bob.ecommerceangularapp.entity.AuditLogEntry;
 
 import java.util.Date;
 
+/** One row of the global admin audit log (roadmap #19) — powers the admin Audit Log page. */
 public record AuditLogView(Long id, String actor, String action, String entityType, String entityId,
                             String details, Date createdAt) {
 

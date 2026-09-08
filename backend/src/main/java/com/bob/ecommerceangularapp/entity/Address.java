@@ -9,6 +9,7 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
+/** A shipping or billing address attached to an {@link Order}. Tenant-scoped since roadmap #21 Milestone A. */
 @Entity
 @Table(name = "address")
 @Getter

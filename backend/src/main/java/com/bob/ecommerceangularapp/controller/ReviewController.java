@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/** Public review reads + submission for a product's reviews list. Moderation lives in {@code AdminController}. */
 @RestController
 @RequestMapping("/api/reviews")
 public class ReviewController {

@@ -16,6 +16,13 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * A storefront customer, keyed by email (deliberately not unique — see {@code tenantId} below).
+ * Carries loyalty (roadmap #5: {@code loyaltyPoints}/{@code lifetimePoints}), referral (#6:
+ * {@code referralCode}), and newsletter (M6: {@code newsletterSubscribed}/{@code unsubscribeToken})
+ * state directly rather than in side tables — each is a handful of fields, not worth a join.
+ * Tenant-scoped since roadmap #21 Milestone A.
+ */
 @Entity
 // email is looked up on checkout, account, and newsletter flows; index it (not unique by design).
 @Table(name = "customer", indexes = @Index(name = "idx_customer_email", columnList = "email"))

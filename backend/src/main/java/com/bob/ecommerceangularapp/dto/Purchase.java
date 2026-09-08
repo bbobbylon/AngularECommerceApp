@@ -9,6 +9,11 @@ import lombok.Setter;
 
 import java.util.Set;
 
+/**
+ * The checkout submission payload — customer, addresses, and cart contents, plus every optional
+ * discount/reward mechanism {@code CheckoutServiceImpl} composes together (coupon, gift card, loyalty
+ * points, referral code) and the shipping/payment selections. One record per placed order.
+ */
 @Getter
 @Setter
 public class Purchase {

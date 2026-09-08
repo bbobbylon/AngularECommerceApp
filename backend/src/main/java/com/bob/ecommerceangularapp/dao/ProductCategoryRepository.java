@@ -7,6 +7,7 @@ import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 import java.util.List;
 import java.util.Optional;
 
+/** Exposed read-only via Spring Data REST (writes disabled by {@code MyDataRestConfig}); admin CRUD goes through {@code AdminService} instead. */
 @RepositoryRestResource(collectionResourceRel = "productCategory", path = "product-category")
 public interface ProductCategoryRepository extends JpaRepository<ProductCategory, Long> {
 

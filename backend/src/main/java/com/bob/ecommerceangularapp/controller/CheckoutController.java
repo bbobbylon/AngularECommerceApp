@@ -20,6 +20,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * The public checkout endpoints: live quotes ({@code TaxShippingService}), the Stripe payment
+ * intent, and placing the order ({@code CheckoutService}). See {@code CheckoutServiceImpl}'s class
+ * doc for the full discount/tax/gift-card/rewards pipeline this fronts.
+ */
 @RestController
 @RequestMapping("/api/checkout")
 public class CheckoutController {
