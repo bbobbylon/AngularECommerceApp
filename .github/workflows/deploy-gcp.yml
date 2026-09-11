@@ -22,7 +22,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Single source of truth: load deploy/gcp.env into the job environment so every
       # subsequent step sees $GCP_PROJECT, $GCP_REGION, $AR_REPO, $CLOUD_SQL_INSTANCE, etc.
