@@ -53,6 +53,9 @@
       <a routerLink="/admin/audit-log" routerLinkActive="active">
         <i class="fa-solid fa-clipboard-list"></i> Audit Log
       </a>
+      <a routerLink="/admin/billing" routerLinkActive="active">
+        <i class="fa-solid fa-credit-card"></i> Billing
+      </a>
       @if (roles().includes('SuperAdmin')) {
         <a routerLink="/platform/tenants" routerLinkActive="active">
           <i class="fa-solid fa-building-shield"></i> Platform

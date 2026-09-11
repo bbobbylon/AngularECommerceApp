@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
 import { AdminService } from '../../../services/admin.service';
-import { PlatformService, PlatformTenant, PlatformTenantPayload } from '../../../services/platform.service';
+import { BillingPlan, PlatformService, PlatformTenant, PlatformTenantPayload } from '../../../services/platform.service';
 import { TenantContextService } from '../../../services/tenant-context.service';
 import { ToastService } from '../../../services/toast.service';
 
@@ -14,7 +14,9 @@ import { ToastService } from '../../../services/toast.service';
  * deactivating the tenants hosted on this deployment. Gated server-side on the {@code SuperAdmin}
  * authority; this component additionally checks the caller's roles via the existing
  * {@code GET /api/admin/me} endpoint so a non-superadmin sees a clear message instead of an empty table
- * (courtesy UX, not the enforcement boundary — that's `SecurityConfig`).
+ * (courtesy UX, not the enforcement boundary — that's `SecurityConfig`). Plan assignment (roadmap #22)
+ * is a separate row-level action from the identity edit form below, since it's a distinct
+ * endpoint/concern even though both are SuperAdmin-only today.
  */
 @Component({
   selector: 'app-platform-tenants',
@@ -24,6 +26,7 @@ import { ToastService } from '../../../services/toast.service';
 export class PlatformTenants implements OnInit {
 
   readonly tenants = signal<PlatformTenant[]>([]);
+  readonly plans = signal<BillingPlan[]>([]);
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly authorized = signal(false);
@@ -59,6 +62,10 @@ export class PlatformTenants implements OnInit {
       next: list => { this.tenants.set(list); this.loading.set(false); },
       error: () => { this.loading.set(false); this.toast.error('Could not load tenants.'); },
     });
+    this.platform.getBillingPlans().subscribe({
+      next: list => this.plans.set(list.filter(p => p.active)),
+      error: () => this.toast.error('Could not load billing plans.'),
+    });
   }
 
   save(): void {
@@ -86,7 +93,13 @@ export class PlatformTenants implements OnInit {
   }
 
   edit(tenant: PlatformTenant): void {
-    this.form = { ...tenant };
+    this.form = {
+      id: tenant.id,
+      slug: tenant.slug,
+      displayName: tenant.displayName,
+      contactEmail: tenant.contactEmail,
+      active: tenant.active,
+    };
   }
 
   cancelEdit(): void {
@@ -103,6 +116,14 @@ export class PlatformTenants implements OnInit {
     });
   }
 
+  assignPlan(tenant: PlatformTenant, planId: string): void {
+    const id = planId ? Number(planId) : null;
+    this.platform.assignTenantPlan(tenant.id, id).subscribe({
+      next: () => { this.toast.success('Billing plan updated'); this.load(); },
+      error: () => this.toast.error('Could not assign billing plan.'),
+    });
+  }
+
   /** Switches the regular admin back-office to reflect this tenant's data, then navigates there. */
   viewAsAdmin(tenant: PlatformTenant): void {
     this.tenantContext.viewAs(tenant.slug);
@@ -111,6 +132,6 @@ export class PlatformTenants implements OnInit {
   }
 
   private empty(): PlatformTenantPayload {
-    return { id: null, slug: '', displayName: '', contactEmail: '', plan: '', active: true };
+    return { id: null, slug: '', displayName: '', contactEmail: '', active: true };
   }
 }

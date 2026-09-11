@@ -1,14 +1,22 @@
 package com.bob.ecommerceangularapp.service;
 
 import com.bob.ecommerceangularapp.config.CacheConfig;
+import com.bob.ecommerceangularapp.dao.BillingPlanRepository;
+import com.bob.ecommerceangularapp.dao.TenantBillingAccountRepository;
 import com.bob.ecommerceangularapp.dao.TenantRepository;
 import com.bob.ecommerceangularapp.dto.PlatformTenantRequest;
+import com.bob.ecommerceangularapp.dto.PlatformTenantView;
+import com.bob.ecommerceangularapp.entity.BillingPlan;
 import com.bob.ecommerceangularapp.entity.Tenant;
+import com.bob.ecommerceangularapp.entity.TenantBillingAccount;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Platform-level {@link Tenant} management (roadmap #21, Milestone B) — create/list/edit/deactivate
@@ -20,19 +28,45 @@ import java.util.List;
  * <p>Every mutation evicts {@link CacheConfig#TENANT_LOOKUP}, whole — {@code TenantResolutionService}
  * caches by slug and caches misses too, so a newly-created slug (or a just-reactivated one) would
  * otherwise stay invisible to {@code TenantResolutionFilter} until the cache entry expires.
+ *
+ * <p>{@link #list()} joins in the billing plan/status (roadmap #22) in Java rather than a JPQL
+ * projection — matches the Analytics feature's (#18) established "aggregation in Java" precedent —
+ * since {@link Tenant} itself no longer carries plan data after V20; it moved to
+ * {@code TenantBillingAccount}/{@code BillingPlan}.
  */
 @Service
 public class PlatformTenantService {
 
     private final TenantRepository tenantRepository;
+    private final TenantBillingAccountRepository billingAccountRepository;
+    private final BillingPlanRepository billingPlanRepository;
 
-    public PlatformTenantService(TenantRepository tenantRepository) {
+    public PlatformTenantService(TenantRepository tenantRepository,
+                                 TenantBillingAccountRepository billingAccountRepository,
+                                 BillingPlanRepository billingPlanRepository) {
         this.tenantRepository = tenantRepository;
+        this.billingAccountRepository = billingAccountRepository;
+        this.billingPlanRepository = billingPlanRepository;
     }
 
     @Transactional(readOnly = true)
-    public List<Tenant> list() {
-        return tenantRepository.findAllByOrderByDisplayNameAsc();
+    public List<PlatformTenantView> list() {
+        List<Tenant> tenants = tenantRepository.findAllByOrderByDisplayNameAsc();
+        Map<Long, TenantBillingAccount> accountsByTenantId = billingAccountRepository.findAll().stream()
+                .collect(Collectors.toMap(TenantBillingAccount::getTenantId, Function.identity()));
+        Map<Long, BillingPlan> plansById = billingPlanRepository.findAll().stream()
+                .collect(Collectors.toMap(BillingPlan::getId, Function.identity()));
+
+        return tenants.stream().map(tenant -> {
+            TenantBillingAccount account = accountsByTenantId.get(tenant.getId());
+            if (account == null) {
+                return PlatformTenantView.withoutBilling(tenant);
+            }
+            BillingPlan plan = account.getPlanId() == null ? null : plansById.get(account.getPlanId());
+            return new PlatformTenantView(tenant.getId(), tenant.getSlug(), tenant.getDisplayName(),
+                    tenant.getContactEmail(), tenant.isActive(), tenant.getDateCreated(),
+                    account.getPlanId(), plan == null ? null : plan.getName(), account.getStatus());
+        }).toList();
     }
 
     @Transactional
@@ -53,7 +87,6 @@ public class PlatformTenantService {
         tenant.setSlug(slug);
         tenant.setDisplayName(request.displayName().trim());
         tenant.setContactEmail(blankToNull(request.contactEmail()));
-        tenant.setPlan(blankToNull(request.plan()));
         tenant.setActive(request.active() == null || request.active());
         return tenantRepository.save(tenant);
     }

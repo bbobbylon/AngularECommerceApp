@@ -1,10 +1,16 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.dao.BillingPlanRepository;
+import com.bob.ecommerceangularapp.dao.TenantBillingAccountRepository;
 import com.bob.ecommerceangularapp.dao.TenantRepository;
 import com.bob.ecommerceangularapp.dto.PlatformTenantRequest;
+import com.bob.ecommerceangularapp.dto.PlatformTenantView;
+import com.bob.ecommerceangularapp.entity.BillingPlan;
 import com.bob.ecommerceangularapp.entity.Tenant;
+import com.bob.ecommerceangularapp.entity.TenantBillingAccount;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -17,7 +23,10 @@ import static org.mockito.Mockito.when;
 class PlatformTenantServiceTest {
 
     private final TenantRepository repo = mock(TenantRepository.class);
-    private final PlatformTenantService service = new PlatformTenantService(repo);
+    private final TenantBillingAccountRepository billingAccountRepository = mock(TenantBillingAccountRepository.class);
+    private final BillingPlanRepository billingPlanRepository = mock(BillingPlanRepository.class);
+    private final PlatformTenantService service =
+            new PlatformTenantService(repo, billingAccountRepository, billingPlanRepository);
 
     private Tenant tenant(Long id, String slug) {
         Tenant t = new Tenant();
@@ -37,11 +46,10 @@ class PlatformTenantServiceTest {
             return t;
         });
 
-        Tenant saved = service.save(new PlatformTenantRequest(null, "acme", "Acme Co", "hi@acme.test", "starter", true));
+        Tenant saved = service.save(new PlatformTenantRequest(null, "acme", "Acme Co", "hi@acme.test", true));
 
         assertThat(saved.getId()).isEqualTo(5L);
         assertThat(saved.getSlug()).isEqualTo("acme");
-        assertThat(saved.getPlan()).isEqualTo("starter");
         assertThat(saved.isActive()).isTrue();
     }
 
@@ -49,7 +57,7 @@ class PlatformTenantServiceTest {
     void save_createRejectsADuplicateSlug() {
         when(repo.existsBySlug("demo")).thenReturn(true);
 
-        assertThatThrownBy(() -> service.save(new PlatformTenantRequest(null, "demo", "Demo", null, null, true)))
+        assertThatThrownBy(() -> service.save(new PlatformTenantRequest(null, "demo", "Demo", null, true)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -60,7 +68,7 @@ class PlatformTenantServiceTest {
         when(repo.findById(3L)).thenReturn(Optional.of(existing));
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        Tenant saved = service.save(new PlatformTenantRequest(3L, "acme", "Acme Renamed", null, null, true));
+        Tenant saved = service.save(new PlatformTenantRequest(3L, "acme", "Acme Renamed", null, true));
 
         assertThat(saved.getId()).isEqualTo(3L);
         assertThat(saved.getDisplayName()).isEqualTo("Acme Renamed");
@@ -70,7 +78,7 @@ class PlatformTenantServiceTest {
     void save_updateRejectsASlugAlreadyUsedByADifferentTenant() {
         when(repo.existsBySlugAndIdNot("taken", 3L)).thenReturn(true);
 
-        assertThatThrownBy(() -> service.save(new PlatformTenantRequest(3L, "taken", "Acme", null, null, true)))
+        assertThatThrownBy(() -> service.save(new PlatformTenantRequest(3L, "taken", "Acme", null, true)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -90,5 +98,42 @@ class PlatformTenantServiceTest {
         when(repo.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.deactivate(99L)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void list_joinsInBillingPlanAndStatusWhenAnAccountExists() {
+        Tenant t = tenant(1L, "acme");
+        when(repo.findAllByOrderByDisplayNameAsc()).thenReturn(List.of(t));
+        TenantBillingAccount account = new TenantBillingAccount();
+        account.setTenantId(1L);
+        account.setPlanId(10L);
+        account.setStatus("ACTIVE");
+        when(billingAccountRepository.findAll()).thenReturn(List.of(account));
+        BillingPlan plan = new BillingPlan();
+        plan.setId(10L);
+        plan.setName("Starter");
+        when(billingPlanRepository.findAll()).thenReturn(List.of(plan));
+
+        List<PlatformTenantView> views = service.list();
+
+        assertThat(views).hasSize(1);
+        PlatformTenantView view = views.get(0);
+        assertThat(view.planId()).isEqualTo(10L);
+        assertThat(view.planName()).isEqualTo("Starter");
+        assertThat(view.billingStatus()).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void list_reportsNoPlanWhenNoBillingAccountExists() {
+        Tenant t = tenant(1L, "acme");
+        when(repo.findAllByOrderByDisplayNameAsc()).thenReturn(List.of(t));
+        when(billingAccountRepository.findAll()).thenReturn(List.of());
+        when(billingPlanRepository.findAll()).thenReturn(List.of());
+
+        List<PlatformTenantView> views = service.list();
+
+        assertThat(views).hasSize(1);
+        assertThat(views.get(0).planId()).isNull();
+        assertThat(views.get(0).billingStatus()).isEqualTo("NO_PLAN");
     }
 }

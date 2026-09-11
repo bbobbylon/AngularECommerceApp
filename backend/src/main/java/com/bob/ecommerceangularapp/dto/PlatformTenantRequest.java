@@ -16,6 +16,5 @@ public record PlatformTenantRequest(
         String slug,
         @NotBlank @Size(max = 255) String displayName,
         @Email @Size(max = 255) String contactEmail,
-        String plan,
         Boolean active) {
 }

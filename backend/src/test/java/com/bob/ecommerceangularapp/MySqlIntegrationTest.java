@@ -1,8 +1,14 @@
 package com.bob.ecommerceangularapp;
 
+import com.bob.ecommerceangularapp.dao.BillingInvoiceRepository;
 import com.bob.ecommerceangularapp.dao.OrderRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
+import com.bob.ecommerceangularapp.dto.PlatformBillingPlanRequest;
 import com.bob.ecommerceangularapp.dto.ProductCardView;
+import com.bob.ecommerceangularapp.entity.BillingInvoice;
+import com.bob.ecommerceangularapp.entity.BillingPlan;
+import com.bob.ecommerceangularapp.service.BillingPlanService;
+import com.bob.ecommerceangularapp.service.BillingService;
 import com.bob.ecommerceangularapp.service.ProductQueryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +25,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -67,6 +74,15 @@ class MySqlIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private BillingPlanService billingPlanService;
+
+    @Autowired
+    private BillingService billingService;
+
+    @Autowired
+    private BillingInvoiceRepository billingInvoiceRepository;
 
     @Test
     void flywayMigratesAndSchemaValidatesAgainstMySql() {
@@ -137,5 +153,54 @@ class MySqlIntegrationTest {
         Long demoTenantId = jdbcTemplate.queryForObject("select id from tenant where slug = 'demo'", Long.class);
         assertThat(orderRepository.sumTotalRevenue(acmeTenantId)).isEqualByComparingTo(new BigDecimal("42.00"));
         assertThat(orderRepository.sumTotalRevenue(demoTenantId)).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    /**
+     * V20 (roadmap #22) is the first migration to DROP a column — confirm it actually happened on real
+     * MySQL, and that the three new billing tables exist. The H2 slice tests can't exercise this since
+     * they build schema from the entities via Hibernate, never running the raw migration SQL.
+     */
+    @Test
+    void v20RetiresTenantPlanAndCreatesTheBillingTables() {
+        Integer planColumnCount = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.columns "
+                        + "where table_schema = database() and table_name = 'tenant' and column_name = 'plan'",
+                Integer.class);
+        assertThat(planColumnCount).isZero();
+
+        List<String> billingTables = jdbcTemplate.queryForList(
+                "select table_name from information_schema.tables where table_schema = database() "
+                        + "and table_name in ('billing_plan', 'tenant_billing_account', 'billing_invoice')",
+                String.class);
+        assertThat(billingTables).containsExactlyInAnyOrder("billing_plan", "tenant_billing_account", "billing_invoice");
+    }
+
+    /**
+     * Known gap (documented in the roadmap #22 plan): Testcontainers always boots from an empty DB and
+     * runs V1-V20 straight through, so V20's backfill logic (a pre-existing non-null {@code tenant.plan}
+     * converting into a real plan row) can't be exercised here — that needs a manual check against a
+     * real populated DB before shipping to an existing deployment. This instead proves the
+     * post-migration round-trip: assign a plan to the seeded demo tenant, sweep for due charges with
+     * Stripe unconfigured, and confirm a SKIPPED invoice is written with no exception.
+     */
+    @Test
+    void billingRoundTripsAgainstMySqlWithoutStripeConfigured() {
+        Long demoTenantId = jdbcTemplate.queryForObject("select id from tenant where slug = 'demo'", Long.class);
+
+        BillingPlan plan = billingPlanService.save(new PlatformBillingPlanRequest(
+                null, "IT Test Plan", new BigDecimal("9.99"), "USD", null, null, true));
+        billingService.assignPlan(demoTenantId, plan.getId());
+
+        // Force the account due now rather than a month from now.
+        jdbcTemplate.update("update tenant_billing_account set current_period_end = now() where tenant_id = ?",
+                demoTenantId);
+
+        int processed = billingService.chargeDueAccounts();
+        assertThat(processed).isPositive();
+
+        List<BillingInvoice> invoices = billingInvoiceRepository.findAllByTenantIdOrderByAttemptedAtDesc(
+                demoTenantId, PageRequest.of(0, 5)).getContent();
+        assertThat(invoices).isNotEmpty();
+        assertThat(invoices.get(0).getStatus()).isEqualTo("SKIPPED");
     }
 }

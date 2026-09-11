@@ -1,0 +1,94 @@
+<div class="mb-4">
+  <h1 class="fw-bold mb-0">Billing</h1>
+  <p class="text-muted mb-0">Your store's plan, renewal date, invoice history, and card on file. Plan changes are made by the platform operator.</p>
+</div>
+
+@if (loading()) {
+  <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+} @else {
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-header fw-semibold"><i class="fa-solid fa-tags me-2 text-primary"></i>Plan &amp; invoices</div>
+        <div class="card-body">
+          @if (account(); as a) {
+            @if (a.planName) {
+              <h5 class="mb-1">{{ a.planName }} <span class="text-muted fw-normal">— {{ a.monthlyPrice | currency:(a.currency || 'USD') }}/mo</span></h5>
+              @if (a.features) { <p class="text-muted small mb-2">{{ a.features }}</p> }
+            } @else {
+              <h5 class="mb-1 text-muted">No plan assigned</h5>
+            }
+            <span class="badge" [class.bg-success]="a.status === 'ACTIVE'" [class.bg-danger]="a.status === 'PAST_DUE'"
+                  [class.bg-secondary]="a.status === 'NO_PLAN' || a.status === 'CANCELED'">{{ a.status }}</span>
+            @if (a.currentPeriodEnd) {
+              <span class="text-muted small ms-2">renews {{ a.currentPeriodEnd | date:'mediumDate' }}</span>
+            }
+            @if (a.lastBilledAt) {
+              <span class="text-muted small ms-2">last billed {{ a.lastBilledAt | date:'mediumDate' }}</span>
+            }
+          }
+
+          <hr />
+
+          <h6 class="fw-bold">Invoice history</h6>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead><tr><th>Date</th><th>Plan</th><th>Amount</th><th>Status</th></tr></thead>
+              <tbody>
+                @for (inv of invoices(); track inv.id) {
+                  <tr>
+                    <td>{{ inv.attemptedAt | date:'medium' }}</td>
+                    <td>{{ inv.planName || '—' }}</td>
+                    <td>{{ inv.amount | currency:inv.currency }}</td>
+                    <td>
+                      <span class="badge" [class.bg-success]="inv.status === 'SUCCEEDED'" [class.bg-danger]="inv.status === 'FAILED'"
+                            [class.bg-secondary]="inv.status === 'SKIPPED'">{{ inv.status }}</span>
+                      @if (inv.failureReason) { <span class="d-block text-muted small">{{ inv.failureReason }}</span> }
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="4" class="text-muted">No invoices yet.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          @if (totalElements > pageSize) {
+            <div class="d-flex justify-content-center mt-3">
+              <ngb-pagination [collectionSize]="totalElements" [(page)]="pageNumber" [pageSize]="pageSize"
+                              [maxSize]="5" [boundaryLinks]="true" (pageChange)="loadInvoices()"></ngb-pagination>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header fw-semibold"><i class="fa-solid fa-credit-card me-2 text-primary"></i>Payment method</div>
+        <div class="card-body">
+          @if (account(); as a) {
+            @if (a.cardLast4) {
+              <div class="border rounded p-2 d-flex justify-content-between align-items-center mb-3">
+                <span>
+                  <i class="fa-solid fa-credit-card me-2 text-muted"></i>{{ (a.cardBrand || 'Card') | titlecase }} •••• {{ a.cardLast4 }}
+                  @if (a.cardExpMonth) { <span class="text-muted small">exp {{ a.cardExpMonth }}/{{ a.cardExpYear }}</span> }
+                </span>
+              </div>
+            } @else {
+              <p class="text-muted small">No card on file.</p>
+            }
+          }
+          @if (cardSetupOpen()) {
+            <label class="form-label small">Card details</label>
+            <div id="billing-card-setup-element" class="form-control mb-2" style="padding: 12px;"></div>
+            @if (cardSetupError) { <div class="text-danger small mb-2">{{ cardSetupError }}</div> }
+            <button class="btn btn-primary btn-sm me-2" (click)="saveCard()" [disabled]="savingCard()">Save card</button>
+            <button class="btn btn-outline-secondary btn-sm" (click)="cancelAddCard()">Cancel</button>
+          } @else {
+            <button class="btn btn-outline-primary btn-sm" (click)="startAddCard()"><i class="fa-solid fa-plus me-1"></i> Update card</button>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+}

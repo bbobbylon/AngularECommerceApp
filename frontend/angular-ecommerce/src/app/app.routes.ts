@@ -38,6 +38,7 @@ export const routes: Routes = [
       { path: 'inventory', loadComponent: () => import('./components/admin/admin-inventory/admin-inventory').then(m => m.AdminInventory) },
       { path: 'warehouses', loadComponent: () => import('./components/admin/admin-warehouses/admin-warehouses').then(m => m.AdminWarehouses) },
       { path: 'audit-log', loadComponent: () => import('./components/admin/admin-audit-log/admin-audit-log').then(m => m.AdminAuditLog) },
+      { path: 'billing', loadComponent: () => import('./components/admin/admin-billing/admin-billing').then(m => m.AdminBilling) },
     ],
   },
   {
@@ -48,6 +49,7 @@ export const routes: Routes = [
     children: [
       { path: '', redirectTo: 'tenants', pathMatch: 'full' },
       { path: 'tenants', loadComponent: () => import('./components/platform/platform-tenants/platform-tenants').then(m => m.PlatformTenants) },
+      { path: 'billing-plans', loadComponent: () => import('./components/platform/platform-billing-plans/platform-billing-plans').then(m => m.PlatformBillingPlans) },
     ],
   },
   {

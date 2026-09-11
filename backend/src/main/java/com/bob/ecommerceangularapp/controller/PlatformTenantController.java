@@ -1,8 +1,11 @@
 package com.bob.ecommerceangularapp.controller;
 
+import com.bob.ecommerceangularapp.dto.AssignPlanRequest;
 import com.bob.ecommerceangularapp.dto.PlatformTenantRequest;
+import com.bob.ecommerceangularapp.dto.PlatformTenantView;
 import com.bob.ecommerceangularapp.entity.Tenant;
 import com.bob.ecommerceangularapp.service.AuditLogService;
+import com.bob.ecommerceangularapp.service.BillingService;
 import com.bob.ecommerceangularapp.service.PlatformTenantService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -12,6 +15,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,22 +25,27 @@ import java.util.List;
 /**
  * Platform-level tenant management (roadmap #21, Milestone B) — {@code SuperAdmin}-only, gated in
  * {@code SecurityConfig} and excluded from tenant resolution/guarding in
- * {@code TenantResolutionFilter} (a tenant isn't scoped to itself).
+ * {@code TenantResolutionFilter} (a tenant isn't scoped to itself). The billing-plan assignment
+ * endpoint (roadmap #22) is colocated here rather than on a separate controller since it's still
+ * tenant management, just a distinct action/permission concern from identity edits.
  */
 @RestController
 @RequestMapping("/api/platform/tenants")
 public class PlatformTenantController {
 
     private final PlatformTenantService platformTenantService;
+    private final BillingService billingService;
     private final AuditLogService auditLogService;
 
-    public PlatformTenantController(PlatformTenantService platformTenantService, AuditLogService auditLogService) {
+    public PlatformTenantController(PlatformTenantService platformTenantService, BillingService billingService,
+                                    AuditLogService auditLogService) {
         this.platformTenantService = platformTenantService;
+        this.billingService = billingService;
         this.auditLogService = auditLogService;
     }
 
     @GetMapping
-    public List<Tenant> list() {
+    public List<PlatformTenantView> list() {
         return platformTenantService.list();
     }
 
@@ -53,6 +62,14 @@ public class PlatformTenantController {
     public ResponseEntity<Void> deactivate(Authentication authentication, @PathVariable Long id) {
         platformTenantService.deactivate(id);
         auditLogService.record(authentication, "PLATFORM_TENANT_DEACTIVATE", "Tenant", String.valueOf(id), null);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/billing-plan")
+    public ResponseEntity<Void> assignPlan(Authentication authentication, @PathVariable Long id,
+                                           @RequestBody AssignPlanRequest request) {
+        billingService.assignPlan(id, request.planId());
+        auditLogService.record(authentication, "PLATFORM_TENANT_PLAN_ASSIGN", "Tenant", String.valueOf(id), null);
         return ResponseEntity.noContent().build();
     }
 }

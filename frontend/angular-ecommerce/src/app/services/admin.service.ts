@@ -347,6 +347,25 @@ export class AdminService {
     }
     return this.http.get<PageResponse<AuditLogEntry>>(`${this.baseUrl}/audit-log`, { params });
   }
+
+  // ----- Tenant billing (roadmap #22) -----
+
+  getBillingAccount(): Observable<BillingAccount> {
+    return this.http.get<BillingAccount>(`${this.baseUrl}/billing`);
+  }
+
+  getBillingInvoices(page: number, size: number): Observable<PageResponse<BillingInvoice>> {
+    const params = new HttpParams().set('page', page).set('size', size);
+    return this.http.get<PageResponse<BillingInvoice>>(`${this.baseUrl}/billing/invoices`, { params });
+  }
+
+  createBillingSetupIntent(): Observable<SetupIntentResponse> {
+    return this.http.post<SetupIntentResponse>(`${this.baseUrl}/billing/setup-intent`, null);
+  }
+
+  recordBillingPaymentMethod(paymentMethodId: string): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/billing/payment-method`, { paymentMethodId });
+  }
 }
 
 export interface AdminGiftCard {
@@ -586,4 +605,33 @@ export interface AuditLogEntry {
   entityId: string | null;
   details: string | null;
   createdAt: string;
+}
+
+export interface BillingAccount {
+  status: string;
+  planName: string | null;
+  monthlyPrice: number | null;
+  currency: string | null;
+  features: string | null;
+  currentPeriodEnd: string | null;
+  lastBilledAt: string | null;
+  cardBrand: string | null;
+  cardLast4: string | null;
+  cardExpMonth: number | null;
+  cardExpYear: number | null;
+}
+
+export interface BillingInvoice {
+  id: number;
+  planName: string | null;
+  amount: number;
+  currency: string;
+  status: string;
+  failureReason: string | null;
+  attemptedAt: string;
+}
+
+export interface SetupIntentResponse {
+  enabled: boolean;
+  clientSecret: string | null;
 }

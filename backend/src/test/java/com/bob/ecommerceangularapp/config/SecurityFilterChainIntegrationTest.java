@@ -212,4 +212,53 @@ class SecurityFilterChainIntegrationTest {
                         .with(jwt().authorities(new SimpleGrantedAuthority("SuperAdmin"))))
                 .andExpect(status().isOk());
     }
+
+    // ----- Tenant billing (roadmap #22): read-only for every admin-tier role, mutation Admin-only -----
+
+    @Test
+    void viewerCanReadTenantBilling() throws Exception {
+        mvc.perform(get("/api/admin/billing")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("Viewer"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void viewerCannotUpdateTheBillingPaymentMethod() throws Exception {
+        mvc.perform(post("/api/admin/billing/payment-method").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"paymentMethodId\":\"pm_123\"}")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("Viewer"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void orderManagerCannotUpdateTheBillingPaymentMethod() throws Exception {
+        mvc.perform(post("/api/admin/billing/payment-method").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"paymentMethodId\":\"pm_123\"}")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("OrderManager"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCanReachTheBillingPaymentMethodEndpoint() throws Exception {
+        // Stripe isn't configured in this test context, so the call itself fails past the security
+        // layer — the point is that it is NOT rejected as 401/403, proving Admin authorization passed.
+        mvc.perform(post("/api/admin/billing/payment-method").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"paymentMethodId\":\"pm_123\"}")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("Admin"))))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
+    }
+
+    @Test
+    void platformBillingPlansRejectsRegularAdmin() throws Exception {
+        mvc.perform(get("/api/platform/billing-plans")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("Admin"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void platformBillingPlansAllowsSuperAdmin() throws Exception {
+        mvc.perform(get("/api/platform/billing-plans")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SuperAdmin"))))
+                .andExpect(status().isOk());
+    }
 }

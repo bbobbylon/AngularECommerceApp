@@ -16,9 +16,9 @@ import java.util.Date;
 /**
  * A store hosted on this deployment (roadmap #21, Milestone A). {@code slug} is the subdomain/tenant
  * identifier resolved per-request by {@code TenantResolutionFilter}; {@code active} lets a tenant be
- * suspended (404s its traffic) without deleting its data. {@code plan} is unused for now — reserved
- * for roadmap #22 (tenant billing/plans) so that feature doesn't need its own schema change just to
- * record which plan a tenant is on.
+ * suspended (404s its traffic) without deleting its data. Which plan a tenant is on (roadmap #22,
+ * tenant billing) lives on {@code TenantBillingAccount}, not here — this entity carries only identity,
+ * never commercial/billing state.
  *
  * <p>{@code Tenant} itself never carries a {@code tenant_id} — it's the one entity that sits above the
  * tenant boundary, not inside it.
@@ -46,10 +46,6 @@ public class Tenant {
 
     @Column(name = "active", nullable = false)
     private boolean active = true;
-
-    /** Reserved for roadmap #22 (tenant billing/plans); unused for now. */
-    @Column(name = "plan")
-    private String plan;
 
     @Column(name = "date_created")
     @CreationTimestamp
