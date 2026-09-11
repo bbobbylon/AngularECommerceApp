@@ -25,6 +25,7 @@ import java.util.List;
  * intent, and placing the order ({@code CheckoutService}). See {@code CheckoutServiceImpl}'s class
  * doc for the full discount/tax/gift-card/rewards pipeline this fronts.
  */
+@CrossOrigin({"http://localhost:4200", "http://localhost:4251"})
 @RestController
 @RequestMapping("/api/checkout")
 public class CheckoutController {

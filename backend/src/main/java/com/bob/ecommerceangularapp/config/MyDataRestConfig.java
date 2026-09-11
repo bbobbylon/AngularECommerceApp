@@ -39,6 +39,9 @@ public class MyDataRestConfig implements RepositoryRestConfigurer {
         // CorsFilter that governs SDR + custom controllers uniformly and is driven by the
         // app.cors.allowed-origins property). Configuring it here too would create a second,
         // localhost-only policy that rejects the deployed frontend's origin. See docs/DEPLOYMENT.md.
+        // allow the Angular dev server to call the API
+        cors.addMapping(config.getBasePath() + "/**")
+                .allowedOrigins("http://localhost:4200", "http://localhost:4251");
     }
 
     private void disableHttpMethods(Class<?> domainType, RepositoryRestConfiguration config,
