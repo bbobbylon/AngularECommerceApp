@@ -717,6 +717,44 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   fourth and final planned pass under roadmap #21 — all 24 originally-scoped tables now carry
   `tenant_id`; no further entities are pending. 174 backend tests (incl. all 3 real-MySQL IT cases,
   run only when Docker is available) + full `./mvnw clean package` + `npx ng build` all green.
+- ✅ **Tenant billing/plans (roadmap #22)** — the first SaaS-facing (not storefront-facing) feature:
+  each `Tenant` can be put on a `BillingPlan` and charged monthly. `BillingPlan` (name/monthlyPrice/
+  currency/features/active/sortOrder) is **platform-level, no `tenant_id`** — a plan is offered to
+  every tenant, not owned by one, same shape as `Tenant` itself. `TenantBillingAccount` (`V20`,
+  unique on `tenant_id`) is the per-tenant subscription state — plan/status
+  (`NO_PLAN`/`ACTIVE`/`PAST_DUE`/`CANCELED`)/`currentPeriodEnd`/one card-on-file — created lazily on
+  first plan assignment, not seeded for every tenant. `BillingInvoice` is an append-only ledger (same
+  idiom as `AuditLogEntry`) — one row per billing *attempt*, snapshotting `planNameSnapshot`/`amount`
+  at charge time so a later price change never rewrites history. **Deliberately no Stripe Customer or
+  Subscription object** — `BillingService` recomputes plan/status/renewal itself and never reads it
+  back from Stripe, reusing the bare-`PaymentMethod`-id pattern `PaymentMethodService` (#9) already
+  established; this also means no webhook is needed, since `MonthlyBillingScheduler` (daily cron,
+  `app.billing.cron`, default 4am) drives everything by sweeping this app's own tables for accounts
+  past `currentPeriodEnd`, not by Stripe pushing events. Every branch of the charge attempt (no plan,
+  Stripe unconfigured, no card on file, Stripe decline, success) writes a `BillingInvoice` row and
+  returns normally — one tenant's failure never affects another's, mirroring
+  `AbandonedCartService.remindStale()`'s per-item isolation. Split cleanly along the existing platform/
+  tenant boundary from #21 Milestone B: `PlatformBillingPlanController` (`/api/platform/billing-plans`,
+  `SuperAdmin`-only, catalog CRUD) and plan *assignment* (`PUT
+  /api/platform/tenants/{id}/billing-plan`, added to `PlatformTenantController`) are platform-level;
+  `AdminBillingController` (`/api/admin/billing`, the existing tenant-scoped matcher) is read-only
+  status/invoice-history for any back-office role plus self-service card management (Admin-only,
+  reuses `account-settings.ts`'s exact Stripe Elements SetupIntent flow) for the signed-in tenant.
+  Every mutation (`assignPlan`, `recordPaymentMethod`, plan create/update/deactivate) calls
+  `AuditLogService.record(...)`, matching #19's completeness precedent. Frontend: `/admin/billing`
+  (tenant self-service) and `/platform/billing-plans` (SuperAdmin catalog CRUD, mirrors
+  `PlatformTenants`'s layout/access-check pattern exactly) both have sidebar nav links; the Platform
+  Tenants page gained a per-row plan-assignment `<select>` bound with `[ngModel]`/`(ngModelChange)`
+  (not plain `[value]`, per #20's native-`<select>` lesson). This entry closes a documentation gap,
+  not new work — the feature (entities/migration/services/controllers/frontend, `BillingServiceTest`+
+  `BillingPlanServiceTest`) had already been built and merged in a prior session; this pass was a full
+  re-audit (tenant scoping, RBAC gating, audit logging, endpoint-to-service-call wiring, nav-link
+  reachability) that found **zero gaps** — no code changes were needed. **Not verified live in a
+  browser this session**: Docker wasn't running, so neither `docker compose up` nor
+  `./mvnw spring-boot:run` (both MySQL-only) could start; an H2 fallback isn't available either since
+  the H2 driver is test-scope only. Verification here rests on the static re-audit plus the pre-existing
+  203 backend + 17 frontend automated tests (unchanged, still green) — a real click-through with Docker
+  available is still worth doing before calling this fully closed out to the same bar as #1-21.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
