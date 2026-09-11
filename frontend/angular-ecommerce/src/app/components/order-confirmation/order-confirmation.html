@@ -1,6 +1,6 @@
 <div class="text-center py-5">
   <div class="mb-3">
-    <i class="fa-solid fa-circle-check text-success" style="font-size: 4rem;"></i>
+    <i class="fa-solid fa-circle-check text-success confirm-check"></i>
   </div>
   <h2 class="mb-2">Thank you for your order!</h2>
   <p class="text-muted">Your order has been received and is being processed.</p>
@@ -9,6 +9,10 @@
     <p class="mb-1">Order tracking number</p>
     <p class="fs-5 fw-bold font-monospace">{{ trackingNumber }}</p>
   }
+
+  <div class="mx-auto mt-4" style="max-width: 520px;">
+    <app-order-timeline status="Received"></app-order-timeline>
+  </div>
 
   @if (summary) {
     <div class="card text-start mx-auto mt-4" style="max-width: 520px;">

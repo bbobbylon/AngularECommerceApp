@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { MoneyPipe } from '../../common/money.pipe';
 import { Component, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
@@ -7,7 +8,7 @@ import { CartService } from '../../services/cart.service';
 
 @Component({
   selector: 'app-cart-details',
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, MoneyPipe, RouterLink],
   templateUrl: './cart-details.html',
 })
 export class CartDetails implements OnInit {

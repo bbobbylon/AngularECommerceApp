@@ -9,6 +9,11 @@ import lombok.Setter;
 
 import java.util.Set;
 
+/**
+ * The checkout submission payload — customer, addresses, and cart contents, plus every optional
+ * discount/reward mechanism {@code CheckoutServiceImpl} composes together (coupon, gift card, loyalty
+ * points, referral code) and the shipping/payment selections. One record per placed order.
+ */
 @Getter
 @Setter
 public class Purchase {
@@ -18,4 +23,26 @@ public class Purchase {
     private Address billingAddress;
     private Order order;
     private Set<OrderItem> orderItems;
+
+    /** Checkout opt-in: create the account on the weekly-deals list (defaults to opted-in). */
+    private boolean subscribeToNewsletter = true;
+
+    /** Applied coupon (optional). The server re-validates and records the discount on the order. */
+    private String couponCode;
+    private java.math.BigDecimal subtotal;
+
+    /** Chosen shipping method code; the server recomputes shipping + tax authoritatively from it. */
+    private String shippingMethodCode;
+
+    /** Stripe PaymentIntent id when paid by card — recorded on the order so a return can refund it. */
+    private String paymentIntentId;
+
+    /** Gift card code to redeem as store credit against the order total (optional). */
+    private String giftCardCode;
+
+    /** Loyalty points the customer chose to redeem as store credit (server-validated against balance). */
+    private int pointsToRedeem;
+
+    /** Referral code the buyer arrived with (rewards both parties on the buyer's first order). */
+    private String referralCode;
 }

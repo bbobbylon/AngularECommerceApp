@@ -1,0 +1,29 @@
+@if (variant === 'band') {
+  <div class="newsletter-band text-center">
+    <span class="badge rounded-pill mb-3 px-3 py-2" style="background: rgba(255,255,255,.14); color:#fff;">
+      <i class="fa-solid fa-envelope-open-text me-1" style="color: var(--gold);"></i> Weekly deals
+    </span>
+    <h3 class="fw-bold mb-2">Get the good stuff first.</h3>
+    <p class="mb-4 mx-auto" style="max-width: 480px; color: rgba(255,255,255,.82);">
+      Join the list for a handpicked weekly edit and members-only deals &mdash; straight to your inbox.
+    </p>
+    <form class="newsletter-inline d-flex gap-2 mx-auto" style="max-width: 460px;" (ngSubmit)="submit()">
+      <input type="email" name="email" class="form-control form-control-lg" placeholder="you@example.com"
+             autocomplete="email" [(ngModel)]="email" [disabled]="submitting()" aria-label="Email address" />
+      <button type="submit" class="btn btn-primary btn-lg fw-bold text-nowrap" [disabled]="submitting()">
+        @if (submitting()) { <i class="fa-solid fa-spinner fa-spin"></i> } @else { Subscribe }
+      </button>
+    </form>
+    <p class="small mt-3 mb-0" style="color: rgba(255,255,255,.6);">No spam. Unsubscribe anytime.</p>
+  </div>
+} @else {
+  <h6 class="text-uppercase small fw-bold text-secondary">Weekly deals</h6>
+  <p class="small text-secondary mb-2">Handpicked deals in your inbox.</p>
+  <form class="newsletter-inline d-flex gap-2" (ngSubmit)="submit()">
+    <input type="email" name="email" class="form-control form-control-sm" placeholder="you@example.com"
+           autocomplete="email" [(ngModel)]="email" [disabled]="submitting()" aria-label="Email address" />
+    <button type="submit" class="btn btn-primary btn-sm fw-bold text-nowrap" [disabled]="submitting()">
+      @if (submitting()) { <i class="fa-solid fa-spinner fa-spin"></i> } @else { Join }
+    </button>
+  </form>
+}

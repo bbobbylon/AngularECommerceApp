@@ -1,15 +1,27 @@
+<a class="skip-link" href="#main-content">Skip to content</a>
+
+@if (banner(); as b) {
+  <div class="promo-bar text-center">
+    @if (b.linkUrl) {
+      <a [routerLink]="b.linkUrl" class="promo-bar-link">
+        <i class="fa-solid fa-bolt me-1"></i>
+        {{ b.message }}
+        @if (b.linkText) { <span class="promo-cta">{{ b.linkText }} <i class="fa-solid fa-arrow-right ms-1"></i></span> }
+      </a>
+    } @else {
+      <span class="promo-bar-link"><i class="fa-solid fa-bolt me-1"></i>{{ b.message }}</span>
+    }
+  </div>
+}
+
 <header class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
-  <div class="container-fluid px-3 px-lg-4">
-    <a class="navbar-brand fw-bold d-flex align-items-center" routerLink="/products">
+  <div class="container-fluid px-3 px-lg-4 flex-wrap gap-2">
+    <a class="navbar-brand fw-bold d-flex align-items-center order-0 me-2" routerLink="/products">
       <i class="fa-solid fa-bag-shopping me-2 text-primary"></i>
       <span>Luv2<span class="text-primary">Shop</span></span>
     </a>
 
-    <div class="flex-grow-1 mx-lg-4 my-2 my-lg-0" style="max-width: 560px;">
-      <app-search></app-search>
-    </div>
-
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center gap-2 order-1 order-lg-2 ms-auto ms-lg-0">
       <button type="button" class="theme-toggle" (click)="themeService.toggle()"
               [attr.aria-label]="themeService.theme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
         @if (themeService.theme() === 'dark') {
@@ -18,18 +30,60 @@
           <i class="fa-solid fa-moon"></i>
         }
       </button>
+      <a routerLink="/favorites" class="btn btn-outline-light position-relative" aria-label="Favorites">
+        <i class="fa-solid fa-heart"></i>
+        @if (favorites.count() > 0) {
+          <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary">
+            {{ favorites.count() }}
+          </span>
+        }
+      </a>
+      <select class="form-select form-select-sm bg-dark text-light border-secondary w-auto"
+              [value]="currencyService.current().code"
+              (change)="currencyService.setCurrency($any($event.target).value)"
+              [attr.aria-label]="'common.currency' | t" [attr.title]="'common.currency' | t">
+        @for (c of currencyService.currencies; track c.code) {
+          <option [value]="c.code">{{ c.code }}</option>
+        }
+      </select>
+      <select class="form-select form-select-sm bg-dark text-light border-secondary w-auto"
+              [value]="i18n.lang()"
+              (change)="i18n.setLang($any($event.target).value)"
+              [attr.aria-label]="'common.language' | t" [attr.title]="'common.language' | t">
+        @for (l of i18n.languages; track l.code) {
+          <option [value]="l.code">{{ l.name }}</option>
+        }
+      </select>
       <app-login-status></app-login-status>
       <app-cart-status></app-cart-status>
+    </div>
+
+    <div class="nav-search order-2 order-lg-1 mx-lg-3">
+      <app-search></app-search>
     </div>
   </div>
 </header>
 
+<nav class="subnav" aria-label="Primary">
+  <div class="container-fluid px-3 px-lg-4">
+    <ul class="subnav-list">
+      <li><a routerLink="/products" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">{{ 'nav.shopAll' | t }}</a></li>
+      <li><a routerLink="/sale" routerLinkActive="active" class="subnav-sale">{{ 'nav.sale' | t }}</a></li>
+      <li><a routerLink="/favorites" routerLinkActive="active">{{ 'nav.favorites' | t }}</a></li>
+      <li><a routerLink="/about" routerLinkActive="active">{{ 'nav.about' | t }}</a></li>
+      <li><a routerLink="/account" routerLinkActive="active">{{ 'nav.account' | t }}</a></li>
+    </ul>
+  </div>
+</nav>
+
 <div class="container-fluid px-3 px-lg-4 mt-4">
   <div class="row">
-    <aside class="col-12 col-md-3 col-lg-2 mb-4">
-      <app-product-category-menu></app-product-category-menu>
-    </aside>
-    <main class="col-12 col-md-9 col-lg-10">
+    @if (!isAdminRoute()) {
+      <aside class="col-12 col-md-3 col-lg-2 mb-4">
+        <app-product-category-menu></app-product-category-menu>
+      </aside>
+    }
+    <main id="main-content" tabindex="-1" [class]="isAdminRoute() ? 'col-12' : 'col-12 col-md-9 col-lg-10'">
       <router-outlet></router-outlet>
     </main>
   </div>
@@ -37,32 +91,69 @@
 
 <footer class="bg-dark text-light mt-5 pt-4 pb-3">
   <div class="container-fluid px-3 px-lg-4">
-    <div class="row gy-3">
-      <div class="col-md-5">
+    <div class="row gy-4">
+      <div class="col-12 col-lg-4">
         <h6 class="fw-bold"><i class="fa-solid fa-bag-shopping me-2 text-primary"></i>Luv2Shop</h6>
-        <p class="small text-secondary mb-0">A full-stack demo store built with Angular 21 &amp; Spring Boot 4.</p>
+        <p class="small text-secondary mb-3" style="max-width: 320px;">
+          Little things, big delight. Curated books, coffee mugs, mouse pads &amp; luggage for the
+          desk, the commute, and everywhere in between.
+        </p>
+        <div class="d-flex gap-3 fs-5">
+          <a href="#" class="link-light" aria-label="Instagram"><i class="fa-brands fa-instagram"></i></a>
+          <a href="#" class="link-light" aria-label="X"><i class="fa-brands fa-x-twitter"></i></a>
+          <a href="#" class="link-light" aria-label="Facebook"><i class="fa-brands fa-facebook"></i></a>
+          <a href="#" class="link-light" aria-label="TikTok"><i class="fa-brands fa-tiktok"></i></a>
+        </div>
       </div>
-      <div class="col-6 col-md-4">
-        <h6 class="text-uppercase small fw-bold text-secondary">Shop</h6>
+      <div class="col-6 col-md-3 col-lg-2">
+        <h6 class="text-uppercase small fw-bold text-secondary">{{ 'footer.shop' | t }}</h6>
         <ul class="list-unstyled small mb-0">
-          <li><a routerLink="/products" class="link-light text-decoration-none">All products</a></li>
-          <li><a routerLink="/cart-details" class="link-light text-decoration-none">Cart</a></li>
-          <li><a routerLink="/members/orders" class="link-light text-decoration-none">My orders</a></li>
+          <li class="mb-1"><a routerLink="/products" class="link-light text-decoration-none">All products</a></li>
+          <li class="mb-1"><a routerLink="/sale" class="link-light text-decoration-none">Sale</a></li>
+          <li class="mb-1"><a routerLink="/favorites" class="link-light text-decoration-none">Favorites</a></li>
+          <li class="mb-1"><a routerLink="/cart-details" class="link-light text-decoration-none">Cart</a></li>
         </ul>
       </div>
-      <div class="col-6 col-md-3">
-        <h6 class="text-uppercase small fw-bold text-secondary">Built with</h6>
-        <div class="d-flex gap-3 fs-5">
-          <i class="fa-brands fa-angular text-danger" title="Angular"></i>
-          <i class="fa-brands fa-java text-warning" title="Java"></i>
-          <i class="fa-solid fa-database text-info" title="MySQL"></i>
-        </div>
+      <div class="col-6 col-md-3 col-lg-2">
+        <h6 class="text-uppercase small fw-bold text-secondary">{{ 'footer.company' | t }}</h6>
+        <ul class="list-unstyled small mb-0">
+          <li class="mb-1"><a routerLink="/about" class="link-light text-decoration-none">About us</a></li>
+          <li class="mb-1"><a routerLink="/account" class="link-light text-decoration-none">My account</a></li>
+          <li class="mb-1"><a routerLink="/members/orders" class="link-light text-decoration-none">My orders</a></li>
+          <li class="mb-1"><a routerLink="/admin" class="link-light text-decoration-none">Admin</a></li>
+        </ul>
+      </div>
+      <div class="col-6 col-md-3 col-lg-2">
+        <h6 class="text-uppercase small fw-bold text-secondary">{{ 'footer.help' | t }}</h6>
+        <ul class="list-unstyled small mb-0">
+          <li class="mb-1"><a routerLink="/faq" class="link-light text-decoration-none">FAQ</a></li>
+          <li class="mb-1"><a routerLink="/contact" class="link-light text-decoration-none">Contact</a></li>
+          <li class="mb-1"><a routerLink="/shipping-returns" class="link-light text-decoration-none">Shipping &amp; returns</a></li>
+        </ul>
+      </div>
+      <div class="col-12 col-md-6 col-lg-3">
+        <app-newsletter-signup variant="inline"></app-newsletter-signup>
       </div>
     </div>
     <hr class="border-secondary my-3" />
-    <div class="text-center small text-secondary">&copy; 2026 Luv2Shop &middot; Demo project</div>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 small text-secondary">
+      <span class="d-flex flex-wrap align-items-center gap-2">
+        <span>&copy; 2026 Luv2Shop &middot; Demo project</span>
+        <span class="text-secondary">&middot;</span>
+        <a routerLink="/privacy" class="link-light text-decoration-none">Privacy</a>
+        <span class="text-secondary">&middot;</span>
+        <a routerLink="/terms" class="link-light text-decoration-none">Terms</a>
+      </span>
+      <span class="d-flex align-items-center gap-3">
+        <span>Built with</span>
+        <i class="fa-brands fa-angular text-danger" title="Angular"></i>
+        <i class="fa-brands fa-java text-warning" title="Java"></i>
+        <i class="fa-solid fa-database text-info" title="MySQL"></i>
+      </span>
+    </div>
   </div>
 </footer>
 
 <app-toast></app-toast>
 <app-back-to-top></app-back-to-top>
+<app-install-prompt></app-install-prompt>

@@ -1,0 +1,94 @@
+<div class="mb-4">
+  <h1 class="fw-bold mb-1">Coupons</h1>
+  <p class="text-muted mb-0">Create and manage discount codes.</p>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">New coupon</h6>
+        <div class="mb-2">
+          <label class="form-label">Code</label>
+          <input type="text" class="form-control text-uppercase" placeholder="e.g. FALL15" [(ngModel)]="form.code" name="code" />
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Description</label>
+          <input type="text" class="form-control" placeholder="Shown to customers" [(ngModel)]="form.description" name="desc" />
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-5">
+            <label class="form-label">Type</label>
+            <select class="form-select" [(ngModel)]="form.discountType" name="type">
+              <option value="percent">% off</option>
+              <option value="amount">$ off</option>
+            </select>
+          </div>
+          <div class="col-7">
+            <label class="form-label">Value</label>
+            <input type="number" min="0" step="0.01" class="form-control" [(ngModel)]="form.discountValue" name="value" />
+          </div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label">Min spend ($)</label>
+            <input type="number" min="0" step="0.01" class="form-control" [(ngModel)]="form.minSpend" name="min" />
+          </div>
+          <div class="col-6">
+            <label class="form-label">Expires</label>
+            <input type="date" class="form-control" [(ngModel)]="form.expiresAt" name="exp" />
+          </div>
+        </div>
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" role="switch" id="couponActive" [(ngModel)]="form.active" name="active" />
+          <label class="form-check-label" for="couponActive">Active</label>
+        </div>
+        <button type="button" class="btn btn-primary" (click)="create()" [disabled]="saving()">
+          @if (saving()) { <i class="fa-solid fa-spinner fa-spin me-1"></i> } @else { <i class="fa-solid fa-plus me-1"></i> }
+          Save coupon
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    @if (loading()) {
+      <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+    } @else if (coupons().length === 0) {
+      <div class="alert alert-secondary">No coupons yet.</div>
+    } @else {
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead>
+            <tr><th>Code</th><th>Discount</th><th>Min spend</th><th>Expires</th><th>Status</th><th class="text-end"></th></tr>
+          </thead>
+          <tbody>
+            @for (c of coupons(); track c.id) {
+              <tr>
+                <td>
+                  <span class="fw-bold">{{ c.code }}</span>
+                  @if (c.description) { <div class="small text-muted">{{ c.description }}</div> }
+                </td>
+                <td>{{ discountLabel(c) }}</td>
+                <td>{{ c.minSpend ? (c.minSpend | currency:'USD') : '—' }}</td>
+                <td class="small">{{ c.expiresAt ? (c.expiresAt | date:'mediumDate') : 'No expiry' }}</td>
+                <td>
+                  @if (c.active) {
+                    <span class="badge bg-success-subtle text-success-emphasis">Active</span>
+                  } @else {
+                    <span class="badge bg-secondary-subtle text-secondary">Off</span>
+                  }
+                </td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-outline-danger" (click)="remove(c)" aria-label="Delete">
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

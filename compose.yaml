@@ -1,0 +1,62 @@
+# Full-stack LOCAL deployment — builds and runs the whole app (frontend + backend + MySQL) in
+# containers, the same images the cloud runs. This is the "deploy locally" path:
+#
+#     docker compose up --build        # then open http://localhost:4250
+#
+# It mirrors a cloud deploy on your machine — Flyway migrates the empty DB on first boot, the
+# DataLoader seeds the catalog, and the backend runs under the `prod` profile.
+#
+# (For day-to-day development with hot reload, use ./run.sh instead — that runs the apps on the host
+# and only containerises MySQL via backend/compose.yaml.)
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: full-stack-ecommerce
+      MYSQL_USER: ecommerceapp
+      MYSQL_PASSWORD: ecommerceapp
+      MYSQL_ROOT_PASSWORD: verysecret
+    ports:
+      - "3307:3306"          # host:container — 3307 avoids clashing with a local MySQL on 3306
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build: ./backend
+    depends_on:
+      mysql:
+        condition: service_healthy   # wait until MySQL is actually accepting connections
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DOCKER_COMPOSE_ENABLED: "false"
+      # The backend reaches MySQL over the compose network by service name.
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/full-stack-ecommerce
+      SPRING_DATASOURCE_USERNAME: ecommerceapp
+      SPRING_DATASOURCE_PASSWORD: ecommerceapp
+      # Optional integrations — uncomment + set to light up payments / auth / email:
+      # STRIPE_SECRET_KEY: sk_test_...
+      # SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: https://YOUR_OKTA_DOMAIN/oauth2/default
+    ports:
+      - "8585:8585"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend/angular-ecommerce
+      args:
+        # Baked into the SPA at build time. The browser calls the backend on the host-published port,
+        # so this is localhost (not the compose service name).
+        API_URL: http://localhost:8585/api
+    depends_on:
+      - backend
+    ports:
+      - "4250:80"
+    restart: unless-stopped
+
+volumes:
+  mysql-data:

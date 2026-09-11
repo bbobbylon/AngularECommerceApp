@@ -1,67 +1,227 @@
-@if (!searchMode) {
+@if (saleMode) {
+  <div class="shop-hero sale-hero p-4 p-md-5 mb-4">
+    <span class="badge rounded-pill mb-3 px-3 py-2"
+          style="background: rgba(255,255,255,.14); color:#fff;">
+      <i class="fa-solid fa-bolt me-1" style="color: var(--gold);"></i> Limited-time deals
+    </span>
+    <h1 class="fw-bold mb-2">The sale is on.</h1>
+    <p class="mb-0 fs-5" style="max-width: 560px; color: rgba(255,255,255,.85);">
+      Markdowns across books, mugs, mouse pads &amp; luggage &mdash; while stocks last.
+      Fresh deals drop every week.
+    </p>
+  </div>
+} @else if (isHome) {
   <div class="shop-hero p-4 p-md-5 mb-4">
     <span class="badge rounded-pill mb-3 px-3 py-2"
           style="background: rgba(255,255,255,.14); color:#fff;">
       <i class="fa-solid fa-star me-1" style="color: var(--gold);"></i> Handpicked goods
     </span>
     <h1 class="fw-bold mb-2">Little things,<br />big delight.</h1>
-    <p class="mb-0 fs-5" style="max-width: 560px; color: rgba(255,255,255,.85);">
+    <p class="mb-3 fs-5" style="max-width: 560px; color: rgba(255,255,255,.85);">
       Books, coffee mugs, mouse pads &amp; luggage &mdash; curated for the desk, the commute,
       and everywhere in between.
     </p>
+    <div class="d-flex flex-wrap gap-2">
+      <a routerLink="/products" fragment="catalog" class="btn btn-light btn-lg fw-bold">
+        <i class="fa-solid fa-bag-shopping me-1"></i> Shop all
+      </a>
+      <a routerLink="/sale" class="btn btn-outline-light btn-lg">
+        <i class="fa-solid fa-tag me-1"></i> Shop the sale
+      </a>
+    </div>
   </div>
+
+  <!-- value props / trust badges — fills the space under the hero -->
+  <div class="row g-3 mb-4 value-props">
+    <div class="col-6 col-lg-3">
+      <div class="value-prop h-100">
+        <i class="fa-solid fa-truck-fast"></i>
+        <h6 class="mb-1">Free shipping</h6>
+        <p class="small mb-0 text-muted">On every order over $50.</p>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="value-prop h-100">
+        <i class="fa-solid fa-rotate-left"></i>
+        <h6 class="mb-1">30-day returns</h6>
+        <p class="small mb-0 text-muted">Changed your mind? No worries.</p>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="value-prop h-100">
+        <i class="fa-solid fa-lock"></i>
+        <h6 class="mb-1">Secure checkout</h6>
+        <p class="small mb-0 text-muted">Encrypted payments via Stripe.</p>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="value-prop h-100">
+        <i class="fa-solid fa-envelope-open-text"></i>
+        <h6 class="mb-1">Weekly deals</h6>
+        <p class="small mb-0 text-muted">The best prices, in your inbox.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- sale teaser strip -->
+  <a routerLink="/sale" class="sale-strip d-flex align-items-center justify-content-between mb-4 text-decoration-none">
+    <span class="fw-bold"><i class="fa-solid fa-bolt me-2"></i>Up to 49% off this week &mdash; shop the sale</span>
+    <span class="fw-bold">Shop now <i class="fa-solid fa-arrow-right ms-1"></i></span>
+  </a>
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h2 class="mb-0">
-    @if (searchMode) {
-      Search results
-    } @else {
-      Products
-    }
-  </h2>
+<span id="catalog"></span>
 
-  <div class="d-flex align-items-center gap-2">
-    <label for="pageSize" class="text-muted small mb-0">Page size</label>
-    <select id="pageSize" class="form-select form-select-sm" style="width:auto"
-            [value]="pageSize" (change)="updatePageSize($any($event.target).value)">
-      @for (size of pageSizeOptions; track size) {
-        <option [value]="size">{{ size }}</option>
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h2 class="mb-0">
+      @if (searchMode) {
+        Search results
+      } @else if (saleMode) {
+        On sale now
+      } @else {
+        Products
       }
-    </select>
+    </h2>
+    @if (!isLoading && totalElements > 0) {
+      <span class="text-muted small">{{ totalElements }} item{{ totalElements === 1 ? '' : 's' }}</span>
+    }
+  </div>
+
+  <div class="d-flex align-items-center gap-3 flex-wrap">
+    <button type="button" class="btn btn-sm btn-outline-secondary" (click)="showFilters = !showFilters">
+      <i class="fa-solid fa-sliders me-1"></i> Filters
+      @if (hasActiveFilters) { <span class="badge bg-primary ms-1">on</span> }
+    </button>
+    <div class="d-flex align-items-center gap-2">
+      <label for="sortBy" class="text-muted small mb-0">Sort</label>
+      <select id="sortBy" class="form-select form-select-sm" style="width:auto"
+              [value]="sortBy" (change)="updateSort($any($event.target).value)">
+        @for (opt of sortOptions; track opt.value) {
+          <option [value]="opt.value">{{ opt.label }}</option>
+        }
+      </select>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <label for="pageSize" class="text-muted small mb-0">Page size</label>
+      <select id="pageSize" class="form-select form-select-sm" style="width:auto"
+              [value]="pageSize" (change)="updatePageSize($any($event.target).value)">
+        @for (size of pageSizeOptions; track size) {
+          <option [value]="size">{{ size }}</option>
+        }
+      </select>
+    </div>
   </div>
 </div>
 
-@if (isLoading) {
-  <div class="text-center py-5">
-    <div class="spinner-border text-primary" role="status">
-      <span class="visually-hidden">Loading...</span>
+@if (showFilters) {
+  <div class="card mb-4 filter-panel">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-6 col-md-3">
+          <label for="minPrice" class="form-label small mb-1">Min price</label>
+          <input id="minPrice" type="number" min="0" class="form-control form-control-sm" placeholder="$0"
+                 [(ngModel)]="filterMinPrice" name="minPrice" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label for="maxPrice" class="form-label small mb-1">Max price</label>
+          <input id="maxPrice" type="number" min="0" class="form-control form-control-sm" placeholder="Any"
+                 [(ngModel)]="filterMaxPrice" name="maxPrice" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label for="minRating" class="form-label small mb-1">Min rating</label>
+          <select id="minRating" class="form-select form-select-sm" [(ngModel)]="filterMinRating" name="minRating">
+            <option [ngValue]="0">Any</option>
+            <option [ngValue]="3">3★ &amp; up</option>
+            <option [ngValue]="4">4★ &amp; up</option>
+            <option [ngValue]="5">5★ only</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 d-flex flex-column gap-1">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="inStock" [(ngModel)]="filterInStock" name="inStock" />
+            <label class="form-check-label small" for="inStock">In stock only</label>
+          </div>
+          @if (!saleMode) {
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="onSale" [(ngModel)]="filterOnSale" name="onSale" />
+              <label class="form-check-label small" for="onSale">On sale</label>
+            </div>
+          }
+        </div>
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <button type="button" class="btn btn-primary btn-sm" (click)="applyFilters()">Apply filters</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" (click)="clearFilters()" [disabled]="!hasActiveFilters">Clear</button>
+      </div>
     </div>
   </div>
+}
+
+@if (isLoading) {
+  <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 g-4">
+    @for (s of [0,1,2,3,4,5,6,7]; track s) {
+      <div class="col">
+        <div class="card product-card h-100 shadow-sm">
+          <div class="skeleton skeleton-img"></div>
+          <div class="card-body">
+            <div class="skeleton skeleton-line" style="width:80%"></div>
+            <div class="skeleton skeleton-line" style="width:100%"></div>
+            <div class="skeleton skeleton-line mt-3" style="width:45%"></div>
+            <div class="skeleton skeleton-btn mt-2"></div>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
 } @else if (products.length === 0) {
-  <div class="alert alert-warning" role="alert">
-    No products found. Try a different category or search term.
+  <div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2" role="alert">
+    <span>No products found. Try a different category, search term, or fewer filters.</span>
+    @if (hasActiveFilters) {
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="clearFilters()">Clear filters</button>
+    }
   </div>
 } @else {
   <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 g-4">
     @for (product of products; track product.id) {
       <div class="col reveal">
-        <div class="card product-card h-100 shadow-sm">
+        <div class="card product-card h-100 shadow-sm position-relative">
+          @if (isOnSale(product)) {
+            <span class="sale-badge">-{{ discountPercent(product) }}%</span>
+          }
+          <button type="button" class="fav-btn" [class.is-fav]="favorites.isFavorite(product.id)"
+                  (click)="toggleFavorite(product)"
+                  [attr.aria-pressed]="favorites.isFavorite(product.id)"
+                  [attr.aria-label]="favorites.isFavorite(product.id) ? 'Remove from favorites' : 'Add to favorites'">
+            <i class="fa-solid fa-heart"></i>
+          </button>
           <a [routerLink]="['/products', product.id]">
             <img [src]="product.imageUrl" [alt]="product.name"
                  class="card-img-top" loading="lazy" />
           </a>
           <div class="card-body d-flex flex-column">
-            <h6 class="card-title mb-2">
-              <a [routerLink]="['/products', product.id]"
-                 class="text-decoration-none text-dark">{{ product.name }}</a>
+            <h6 class="product-name mb-1">
+              <a [routerLink]="['/products', product.id]">{{ product.name }}</a>
             </h6>
+            @if (product.reviewCount) {
+              <div class="mb-1">
+                <app-star-rating [rating]="product.averageRating" [count]="product.reviewCount" [showCount]="true"></app-star-rating>
+              </div>
+            }
+            <p class="product-sub small text-muted mb-2">{{ product.description }}</p>
             <div class="d-flex justify-content-between align-items-center mt-auto mb-2">
-              <span class="fs-5 fw-bold text-primary">{{ product.unitPrice | currency:'USD' }}</span>
-              @if (product.unitsInStock > 0) {
-                <span class="badge bg-success-subtle text-success-emphasis">In stock</span>
-              } @else {
+              <span class="d-flex align-items-baseline gap-2">
+                <span class="fs-5 fw-bold text-primary">{{ product.unitPrice | money }}</span>
+                @if (isOnSale(product)) {
+                  <span class="small text-muted text-decoration-line-through">{{ product.originalPrice | money }}</span>
+                }
+              </span>
+              @if (product.unitsInStock === 0) {
                 <span class="badge bg-danger-subtle text-danger-emphasis">Out</span>
+              } @else if (isLowStock(product)) {
+                <span class="badge bg-warning-subtle text-warning-emphasis">Only {{ product.unitsInStock }} left</span>
+              } @else {
+                <span class="badge bg-success-subtle text-success-emphasis">In stock</span>
               }
             </div>
             <button type="button" class="btn btn-primary btn-sm w-100"
@@ -84,4 +244,11 @@
       (pageChange)="listProducts()">
     </ngb-pagination>
   </div>
+}
+
+@if (isHome) {
+  <app-recently-viewed></app-recently-viewed>
+  <section class="mt-5">
+    <app-newsletter-signup variant="band"></app-newsletter-signup>
+  </section>
 }

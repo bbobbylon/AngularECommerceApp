@@ -7,6 +7,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -22,8 +23,20 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * A placed order. Accumulates one field pair per discount/adjustment mechanism added over time —
+ * {@code couponCode}/{@code discountAmount} (checkout), {@code promotionName}/{@code promotionDiscount}
+ * (#16), {@code giftCardCode}/{@code giftCardAmount} (#4), {@code loyaltyPointsRedeemed}/
+ * {@code loyaltyDiscount} (#5), {@code shippingAmount}/{@code taxAmount} (#2),
+ * {@code paymentIntentId} (Stripe) — all nullable and additive, so none required a breaking change
+ * to existing rows. {@code status} drives the forward-only fulfillment ladder
+ * (Received→Processing→Shipped→Delivered, see {@code FulfillmentService}, #20). See
+ * {@code CheckoutServiceImpl} for how every field here gets populated. Tenant-scoped since roadmap
+ * #21 Milestone A.
+ */
 @Entity
-@Table(name = "orders")
+// Admin order list + order history both sort by recency.
+@Table(name = "orders", indexes = @Index(name = "idx_orders_date_created", columnList = "date_created"))
 @Getter
 @Setter
 public class Order {
@@ -32,6 +45,15 @@ public class Order {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
+
+    /**
+     * Roadmap #21 (multi-tenancy) — see {@link Product#getTenantId()}. Note {@code Order} is one of
+     * only 5 Spring Data REST-exported repos, so its item resource (GET/PUT/DELETE /api/orders/{id})
+     * is exactly the {@code findById}-shaped gap a query-level predicate doesn't cover —
+     * {@code TenantResourceGuardFilter} closes it explicitly.
+     */
+    @Column(name = "tenant_id")
+    private Long tenantId;
 
     @Column(name = "order_tracking_number")
     private String orderTrackingNumber;
@@ -44,6 +66,49 @@ public class Order {
 
     @Column(name = "status")
     private String status;
+
+    /** Applied coupon code + the discount it produced (nullable when no coupon was used). */
+    @Column(name = "coupon_code")
+    private String couponCode;
+
+    @Column(name = "discount_amount")
+    private BigDecimal discountAmount;
+
+    /** Automatic no-code promotion applied (nullable): the promotion's name and the discount it produced. */
+    @Column(name = "promotion_name")
+    private String promotionName;
+
+    @Column(name = "promotion_discount")
+    private BigDecimal promotionDiscount;
+
+    /** Shipping charged (nullable on legacy/demo orders); the {@link #shippingMethod} code chosen. */
+    @Column(name = "shipping_amount")
+    private BigDecimal shippingAmount;
+
+    @Column(name = "shipping_method")
+    private String shippingMethod;
+
+    /** Sales tax applied to the discounted merchandise subtotal (nullable on legacy orders). */
+    @Column(name = "tax_amount")
+    private BigDecimal taxAmount;
+
+    /** Stripe PaymentIntent id (when paid by card) — lets a return issue a real refund. Null in demo mode. */
+    @Column(name = "payment_intent_id")
+    private String paymentIntentId;
+
+    /** Gift card applied as store credit (nullable): the code used and the amount drawn from it. */
+    @Column(name = "gift_card_code")
+    private String giftCardCode;
+
+    @Column(name = "gift_card_amount")
+    private BigDecimal giftCardAmount;
+
+    /** Loyalty points redeemed on this order as store credit, and the discount they produced (nullable). */
+    @Column(name = "loyalty_points_redeemed")
+    private Integer loyaltyPointsRedeemed;
+
+    @Column(name = "loyalty_discount")
+    private BigDecimal loyaltyDiscount;
 
     @Column(name = "date_created")
     @CreationTimestamp

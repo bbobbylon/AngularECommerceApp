@@ -1,9 +1,14 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dto.PaymentInfo;
 import com.bob.ecommerceangularapp.dto.Purchase;
 import com.bob.ecommerceangularapp.dto.PurchaseResponse;
+import com.bob.ecommerceangularapp.dto.QuoteRequest;
+import com.bob.ecommerceangularapp.dto.QuoteResponse;
+import com.bob.ecommerceangularapp.email.EmailService;
+import com.bob.ecommerceangularapp.entity.Address;
 import com.bob.ecommerceangularapp.entity.Customer;
 import com.bob.ecommerceangularapp.entity.Order;
 import com.bob.ecommerceangularapp.entity.OrderItem;
@@ -21,14 +26,48 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * The checkout pipeline. {@link #placeOrder} is where nearly every commerce feature in this app
+ * composes together, in a fixed order: subtotal -&gt; coupon -&gt; promotion -&gt; shipping -&gt; tax (all via
+ * {@link TaxShippingService#quote}) -&gt; gift card ({@link GiftCardService}) -&gt; rewards
+ * ({@link LoyaltyService}) -&gt; amount due, then the order is saved, loyalty points are
+ * redeemed/awarded, a referral is recorded on the customer's first order
+ * ({@link ReferralService}), any abandoned-cart reminder is cleared
+ * ({@link AbandonedCartService}), and confirmation/welcome emails are sent (gated, no-op without
+ * SMTP configured). Stamps the current {@link TenantContext} tenant id onto the customer, order,
+ * order items and addresses before the cascading save (roadmap #21). When adding a new
+ * checkout-adjacent feature, extend this constructor and its dedicated unit test
+ * ({@code CheckoutServiceImplTest}) the same way every prior feature did.
+ */
 @Service
 public class CheckoutServiceImpl implements CheckoutService {
 
     private final CustomerRepository customerRepository;
+    private final EmailService emailService;
+    private final TaxShippingService taxShippingService;
+    private final ProductVariantService productVariantService;
+    private final GiftCardService giftCardService;
+    private final LoyaltyService loyaltyService;
+    private final ReferralService referralService;
+    private final AbandonedCartService abandonedCartService;
 
     public CheckoutServiceImpl(CustomerRepository customerRepository,
+                               EmailService emailService,
+                               TaxShippingService taxShippingService,
+                               ProductVariantService productVariantService,
+                               GiftCardService giftCardService,
+                               LoyaltyService loyaltyService,
+                               ReferralService referralService,
+                               AbandonedCartService abandonedCartService,
                                @Value("${stripe.key.secret}") String secretKey) {
         this.customerRepository = customerRepository;
+        this.emailService = emailService;
+        this.taxShippingService = taxShippingService;
+        this.productVariantService = productVariantService;
+        this.giftCardService = giftCardService;
+        this.loyaltyService = loyaltyService;
+        this.referralService = referralService;
+        this.abandonedCartService = abandonedCartService;
         // Stripe is keyed globally via a static field.
         Stripe.apiKey = secretKey;
     }
@@ -38,28 +77,109 @@ public class CheckoutServiceImpl implements CheckoutService {
     public PurchaseResponse placeOrder(Purchase purchase) {
 
         Order order = purchase.getOrder();
+        Long tenantId = TenantContext.currentTenantId();
 
         String orderTrackingNumber = generateOrderTrackingNumber();
         order.setOrderTrackingNumber(orderTrackingNumber);
+        order.setPaymentIntentId(purchase.getPaymentIntentId());
+        order.setTenantId(tenantId);
 
         // populate order with its items (maintains the bidirectional link)
         Set<OrderItem> orderItems = purchase.getOrderItems();
+        orderItems.forEach(item -> item.setTenantId(tenantId));
         orderItems.forEach(order::add);
 
+        // Draw down SKU-level inventory for any lines bought by variant (no-op for single-SKU items).
+        productVariantService.decrementForOrderItems(orderItems);
+
         // populate order with its addresses
+        if (purchase.getShippingAddress() != null) {
+            purchase.getShippingAddress().setTenantId(tenantId);
+        }
+        if (purchase.getBillingAddress() != null) {
+            purchase.getBillingAddress().setTenantId(tenantId);
+        }
         order.setShippingAddress(purchase.getShippingAddress());
         order.setBillingAddress(purchase.getBillingAddress());
 
+        // Recompute the total authoritatively from the subtotal: re-validate any coupon, then add
+        // server-side shipping + tax (the same quote the storefront showed). Legacy/demo callers that
+        // don't send a subtotal keep the total they posted. See TaxShippingService.
+        if (purchase.getSubtotal() != null) {
+            Address ship = purchase.getShippingAddress();
+            QuoteResponse quote = taxShippingService.quote(new QuoteRequest(
+                    purchase.getSubtotal(),
+                    ship == null ? null : ship.getCountry(),
+                    ship == null ? null : ship.getState(),
+                    purchase.getCouponCode(),
+                    purchase.getShippingMethodCode()));
+            if (quote.discount() != null && quote.discount().signum() > 0) {
+                order.setCouponCode(purchase.getCouponCode());
+                order.setDiscountAmount(quote.discount());
+            }
+            if (quote.promotionDiscount() != null && quote.promotionDiscount().signum() > 0) {
+                order.setPromotionName(quote.promotionName());
+                order.setPromotionDiscount(quote.promotionDiscount());
+            }
+            order.setShippingAmount(quote.shippingAmount());
+            order.setShippingMethod(quote.shippingMethodCode());
+            order.setTaxAmount(quote.taxAmount());
+            order.setTotalPrice(quote.total());
+
+            // Redeem any gift card as store credit against the order total (clamped to its balance).
+            if (purchase.getGiftCardCode() != null && !purchase.getGiftCardCode().isBlank()) {
+                java.math.BigDecimal applied = giftCardService.redeem(purchase.getGiftCardCode(), quote.total());
+                if (applied.signum() > 0) {
+                    order.setGiftCardCode(purchase.getGiftCardCode());
+                    order.setGiftCardAmount(applied);
+                }
+            }
+        }
+
         // populate customer with the order, reusing an existing customer if the email matches
+        // *within this tenant* — email is not globally unique, so an unscoped lookup here could
+        // silently merge a new tenant-A customer into an existing same-email tenant-B record.
         Customer customer = purchase.getCustomer();
-        Customer existingCustomer = customerRepository.findByEmail(customer.getEmail());
+        customer.setTenantId(tenantId);
+        Customer existingCustomer = customerRepository.findByEmailAndTenantId(customer.getEmail(), tenantId);
         if (existingCustomer != null) {
             customer = existingCustomer;
         }
+
+        // Apply the checkout newsletter opt-in and track whether this is a fresh subscription
+        // (newly created account, or a previously-unsubscribed customer re-opting-in).
+        boolean wasSubscribed = customer.isNewsletterSubscribed() && existingCustomer != null;
+        customer.setNewsletterSubscribed(purchase.isSubscribeToNewsletter());
+        // Every customer gets a token (even opt-outs) so token-presence means "processed" — this lets
+        // the startup backfill safely subscribe only pre-existing rows without re-subscribing opt-outs.
+        customer.ensureUnsubscribeToken();
+
         customer.add(order);
 
         // cascade persists the order, items and addresses
-        customerRepository.save(customer);
+        Customer saved = customerRepository.save(customer);
+
+        // Loyalty: redeem requested points as store credit (server-validated), then earn on this order.
+        // Runs after the save so the order has an id for the ledger; same transaction, so it commits atomically.
+        if (purchase.getPointsToRedeem() > 0) {
+            loyaltyService.redeem(saved, order, purchase.getPointsToRedeem());
+        }
+        loyaltyService.award(saved, order);
+
+        // Referral: reward both parties when a NEW customer (this is their first order) used a code.
+        if (saved.getOrders().size() == 1) {
+            referralService.recordReferral(saved, purchase.getReferralCode(), order.getId());
+        }
+
+        // The order completed — clear any abandoned-cart reminder queued for this email.
+        abandonedCartService.markRecovered(saved.getEmail());
+
+        // Email is gated inside EmailService — these are safe no-ops when SMTP isn't configured.
+        emailService.sendOrderConfirmation(saved.getEmail(), saved.getFirstName(),
+                orderTrackingNumber, order.getTotalPrice());
+        if (saved.isNewsletterSubscribed() && !wasSubscribed) {
+            emailService.sendWelcome(saved.getEmail(), saved.getFirstName());
+        }
 
         return new PurchaseResponse(orderTrackingNumber);
     }

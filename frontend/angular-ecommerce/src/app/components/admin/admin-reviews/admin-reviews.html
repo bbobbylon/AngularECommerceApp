@@ -1,0 +1,46 @@
+<div class="mb-4">
+  <h1 class="fw-bold mb-1">Reviews</h1>
+  @if (!loading()) {
+    <p class="text-muted mb-0">{{ totalElements }} review{{ totalElements === 1 ? '' : 's' }}</p>
+  }
+</div>
+
+@if (loading()) {
+  <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+} @else if (reviews().length === 0) {
+  <div class="alert alert-secondary">No reviews yet.</div>
+} @else {
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead>
+        <tr><th>Rating</th><th>Author</th><th>Comment</th><th>Product</th><th>Date</th><th class="text-end">Actions</th></tr>
+      </thead>
+      <tbody>
+        @for (r of reviews(); track r.id) {
+          <tr>
+            <td><app-star-rating [rating]="r.rating"></app-star-rating></td>
+            <td>
+              {{ r.authorName }}
+              @if (r.verifiedBuyer) { <span class="badge bg-success-subtle text-success-emphasis ms-1">Verified</span> }
+            </td>
+            <td class="small text-muted" style="max-width: 360px;">{{ r.comment || '—' }}</td>
+            <td class="small">#{{ r.productId }}</td>
+            <td class="small">{{ r.dateCreated | date:'mediumDate' }}</td>
+            <td class="text-end">
+              <button type="button" class="btn btn-sm btn-outline-danger" (click)="remove(r)" aria-label="Delete review">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (totalElements > pageSize) {
+    <div class="d-flex justify-content-center mt-3">
+      <ngb-pagination [collectionSize]="totalElements" [(page)]="pageNumber" [pageSize]="pageSize"
+                      [maxSize]="5" [boundaryLinks]="true" (pageChange)="load()"></ngb-pagination>
+    </div>
+  }
+}

@@ -10,33 +10,96 @@
 
 @if (orderHistoryList.length === 0) {
   @if (loaded) {
-    <div class="alert alert-info">You have no orders yet.</div>
+    <div class="empty-state text-center py-5">
+      <i class="fa-solid fa-receipt empty-state-icon"></i>
+      <h4 class="mt-3 mb-1">No orders yet</h4>
+      <p class="text-muted mb-4">When you place an order, it'll show up here.</p>
+      <a routerLink="/products" class="btn btn-primary">
+        <i class="fa-solid fa-bag-shopping me-1"></i> Start shopping
+      </a>
+    </div>
   } @else {
     <div class="text-muted">Loading your orders...</div>
   }
 } @else {
-  <div class="table-responsive">
-    <table class="table align-middle">
-      <thead>
-        <tr>
-          <th scope="col">Tracking #</th>
-          <th scope="col">Date</th>
-          <th scope="col">Status</th>
-          <th scope="col" class="text-center">Qty</th>
-          <th scope="col" class="text-end">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (order of orderHistoryList; track order.id) {
-          <tr>
-            <td class="font-monospace small">{{ order.orderTrackingNumber }}</td>
-            <td>{{ order.dateCreated | date:'medium' }}</td>
-            <td>{{ order.status || 'Received' }}</td>
-            <td class="text-center">{{ order.totalQuantity }}</td>
-            <td class="text-end">{{ order.totalPrice | currency:'USD' }}</td>
-          </tr>
-        }
-      </tbody>
-    </table>
+  <div class="d-flex flex-column gap-3">
+    @for (order of orderHistoryList; track order.id) {
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+            <div>
+              <div class="small text-muted">Order</div>
+              <div class="font-monospace small">{{ order.orderTrackingNumber }}</div>
+              <div class="small text-muted mt-1">{{ order.dateCreated | date:'medium' }}</div>
+            </div>
+            <div class="text-end">
+              <div class="fs-5 fw-bold">{{ order.totalPrice | currency:'USD' }}</div>
+              <div class="small text-muted">{{ order.totalQuantity }} item{{ order.totalQuantity === 1 ? '' : 's' }}</div>
+            </div>
+          </div>
+          <app-order-timeline [status]="order.status"></app-order-timeline>
+
+          <!-- Shipment tracking -->
+          @if (shipmentsFor(order); as shipments) {
+            @if (shipments.length > 0) {
+              <div class="border-top mt-3 pt-3">
+                <div class="fw-semibold small mb-2"><i class="fa-solid fa-truck me-1"></i>Shipment tracking</div>
+                <div class="vstack gap-2">
+                  @for (s of shipments; track s.id) {
+                    <div class="d-flex align-items-center flex-wrap gap-2 small">
+                      <span class="badge" [ngClass]="shipmentBadgeClass(s.status)">{{ s.status | lowercase }}</span>
+                      @if (s.warehouseName) { <span class="text-muted">from {{ s.warehouseName }}</span> }
+                      @if (s.carrier) { <span>{{ s.carrier }}</span> }
+                      @if (s.trackingNumber) { <span class="font-monospace">{{ s.trackingNumber }}</span> }
+                      @if (s.deliveredAt) {
+                        <span class="text-muted">delivered {{ s.deliveredAt | date:'mediumDate' }}</span>
+                      } @else if (s.shippedAt) {
+                        <span class="text-muted">shipped {{ s.shippedAt | date:'mediumDate' }}</span>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          }
+
+          <!-- Returns -->
+          <div class="border-top mt-3 pt-3">
+            @if (returnFor(order); as ret) {
+              <div class="d-flex align-items-center flex-wrap gap-2">
+                <span class="badge" [ngClass]="returnBadgeClass(ret.status)">
+                  <i class="fa-solid fa-rotate-left me-1"></i>Return {{ ret.status | lowercase }}
+                </span>
+                @if (ret.refunded && ret.refundAmount) {
+                  <span class="small text-muted">{{ ret.refundAmount | currency:'USD' }} refunded</span>
+                }
+                @if (ret.adminNote) { <span class="small text-muted">· {{ ret.adminNote }}</span> }
+              </div>
+            } @else if (openReturnFor === order.orderTrackingNumber) {
+              <div class="vstack gap-2">
+                <span class="fw-semibold small">Request a return</span>
+                @if (!email) {
+                  <input type="email" class="form-control form-control-sm" placeholder="Email used on this order"
+                         [(ngModel)]="returnEmail" name="returnEmail" />
+                }
+                <textarea class="form-control form-control-sm" rows="2" placeholder="What's the reason for the return?"
+                          [(ngModel)]="returnReason" name="returnReason"></textarea>
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-primary btn-sm" (click)="submitReturn(order)" [disabled]="submittingReturn">
+                    @if (submittingReturn) { <i class="fa-solid fa-spinner fa-spin me-1"></i> }
+                    Submit return
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" (click)="toggleReturn(order)">Cancel</button>
+                </div>
+              </div>
+            } @else {
+              <button type="button" class="btn btn-outline-secondary btn-sm" (click)="toggleReturn(order)">
+                <i class="fa-solid fa-rotate-left me-1"></i> Request a return
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    }
   </div>
 }

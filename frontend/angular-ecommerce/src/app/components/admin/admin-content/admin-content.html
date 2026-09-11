@@ -1,0 +1,89 @@
+<div class="mb-4">
+  <h1 class="fw-bold mb-0">Content</h1>
+  <p class="text-muted mb-0">The site-wide announcement banner and the FAQ page.</p>
+</div>
+
+@if (loading()) {
+  <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+} @else {
+  <div class="row g-4">
+    <!-- Site banner -->
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header fw-semibold"><i class="fa-solid fa-bullhorn me-2 text-primary"></i>Announcement banner</div>
+        <div class="card-body">
+          <p class="text-muted small">Shown across the top of every storefront page.</p>
+          <div class="row g-2">
+            <div class="col-12">
+              <label class="form-label small mb-1">Message</label>
+              <input class="form-control form-control-sm" placeholder="Message" [(ngModel)]="bannerForm.message" name="bMessage" />
+            </div>
+            <div class="col-6">
+              <label class="form-label small mb-1">Link URL</label>
+              <input class="form-control form-control-sm" placeholder="/sale" [(ngModel)]="bannerForm.linkUrl" name="bLinkUrl" />
+            </div>
+            <div class="col-6">
+              <label class="form-label small mb-1">Link text</label>
+              <input class="form-control form-control-sm" placeholder="Shop now" [(ngModel)]="bannerForm.linkText" name="bLinkText" />
+            </div>
+            <div class="col-12 d-flex align-items-center gap-3 mt-1">
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="bannerActive" [(ngModel)]="bannerForm.active" name="bActive" />
+                <label class="form-check-label small" for="bannerActive">Active</label>
+              </div>
+              <button class="btn btn-primary btn-sm ms-auto" (click)="saveBanner()" [disabled]="savingBanner()">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAQ -->
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-header fw-semibold"><i class="fa-solid fa-circle-question me-2 text-primary"></i>FAQ entries</div>
+        <div class="card-body">
+          <div class="table-responsive mb-3">
+            <table class="table table-sm align-middle mb-0">
+              <thead><tr><th>#</th><th>Question</th><th></th></tr></thead>
+              <tbody>
+                @for (item of faq(); track item.id) {
+                  <tr>
+                    <td>{{ item.sortOrder }}</td>
+                    <td>
+                      {{ item.question }}
+                      @if (!item.active) { <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">inactive</span> }
+                    </td>
+                    <td class="text-end text-nowrap">
+                      <button class="btn btn-sm btn-outline-secondary me-1" (click)="editFaq(item)" aria-label="Edit"><i class="fa-solid fa-pen"></i></button>
+                      <button class="btn btn-sm btn-outline-danger" (click)="deleteFaq(item)" aria-label="Delete"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="3" class="text-muted">No FAQ entries yet.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <h6 class="fw-bold">{{ faqForm.id ? 'Edit entry' : 'Add entry' }}</h6>
+          <div class="row g-2">
+            <div class="col-9"><input class="form-control form-control-sm" placeholder="Question" [(ngModel)]="faqForm.question" name="fQuestion" /></div>
+            <div class="col-3"><input type="number" class="form-control form-control-sm" placeholder="Sort" [(ngModel)]="faqForm.sortOrder" name="fSort" /></div>
+            <div class="col-12"><textarea class="form-control form-control-sm" rows="2" placeholder="Answer" [(ngModel)]="faqForm.answer" name="fAnswer"></textarea></div>
+            <div class="col-12 d-flex align-items-center gap-3">
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="faqActive" [(ngModel)]="faqForm.active" name="fActive" />
+                <label class="form-check-label small" for="faqActive">Active</label>
+              </div>
+              <button class="btn btn-primary btn-sm ms-auto" (click)="saveFaq()" [disabled]="savingFaq()">
+                {{ faqForm.id ? 'Save' : 'Add' }}
+              </button>
+              @if (faqForm.id) { <button class="btn btn-outline-secondary btn-sm" (click)="cancelFaqEdit()">Cancel</button> }
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+}

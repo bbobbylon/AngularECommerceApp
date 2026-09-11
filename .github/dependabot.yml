@@ -1,0 +1,32 @@
+# Dependabot — automated dependency updates + security (CVE) PRs.
+# Security updates are raised as soon as an advisory affects a pinned version; version updates
+# follow the weekly schedule. Minor/patch bumps are grouped to keep PR noise down.
+version: 2
+updates:
+  # Backend — Maven
+  - package-ecosystem: maven
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      maven-minor-patch:
+        update-types: [minor, patch]
+
+  # Frontend — npm
+  - package-ecosystem: npm
+    directory: /frontend/angular-ecommerce
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      angular:
+        patterns: ["@angular*"]
+      npm-minor-patch:
+        update-types: [minor, patch]
+
+  # CI / deploy workflow actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

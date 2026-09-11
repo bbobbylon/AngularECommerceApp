@@ -1,13 +1,16 @@
 package com.bob.ecommerceangularapp.controller;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dao.OrderRepository;
+import com.bob.ecommerceangularapp.dao.TenantRepository;
 import com.bob.ecommerceangularapp.dto.Purchase;
 import com.bob.ecommerceangularapp.dto.PurchaseResponse;
 import com.bob.ecommerceangularapp.entity.Address;
 import com.bob.ecommerceangularapp.entity.Customer;
 import com.bob.ecommerceangularapp.entity.Order;
 import com.bob.ecommerceangularapp.entity.OrderItem;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,16 +39,29 @@ class CheckoutControllerTest {
     @Autowired
     private CustomerRepository customerRepository;
 
+    @Autowired
+    private TenantRepository tenantRepository;
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContext.clear();
+    }
+
     @Test
     void placeOrder_persistsTheOrderGraphAndReturnsTrackingNumber() {
         long ordersBefore = orderRepository.count();
+
+        // Called outside a real request, so nothing runs TenantResolutionFilter here; bind the demo
+        // tenant ourselves to simulate what it would have resolved for an unheadered request.
+        Long demoTenantId = tenantRepository.findBySlugAndActiveTrue("demo").orElseThrow().getId();
+        TenantContext.set(demoTenantId);
 
         PurchaseResponse response = checkoutController.placeOrder(buildPurchase());
 
         assertThat(response.getOrderTrackingNumber()).isNotBlank();
         assertThat(orderRepository.count()).isEqualTo(ordersBefore + 1);
 
-        Customer customer = customerRepository.findByEmail("integration@test.com");
+        Customer customer = customerRepository.findByEmailAndTenantId("integration@test.com", demoTenantId);
         assertThat(customer).isNotNull();
         assertThat(customer.getOrders()).hasSize(1);
 

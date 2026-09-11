@@ -9,6 +9,7 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
+/** A shipping or billing address attached to an {@link Order}. Tenant-scoped since roadmap #21 Milestone A. */
 @Entity
 @Table(name = "address")
 @Getter
@@ -19,6 +20,10 @@ public class Address {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
+
+    /** Roadmap #21 (multi-tenancy) — see {@link Product#getTenantId()}. */
+    @Column(name = "tenant_id")
+    private Long tenantId;
 
     @Column(name = "street")
     private String street;

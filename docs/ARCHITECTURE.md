@@ -4,6 +4,9 @@ A full-stack e-commerce reference app: an **Angular 21** single-page storefront 
 **Spring Boot 4.1** REST API backed by **MySQL 8**, with **Okta** (auth) and **Stripe** (payments)
 as optional, gracefully-degrading integrations.
 
+> Looking for what a *specific file* does? See **[`FILE_MAP.md`](FILE_MAP.md)** — this document
+> covers the component/pattern-level picture instead.
+
 - [System context](#1-system-context)
 - [Backend architecture](#2-backend-architecture)
 - [Frontend architecture](#3-frontend-architecture)

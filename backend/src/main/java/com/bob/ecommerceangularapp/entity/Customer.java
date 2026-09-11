@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -13,9 +14,18 @@ import lombok.Setter;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
+/**
+ * A storefront customer, keyed by email (deliberately not unique — see {@code tenantId} below).
+ * Carries loyalty (roadmap #5: {@code loyaltyPoints}/{@code lifetimePoints}), referral (#6:
+ * {@code referralCode}), and newsletter (M6: {@code newsletterSubscribed}/{@code unsubscribeToken})
+ * state directly rather than in side tables — each is a handful of fields, not worth a join.
+ * Tenant-scoped since roadmap #21 Milestone A.
+ */
 @Entity
-@Table(name = "customer")
+// email is looked up on checkout, account, and newsletter flows; index it (not unique by design).
+@Table(name = "customer", indexes = @Index(name = "idx_customer_email", columnList = "email"))
 @Getter
 @Setter
 public class Customer {
@@ -24,6 +34,14 @@ public class Customer {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
+
+    /**
+     * Roadmap #21 (multi-tenancy) — see {@link Product#getTenantId()}. Because {@code email} is
+     * deliberately not unique, every {@code findByEmail}-style lookup must be scoped by tenant too
+     * (a bare email lookup could otherwise merge two different tenants' customers).
+     */
+    @Column(name = "tenant_id")
+    private Long tenantId;
 
     @Column(name = "first_name")
     private String firstName;
@@ -34,6 +52,29 @@ public class Customer {
     @Column(name = "email")
     private String email;
 
+    /** Opt-in to the weekly marketing email. Defaults to subscribed for new customers. */
+    @Column(name = "newsletter_subscribed")
+    private boolean newsletterSubscribed = true;
+
+    /** Opaque token used for one-click unsubscribe links in marketing email. */
+    @Column(name = "unsubscribe_token", unique = true)
+    private String unsubscribeToken;
+
+    /**
+     * Loyalty: redeemable point balance and the lifetime total earned (drives tier). Nullable
+     * (Integer) so adding the columns to a populated {@code customer} table is a safe ALTER; treated
+     * as 0 when null. Managed by {@code LoyaltyService}.
+     */
+    @Column(name = "loyalty_points")
+    private Integer loyaltyPoints;
+
+    @Column(name = "lifetime_points")
+    private Integer lifetimePoints;
+
+    /** The customer's own referral code (shared with friends). Assigned lazily by ReferralService. */
+    @Column(name = "referral_code", unique = true)
+    private String referralCode;
+
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL)
     private Set<Order> orders = new HashSet<>();
 
@@ -42,5 +83,13 @@ public class Customer {
             orders.add(order);
             order.setCustomer(this);
         }
+    }
+
+    /** Lazily assigns an unsubscribe token so existing rows backfill on next save. */
+    public String ensureUnsubscribeToken() {
+        if (unsubscribeToken == null || unsubscribeToken.isBlank()) {
+            unsubscribeToken = UUID.randomUUID().toString().replace("-", "");
+        }
+        return unsubscribeToken;
     }
 }

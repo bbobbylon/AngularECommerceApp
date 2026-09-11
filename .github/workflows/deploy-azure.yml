@@ -1,0 +1,107 @@
+# =====================================================================
+#  MANUAL deploy · Azure (ACR + Container Apps + Azure DB for MySQL)
+#  Local `./run.sh` / `docker compose up` stay the primary dev paths — this is opt-in
+#  (workflow_dispatch).
+#
+#  PLUG & PLAY: all config is read from `deploy/azure.env` (the one file you edit) — nothing to
+#  change in this YAML. ONE-TIME SETUP: set ACR_NAME + MYSQL_SERVER (globally-unique) in
+#  deploy/azure.env, then run `bash deploy/azure-setup.sh` (provisions the RG / ACR / MySQL /
+#  Container Apps env + apps and, if `gh` is authenticated, pushes the two secrets below).
+#    Secrets needed:  AZURE_CREDENTIALS (service-principal JSON), DB_PASS
+#
+#  SINGLE-PASS (no chicken-and-egg): deploys the backend, reads its ingress FQDN, builds the frontend
+#  against it, deploys it, then points the backend's CORS allowlist + email links at the live frontend.
+#  See docs/DEPLOYMENT.md.
+# =====================================================================
+name: Deploy · Azure (Container Apps)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Single source of truth: load deploy/azure.env into the job environment.
+      - name: Load deploy config (deploy/azure.env)
+        run: |
+          grep -E '^[A-Z_]+=' deploy/azure.env | sed 's/\r$//' >> "$GITHUB_ENV"
+          if grep -qE '^(ACR_NAME|MYSQL_SERVER)=your-unique-' deploy/azure.env; then
+            echo "::error::Set ACR_NAME and MYSQL_SERVER to globally-unique names in deploy/azure.env."; exit 1
+          fi
+          echo "Loaded deploy/azure.env"
+
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Build & push backend image
+        run: |
+          az acr login --name "$ACR_NAME"
+          REG="$ACR_NAME.azurecr.io"
+          docker build -t "$REG/$BACKEND_SERVICE:${{ github.sha }}" ./backend
+          docker push "$REG/$BACKEND_SERVICE:${{ github.sha }}"
+
+      # Azure DB for MySQL flexible server enforces TLS; sslMode=REQUIRED encrypts using the JVM's
+      # default trust store (no custom cert needed). The empty DB is migrated by Flyway on first boot.
+      - name: Deploy backend (prod profile + Azure MySQL)
+        run: |
+          REG="$ACR_NAME.azurecr.io"
+          DB_URL="jdbc:mysql://$MYSQL_SERVER.mysql.database.azure.com:3306/$DB_NAME?sslMode=REQUIRED"
+          az containerapp update -n "$BACKEND_SERVICE" -g "$RESOURCE_GROUP" \
+            --image "$REG/$BACKEND_SERVICE:${{ github.sha }}" \
+            --set-env-vars \
+              "SPRING_PROFILES_ACTIVE=prod" \
+              "SPRING_DOCKER_COMPOSE_ENABLED=false" \
+              "SPRING_DATASOURCE_URL=$DB_URL" \
+              "SPRING_DATASOURCE_USERNAME=$DB_USER" \
+              "SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASS }}"
+
+      - name: Capture backend URL
+        id: be
+        run: |
+          FQDN=$(az containerapp show -n "$BACKEND_SERVICE" -g "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          echo "url=https://$FQDN" >> "$GITHUB_OUTPUT"
+          echo "Backend deployed at https://$FQDN"
+
+      - name: Build & push frontend image (API baked to the live backend)
+        run: |
+          REG="$ACR_NAME.azurecr.io"
+          docker build --build-arg API_URL="${{ steps.be.outputs.url }}/api" \
+            -t "$REG/$FRONTEND_SERVICE:${{ github.sha }}" ./frontend/angular-ecommerce
+          docker push "$REG/$FRONTEND_SERVICE:${{ github.sha }}"
+
+      - name: Deploy frontend
+        run: |
+          REG="$ACR_NAME.azurecr.io"
+          az containerapp update -n "$FRONTEND_SERVICE" -g "$RESOURCE_GROUP" \
+            --image "$REG/$FRONTEND_SERVICE:${{ github.sha }}"
+
+      - name: Capture frontend URL
+        id: fe
+        run: |
+          FQDN=$(az containerapp show -n "$FRONTEND_SERVICE" -g "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          echo "url=https://$FQDN" >> "$GITHUB_OUTPUT"
+          echo "Frontend deployed at https://$FQDN"
+
+      - name: Point backend CORS + email links at the live frontend
+        run: |
+          az containerapp update -n "$BACKEND_SERVICE" -g "$RESOURCE_GROUP" \
+            --set-env-vars \
+              "APP_CORS_ALLOWED_ORIGINS=${{ steps.fe.outputs.url }}" \
+              "APP_FRONTEND_URL=${{ steps.fe.outputs.url }}" \
+              "APP_API_URL=${{ steps.be.outputs.url }}"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Deployed to Azure Container Apps 🚀"
+            echo "- **Frontend:** ${{ steps.fe.outputs.url }}"
+            echo "- **Backend:**  ${{ steps.be.outputs.url }}"
+            echo ""
+            echo "_The empty MySQL database is migrated by Flyway on the backend's first boot and seeded by the DataLoader._"
+          } >> "$GITHUB_STEP_SUMMARY"

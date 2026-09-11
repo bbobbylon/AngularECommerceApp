@@ -13,6 +13,11 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 
+/**
+ * One line of an {@link Order} — a snapshot of price/image at purchase time (not a live reference,
+ * so later product edits don't rewrite history). Carries {@code variantSku}/{@code variantLabel}
+ * when bought by {@link ProductVariant} (roadmap #1). Tenant-scoped since roadmap #21 Milestone A.
+ */
 @Entity
 @Table(name = "order_item")
 @Getter
@@ -23,6 +28,10 @@ public class OrderItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
+
+    /** Roadmap #21 (multi-tenancy) — see {@link Product#getTenantId()}. */
+    @Column(name = "tenant_id")
+    private Long tenantId;
 
     @Column(name = "image_url")
     private String imageUrl;
@@ -35,6 +44,14 @@ public class OrderItem {
 
     @Column(name = "product_id")
     private Long productId;
+
+    /** SKU of the chosen variant, if the product was bought by variant (null for single-SKU products). */
+    @Column(name = "variant_sku")
+    private String variantSku;
+
+    /** Human label of the chosen variant (e.g. "Black / M") — kept on the line for fulfilment + history. */
+    @Column(name = "variant_label")
+    private String variantLabel;
 
     @ManyToOne
     @JoinColumn(name = "order_id")

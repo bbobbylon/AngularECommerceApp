@@ -12,6 +12,7 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
+/** Read-only reference data (seeded once, never tenant-scoped), exposed via {@code StateRepository} for address dropdowns. */
 @Entity
 @Table(name = "state")
 @Getter

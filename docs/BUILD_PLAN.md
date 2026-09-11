@@ -47,6 +47,9 @@ security → HTTPS → Stripe — built in milestones mirroring the course relea
   security (oauth2/webauthn/saml2), webclient, webflux, postgresql, restdocs and the
   asciidoctor plugin + Shibboleth repo. Set `<java.version>21</java.version>`. Kept the
   spring-boot-maven-plugin Lombok exclude and the compiler Lombok annotation-processor path.
+  > **Update (M6):** `spring-boot-starter-mail` is now **intentionally back in** — the app sends
+  > transactional + weekly marketing email. This supersedes the "removed mail" note above. The
+  > other removed starters stay removed.
 - **0.3** Trimmed `backend/compose.yaml` to a single MySQL service
   (`3306:3306`, `MYSQL_DATABASE=full-stack-ecommerce`).
 - **0.4** `backend/src/main/resources/application.properties`: datasource (matching compose),
@@ -171,3 +174,120 @@ Kept off by default so local dev stays on plain HTTP. To enable TLS:
   to your Stripe **test** keys. Test card `4242 4242 4242 4242`, any future expiry / CVC / ZIP.
 - **Without Stripe:** checkout runs in *demo mode* (skips the card step, saves the order directly), so
   the full flow works with no account. Full beginner walkthrough: **[STRIPE.md](STRIPE.md)**.
+
+### Milestone 6 — Email, account settings & storefront polish ✅ (build) / needs Gmail to send
+Adds real email plus the "online-store goodies" (sale section, About, marketing sections).
+
+- **Backend:** re-added `spring-boot-starter-mail`; `@EnableScheduling`.
+  - `email/EmailService` (gated on `spring.mail.username` — no-op + log when unset, never throws) +
+    `email/EmailTemplates` (branded inline-HTML via Java text blocks, no extra template engine).
+  - `NewsletterSubscriber` entity + repo; `Customer` extended with `newsletterSubscribed` +
+    `unsubscribeToken`; `Product` extended with nullable `originalPrice` (sale "was" price) and
+    `ProductRepository.findByOriginalPriceNotNull` (exposed at `/api/products/search/...`).
+  - `NewsletterService` (subscribe/unsubscribe, weekly recipient collection = subscribed customers ∪
+    standalone subscribers, deduped) + `WeeklyAdScheduler` (`@Scheduled`, `app.newsletter.cron`,
+    default Mon 09:00). `NewsletterController` (`/subscribe`, `/unsubscribe`, guarded `/send-now`) and
+    `AccountController` (`GET`/`PUT /api/account`). Checkout `Purchase` gained `subscribeToNewsletter`;
+    `CheckoutServiceImpl` sets the preference + sends order-confirmation / welcome email.
+  - Seeder now marks ~⅓ of products on sale (sets `originalPrice`).
+- **Frontend:** `/sale` (reuses `ProductList` in "sale mode"), `/about`, guarded `/account` settings
+  portal; reusable `newsletter-signup` (band + footer); sale pricing (strikethrough + % off) on cards
+  & details; home value-prop/trust tiles, sale teaser & newsletter CTA; promo bar, secondary nav,
+  expanded footer; checkout "create account & subscribe" opt-in.
+- **To enable real sending:** set `GMAIL_USERNAME` + `GMAIL_APP_PASSWORD` (App Password). Full
+  walkthrough: **[EMAIL.md](EMAIL.md)**. **Without it:** everything works; email is silently skipped.
+
+### Production-readiness pass ✅
+- **Resilience / bug fix:** a `NOT NULL date_created` column on the (populated) `customer` table failed
+  to apply under MySQL strict mode, so the column was silently missing and a startup backfill crashed
+  the whole backend (blanking products + sale pages). Fix: removed the unused column, made `DataLoader`
+  backfills defensive (try/catch — never crash the catalog), and added a sale-price backfill so an
+  existing DB populates `/sale` without a reset. Documented the `ddl-auto` pitfall in MAINTENANCE.md.
+- **API hardening:** `GlobalExceptionHandler` (`@RestControllerAdvice`) returns consistent JSON errors
+  (no leaked stack traces); Bean Validation (`@Valid` + `@Email`/`@NotBlank`) on public DTOs.
+- **Storefront completeness:** standard info/legal pages — `/faq`, `/contact`, `/shipping-returns`,
+  `/privacy`, `/terms` — with footer links.
+- **Security:** auth model + how to enable **MFA/OTP and passkeys (WebAuthn) via Okta** documented in
+  **[SECURITY.md](SECURITY.md)**; account portal has a "Security & sign-in" card. (App-native WebAuthn
+  is intentionally *not* added — identity is delegated to Okta.)
+- **Operations:** **[MAINTENANCE.md](MAINTENANCE.md)** — forecasted costs, maintenance cadence, upgrade
+  strategy, DB migration guidance (Flyway recommendation), backups, monitoring.
+- **Not done (needs your cloud accounts):** CI/CD + cloud deploy, Flyway migrations, Actuator health,
+  rate limiting, real TLS/CORS origins. Tracked in SECURITY.md / MAINTENANCE.md checklists.
+
+### Admin panel (back-office) ✅
+Custom `/api/admin/**` controllers (Spring Data REST writes stay disabled on the catalog), gated by the
+JWT chain when Okta is configured (open in dev), and tokened by the Angular `authInterceptor`.
+- **Backend:** `AdminController` (`/stats`, `/categories`), `AdminProductController` (list / get / create
+  / update / delete), `AdminOrderController` (list / status). `AdminService` + DTOs (`AdminStats`,
+  `AdminOrderView`, `AdminProductRequest`, `CategoryRequest`, generic `PageResponse`). Repo metrics
+  (counts + revenue sum). Smoke-tested live: stats/list/create(201)/delete(204) + validation(400).
+- **Frontend:** `/admin` area (guarded; full-width — customer category sidebar hidden on admin routes):
+  `AdminLayout` (sidebar), `AdminDashboard` (stat cards), `AdminProducts` (table + delete),
+  `AdminProductForm` (create/edit), `AdminOrders` (inline status). Footer "Admin" link.
+- **For production:** restrict `/api/admin/**` to an admin group/role in Okta (see SECURITY.md).
+
+### Storefront feature set ✅ (build + live smoke-tested)
+1. **Reviews & ratings** — `Review` entity, `ReviewService`/`ReviewController` (list/summary/create),
+   denormalized `Product.averageRating`/`reviewCount` (nullable). Frontend `StarRating`, ratings on
+   cards + details, reviews list + write-a-review, admin moderation. Seeded across ~half the catalog.
+2. **Coupons & discounts** — `Coupon` entity, `CouponService`/`CouponController` (`/validate`), admin CRUD.
+   Checkout promo field; server **re-validates** and records `couponCode`/`discountAmount` on the order.
+   Verified: `WELCOME10` → $10 off $100; `SAVE5` enforces $25 min; bogus codes rejected.
+3. **Faceted search & filters** — `ProductRepository extends JpaSpecificationExecutor`; `ProductQueryService`
+   + `/api/catalog/search` (category, keyword, price range, in-stock, on-sale, min-rating, sort). The
+   product list is unified onto this endpoint with a filter panel.
+4. **Wishlist persistence + order tracking** — `WishlistItem` (email-keyed) + `/api/wishlist`
+   (sync/get/remove); favorites "sync across devices". `OrderTimeline` (Received → Processing → Shipped →
+   Delivered, or Cancelled) on order-confirmation + order-history.
+
+### Storefront UX depth ✅ (build + live smoke-tested)
+5. **Multi-image galleries** — `Product.additionalImages` as an `@ElementCollection` in a side table
+   (`product_image`), LAZY + `@BatchSize` so list endpoints don't N+1; serialized via open-in-view.
+   Thumbnail picker on product-details; admin form "Gallery images" textarea (one URL/line, blanks/dupes
+   stripped server-side). Seeded variants + a **transactional** `backfillGalleryImages()` for existing DBs
+   (lazy collection needs an open session — the first attempt logged-and-skipped exactly as the resilience
+   pattern intends, then the `TransactionTemplate` version backfilled all 100). Verified: `additionalImages`
+   serializes on `/products/{id}` **and** `/catalog/search` (batched, no N+1).
+6. **Recently viewed** — `RecentlyViewedService` (localStorage + signal) and a reusable `RecentlyViewed`
+   strip on product-details (excludes the current product) and the home page.
+7. **Low-stock urgency** — `isLowStock()`/`LOW_STOCK_THRESHOLD` (`common/product.ts`); "Only N left" and
+   "Out of stock" badges on cards + details. `stockFor()` + `backfillStockVariety()` seed a realistic spread.
+   Verified live: of the first 60 products, 4 out-of-stock, 6 low (1–4), 50 healthy.
+
+### Observability & ops ✅ (build + live smoke-tested)
+8. **Actuator + Micrometer** — `spring-boot-starter-actuator` + `micrometer-registry-prometheus`.
+   Exposed: `health` (+ `liveness`/`readiness` probes), `info` (build version/time via the `build-info`
+   goal), `metrics`, `prometheus`. Verified live: health/liveness/readiness → 200, 93 metrics, Prometheus
+   scrape OK, `/info` shows the build version.
+9. **Health philosophy** — `management.health.mail.enabled=false`. The auto-configured mail indicator
+   opens an SMTP connection per health check; with no Gmail creds it failed and forced `/actuator/health`
+   to **DOWN (503)** — which in prod would make k8s/LBs evict a healthy pod. Found and fixed during the
+   live smoke test. Mail/Stripe/Okta status is surfaced via the admin view instead.
+10. **Request correlation** — `RequestIdFilter` sets/reuses `X-Request-Id`, puts it in the MDC (shown in
+    logs via `logging.pattern.level`), and echoes it on responses. Verified: generated id echoed; inbound
+    `X-Request-Id` passed through. Structured JSON logging is opt-in (`logging.structured.format.console`).
+11. **Admin System Health** — `GET /api/admin/system` (`SystemHealthService` + `AdminSystemController` +
+    `SystemHealth` DTO) → status/version/profile/uptime + per-integration readiness. Rendered as the
+    **Admin → Dashboard** "System health" card. See `docs/OBSERVABILITY.md`.
+
+### Data & reliability ✅ (build + live smoke-tested on fresh AND existing DBs)
+12. **Flyway migrations** — `spring-boot-starter-flyway` + `flyway-mysql` (note: Spring Boot 4 split
+    auto-config into modules, so the raw `flyway-core` jar alone does NOT auto-configure — the starter is
+    required). `V1__baseline.sql` was generated from the entities via Hibernate's schema export (so it
+    matches them exactly); `V2__add_search_indexes.sql` adds the indexes. `ddl-auto` switched from
+    `update` → **`validate`** — the gotcha is retired (drift now fails fast at boot). Existing DBs are
+    baselined at V1 (`baseline-on-migrate=true`); fresh DBs run V1+V2. Tests keep H2 + `create-drop` with
+    `spring.flyway.enabled=false`. **Verified live:** fresh DB → Flyway applied V1+V2, validate passed,
+    seeded 100 products; existing DB → baselined V1, applied V2 (4 indexes created), validate passed,
+    data intact.
+13. **Indexes** — `@Index` on the hot finder columns (`Review.product_id`, `Customer.email`,
+    `Product(active, category_id)`, `Order.date_created`), applied via the V2 migration so both fresh and
+    existing DBs get them (existing unique columns like `Coupon.code` were already indexed).
+14. **Caching** — Spring Cache + **Caffeine** (`CacheConfig`, 60s TTL, 500 entries) on the catalog search.
+    The endpoint now returns the lightweight **`ProductCardView`** projection (no lazy `additionalImages`
+    gallery) — cache-safe (no detached-lazy-init), no N+1, and transparent to the frontend (the details
+    page still uses the SDR `/products/{id}` resource for the gallery). Admin product writes
+    `@CacheEvict` the cache. Verified: card payload omits the gallery; detail endpoint still serves it.
+
+All build-verified (mvnw package: 8 tests; ng build + 12 ng tests) and smoke-tested against MySQL.

@@ -1,0 +1,97 @@
+# Continuous Integration — builds + tests both apps on every push / PR.
+# This is verification only (no deploys). Local `./run.sh` stays the primary dev path;
+# the cloud deploy workflows are separate and manual (workflow_dispatch).
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Backend (Maven + H2 tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build + test
+        run: |
+          chmod +x ./mvnw
+          # H2 slice/unit tests need no DB; the Testcontainers MySQL integration test uses the
+          # Docker preinstalled on the runner (it auto-skips where Docker is absent).
+          ./mvnw -B clean package
+
+  frontend:
+    name: Frontend (Angular build + unit tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/angular-ecommerce
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/angular-ecommerce/package-lock.json
+      - run: npm ci
+      - run: npx ng build
+      - run: CI=true npx ng test --watch=false
+
+  e2e:
+    name: Frontend (Playwright E2E smoke)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/angular-ecommerce
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/angular-ecommerce/package-lock.json
+      - run: npm ci
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      # Hermetic: the specs stub the API, so no backend/DB is needed. Playwright starts `ng serve`.
+      - run: npx playwright test
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/angular-ecommerce/playwright-report/
+          retention-days: 7
+
+  security:
+    name: Security (dependency / CVE scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # On PRs: flag vulnerable / newly-introduced dependencies across BOTH ecosystems
+      # (Maven + npm) using the GitHub Advisory DB. No NVD API key needed.
+      - name: Dependency review
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/angular-ecommerce/package-lock.json
+      # Gate on shipped (production) dependencies; dev-tooling advisories are handled by Dependabot
+      # and don't reach users. Uses the lockfile — no install needed.
+      - name: npm audit (production deps)
+        working-directory: frontend/angular-ecommerce
+        run: npm audit --omit=dev --audit-level=high

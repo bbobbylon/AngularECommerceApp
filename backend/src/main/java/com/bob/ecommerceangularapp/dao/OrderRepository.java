@@ -4,8 +4,15 @@ import com.bob.ecommerceangularapp.entity.Order;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.rest.core.annotation.RepositoryRestResource;
+import org.springframework.data.rest.core.annotation.RestResource;
+
+import java.math.BigDecimal;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * Order history. The collection path /api/orders/** is protected by SecurityConfig
@@ -15,4 +22,25 @@ import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
     Page<Order> findByCustomerEmailOrderByDateCreatedDesc(@Param("email") String email, Pageable pageable);
+
+    // Used by the returns flow; not exposed as a public Spring Data REST search.
+    @RestResource(exported = false)
+    Optional<Order> findByOrderTrackingNumber(String orderTrackingNumber);
+
+    @Query("select coalesce(sum(o.totalPrice), 0) from Order o where o.tenantId = :tenantId")
+    BigDecimal sumTotalRevenue(@Param("tenantId") Long tenantId);
+
+    /** Backs {@code TenantResourceGuardFilter} — closes the SDR {@code findById} gap (roadmap #21). */
+    boolean existsByIdAndTenantId(Long id, Long tenantId);
+
+    // ----- admin back office + analytics, tenant-scoped (roadmap #21, Milestone B) -----
+    Page<Order> findAllByTenantIdOrderByDateCreatedDesc(Long tenantId, Pageable pageable);
+
+    Optional<Order> findByIdAndTenantId(Long id, Long tenantId);
+
+    long countByTenantId(Long tenantId);
+
+    List<Order> findByTenantId(Long tenantId);
+
+    List<Order> findByTenantIdAndDateCreatedGreaterThanEqual(Long tenantId, Date cutoff);
 }

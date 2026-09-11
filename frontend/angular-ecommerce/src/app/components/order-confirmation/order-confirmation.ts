@@ -2,6 +2,8 @@ import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
+import { OrderTimeline } from '../order-timeline/order-timeline';
+
 interface OrderSummaryItem {
   name: string;
   imageUrl: string;
@@ -17,7 +19,7 @@ interface OrderSummary {
 
 @Component({
   selector: 'app-order-confirmation',
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, OrderTimeline],
   templateUrl: './order-confirmation.html',
 })
 export class OrderConfirmation {

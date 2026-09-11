@@ -2,25 +2,128 @@ import { Routes } from '@angular/router';
 import { OktaCallbackComponent } from '@okta/okta-angular';
 
 import { devOrAuthGuard } from './auth/dev-auth.guard';
-import { CartDetails } from './components/cart-details/cart-details';
-import { Checkout } from './components/checkout/checkout';
-import { NotFound } from './components/not-found/not-found';
-import { OrderConfirmation } from './components/order-confirmation/order-confirmation';
-import { OrderHistory } from './components/order-history/order-history';
-import { ProductDetails } from './components/product-details/product-details';
-import { ProductList } from './components/product-list/product-list';
 
+// Local components are lazy-loaded so each route ships as its own chunk, keeping the
+// initial bundle lean (checkout's Stripe/forms and the catalog's pagination split out).
 export const routes: Routes = [
   { path: 'login/callback', component: OktaCallbackComponent },
-  { path: 'members/orders', component: OrderHistory, canActivate: [devOrAuthGuard] },
-  { path: 'order-confirmation/:trackingNumber', component: OrderConfirmation },
-  { path: 'checkout', component: Checkout },
-  { path: 'cart-details', component: CartDetails },
-  { path: 'products/:id', component: ProductDetails },
-  { path: 'search/:keyword', component: ProductList },
-  { path: 'category/:id', component: ProductList },
-  { path: 'category', component: ProductList },
-  { path: 'products', component: ProductList },
+  {
+    path: 'members/orders',
+    loadComponent: () => import('./components/order-history/order-history').then(m => m.OrderHistory),
+    canActivate: [devOrAuthGuard],
+  },
+  {
+    path: 'account',
+    loadComponent: () => import('./components/account-settings/account-settings').then(m => m.AccountSettings),
+    canActivate: [devOrAuthGuard],
+  },
+  {
+    path: 'admin',
+    loadComponent: () => import('./components/admin/admin-layout/admin-layout').then(m => m.AdminLayout),
+    canActivate: [devOrAuthGuard],
+    children: [
+      { path: '', loadComponent: () => import('./components/admin/admin-dashboard/admin-dashboard').then(m => m.AdminDashboard) },
+      { path: 'analytics', loadComponent: () => import('./components/admin/admin-analytics/admin-analytics').then(m => m.AdminAnalytics) },
+      { path: 'products', loadComponent: () => import('./components/admin/admin-products/admin-products').then(m => m.AdminProducts) },
+      { path: 'products/new', loadComponent: () => import('./components/admin/admin-product-form/admin-product-form').then(m => m.AdminProductForm) },
+      { path: 'products/:id/edit', loadComponent: () => import('./components/admin/admin-product-form/admin-product-form').then(m => m.AdminProductForm) },
+      { path: 'orders', loadComponent: () => import('./components/admin/admin-orders/admin-orders').then(m => m.AdminOrders) },
+      { path: 'returns', loadComponent: () => import('./components/admin/admin-returns/admin-returns').then(m => m.AdminReturns) },
+      { path: 'reviews', loadComponent: () => import('./components/admin/admin-reviews/admin-reviews').then(m => m.AdminReviews) },
+      { path: 'coupons', loadComponent: () => import('./components/admin/admin-coupons/admin-coupons').then(m => m.AdminCoupons) },
+      { path: 'promotions', loadComponent: () => import('./components/admin/admin-promotions/admin-promotions').then(m => m.AdminPromotions) },
+      { path: 'gift-cards', loadComponent: () => import('./components/admin/admin-gift-cards/admin-gift-cards').then(m => m.AdminGiftCards) },
+      { path: 'tax-shipping', loadComponent: () => import('./components/admin/admin-tax-shipping/admin-tax-shipping').then(m => m.AdminTaxShipping) },
+      { path: 'content', loadComponent: () => import('./components/admin/admin-content/admin-content').then(m => m.AdminContent) },
+      { path: 'inventory', loadComponent: () => import('./components/admin/admin-inventory/admin-inventory').then(m => m.AdminInventory) },
+      { path: 'warehouses', loadComponent: () => import('./components/admin/admin-warehouses/admin-warehouses').then(m => m.AdminWarehouses) },
+      { path: 'audit-log', loadComponent: () => import('./components/admin/admin-audit-log/admin-audit-log').then(m => m.AdminAuditLog) },
+      { path: 'billing', loadComponent: () => import('./components/admin/admin-billing/admin-billing').then(m => m.AdminBilling) },
+    ],
+  },
+  {
+    // Platform (superadmin) tier (roadmap #21, Milestone B) — above the tenant-scoped admin area above.
+    path: 'platform',
+    loadComponent: () => import('./components/platform/platform-layout/platform-layout').then(m => m.PlatformLayout),
+    canActivate: [devOrAuthGuard],
+    children: [
+      { path: '', redirectTo: 'tenants', pathMatch: 'full' },
+      { path: 'tenants', loadComponent: () => import('./components/platform/platform-tenants/platform-tenants').then(m => m.PlatformTenants) },
+      { path: 'billing-plans', loadComponent: () => import('./components/platform/platform-billing-plans/platform-billing-plans').then(m => m.PlatformBillingPlans) },
+    ],
+  },
+  {
+    path: 'about',
+    loadComponent: () => import('./components/about/about').then(m => m.About),
+  },
+  {
+    path: 'faq',
+    loadComponent: () => import('./components/faq/faq').then(m => m.Faq),
+  },
+  {
+    path: 'contact',
+    loadComponent: () => import('./components/contact/contact').then(m => m.Contact),
+  },
+  {
+    path: 'shipping-returns',
+    loadComponent: () => import('./components/info-page/info-page').then(m => m.InfoPage),
+    data: { page: 'shipping' },
+  },
+  {
+    path: 'privacy',
+    loadComponent: () => import('./components/info-page/info-page').then(m => m.InfoPage),
+    data: { page: 'privacy' },
+  },
+  {
+    path: 'terms',
+    loadComponent: () => import('./components/info-page/info-page').then(m => m.InfoPage),
+    data: { page: 'terms' },
+  },
+  {
+    // Reuses ProductList in "sale mode" (fetches on-sale products) — same grid, cart & favorites.
+    path: 'sale',
+    loadComponent: () => import('./components/product-list/product-list').then(m => m.ProductList),
+    data: { mode: 'sale' },
+  },
+  {
+    path: 'order-confirmation/:trackingNumber',
+    loadComponent: () => import('./components/order-confirmation/order-confirmation').then(m => m.OrderConfirmation),
+  },
+  {
+    path: 'checkout',
+    loadComponent: () => import('./components/checkout/checkout').then(m => m.Checkout),
+  },
+  {
+    path: 'cart-details',
+    loadComponent: () => import('./components/cart-details/cart-details').then(m => m.CartDetails),
+  },
+  {
+    path: 'favorites',
+    loadComponent: () => import('./components/favorites/favorites').then(m => m.Favorites),
+  },
+  {
+    path: 'products/:id',
+    loadComponent: () => import('./components/product-details/product-details').then(m => m.ProductDetails),
+  },
+  {
+    path: 'search/:keyword',
+    loadComponent: () => import('./components/product-list/product-list').then(m => m.ProductList),
+  },
+  {
+    path: 'category/:id',
+    loadComponent: () => import('./components/product-list/product-list').then(m => m.ProductList),
+  },
+  {
+    path: 'category',
+    loadComponent: () => import('./components/product-list/product-list').then(m => m.ProductList),
+  },
+  {
+    path: 'products',
+    loadComponent: () => import('./components/product-list/product-list').then(m => m.ProductList),
+  },
   { path: '', redirectTo: '/products', pathMatch: 'full' },
-  { path: '**', component: NotFound },
+  {
+    path: '**',
+    loadComponent: () => import('./components/not-found/not-found').then(m => m.NotFound),
+  },
 ];

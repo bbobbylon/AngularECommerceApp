@@ -3,10 +3,12 @@ package com.bob.ecommerceangularapp.service;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dto.Purchase;
 import com.bob.ecommerceangularapp.dto.PurchaseResponse;
+import com.bob.ecommerceangularapp.email.EmailService;
 import com.bob.ecommerceangularapp.entity.Address;
 import com.bob.ecommerceangularapp.entity.Customer;
 import com.bob.ecommerceangularapp.entity.Order;
 import com.bob.ecommerceangularapp.entity.OrderItem;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -14,7 +16,9 @@ import java.math.BigDecimal;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -25,12 +29,27 @@ import static org.mockito.Mockito.when;
 class CheckoutServiceImplTest {
 
     private final CustomerRepository customerRepository = mock(CustomerRepository.class);
-    private final CheckoutServiceImpl service = new CheckoutServiceImpl(customerRepository, "");
+    private final EmailService emailService = mock(EmailService.class);
+    private final TaxShippingService taxShippingService = mock(TaxShippingService.class);
+    private final ProductVariantService productVariantService = mock(ProductVariantService.class);
+    private final GiftCardService giftCardService = mock(GiftCardService.class);
+    private final LoyaltyService loyaltyService = mock(LoyaltyService.class);
+    private final ReferralService referralService = mock(ReferralService.class);
+    private final AbandonedCartService abandonedCartService = mock(AbandonedCartService.class);
+    private final CheckoutServiceImpl service = new CheckoutServiceImpl(customerRepository, emailService,
+            taxShippingService, productVariantService, giftCardService, loyaltyService, referralService,
+            abandonedCartService, "");
+
+    @BeforeEach
+    void stubSave() {
+        // The order-save returns the managed customer the service then reads back; echo the argument.
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+    }
 
     @Test
     void placeOrder_generatesTrackingNumberAndLinksEntities() {
         Purchase purchase = buildPurchase();
-        when(customerRepository.findByEmail(anyString())).thenReturn(null);
+        when(customerRepository.findByEmailAndTenantId(anyString(), any())).thenReturn(null);
 
         PurchaseResponse response = service.placeOrder(purchase);
 
@@ -55,7 +74,7 @@ class CheckoutServiceImplTest {
         Purchase purchase = buildPurchase();
         Customer existing = new Customer();
         existing.setEmail("a@b.com");
-        when(customerRepository.findByEmail("a@b.com")).thenReturn(existing);
+        when(customerRepository.findByEmailAndTenantId(eq("a@b.com"), any())).thenReturn(existing);
 
         service.placeOrder(purchase);
 

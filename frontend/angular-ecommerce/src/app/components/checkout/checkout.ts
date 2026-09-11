@@ -1,24 +1,29 @@
 import { CommonModule } from '@angular/common';
-import { AfterViewInit, Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AfterViewInit, Component, OnInit, inject } from '@angular/core';
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Stripe, StripeCardElement, loadStripe } from '@stripe/stripe-js';
 
-import { environment } from '../../../environments/environment';
+import { ConfigService } from '../../services/config.service';
+import { CouponService } from '../../services/coupon.service';
 import { Country } from '../../common/country';
 import { Order } from '../../common/order';
 import { OrderItem } from '../../common/order-item';
 import { PaymentInfo } from '../../common/payment-info';
 import { Purchase } from '../../common/purchase';
 import { State } from '../../common/state';
+import { AccountService, SavedAddress } from '../../services/account.service';
 import { CartService } from '../../services/cart.service';
-import { CheckoutService } from '../../services/checkout.service';
+import { CheckoutService, ShippingMethodView } from '../../services/checkout.service';
+import { CurrencyService } from '../../services/currency.service';
+import { LoyaltyService } from '../../services/loyalty.service';
+import { ReferralService } from '../../services/referral.service';
 import { Luv2ShopFormService } from '../../services/luv2shop-form.service';
 import { Luv2ShopValidators } from '../../validators/luv2shop-validators';
 
 @Component({
   selector: 'app-checkout',
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule],
   templateUrl: './checkout.html',
 })
 export class Checkout implements OnInit, AfterViewInit {
@@ -30,17 +35,92 @@ export class Checkout implements OnInit, AfterViewInit {
   isSubmitting = false;
   errorMessage = '';
 
+  // coupon / discount
+  private couponService = inject(CouponService);
+  couponCode = '';
+  appliedCode = '';
+  discount = 0;
+  couponError = '';
+  applyingCoupon = false;
+
+  // automatic, no-code promotion (surfaced from the server's quote — nothing for the customer to enter)
+  promotionName: string | null = null;
+  promotionDiscount = 0;
+
+  // shipping + tax (server-computed quote — single source of truth for the grand total)
+  shippingMethods: ShippingMethodView[] = [];
+  selectedShippingCode = '';
+  shippingAmount = 0;
+  taxAmount = 0;
+  private quoteTotal: number | null = null;
+
+  // gift card (store credit applied against the grand total)
+  giftCardCode = '';
+  appliedGiftCode = '';
+  giftCardBalance = 0;
+  giftCardError = '';
+  applyingGift = false;
+
+  // loyalty / rewards points (store credit; 1 point = $0.01)
+  private loyalty = inject(LoyaltyService);
+  private referral = inject(ReferralService);
+
+  // display currency (checkout always settles in USD — surface a note when browsing in another)
+  protected readonly currencyService = inject(CurrencyService);
+
+  // saved addresses (loaded once the customer enters their email)
+  private accountService = inject(AccountService);
+  savedAddresses: SavedAddress[] = [];
+  useLoyalty = false;
+  loyaltyBalance = 0;
+  loyaltyTier = '';
+  loyaltyError = '';
+  loadingLoyalty = false;
+
+  get grandTotal(): number {
+    return this.quoteTotal != null ? this.quoteTotal : Math.max(0, this.totalPrice - this.discount);
+  }
+
+  /** Gift-card store credit actually applied: capped at the order total. */
+  get giftApplied(): number {
+    return this.appliedGiftCode ? Math.min(this.giftCardBalance, this.grandTotal) : 0;
+  }
+
+  /** Points redeemed against the remaining total (1 point = $0.01), capped by balance + remainder. */
+  get pointsApplied(): number {
+    if (!this.useLoyalty) {
+      return 0;
+    }
+    const remainderCents = Math.round(Math.max(0, this.grandTotal - this.giftApplied) * 100);
+    return Math.min(this.loyaltyBalance, remainderCents);
+  }
+
+  get loyaltyApplied(): number {
+    return this.pointsApplied / 100;
+  }
+
+  /** What the customer pays by card after all store credit. */
+  get amountDue(): number {
+    return Math.max(0, this.grandTotal - this.giftApplied - this.loyaltyApplied);
+  }
+
   countries: Country[] = [];
   shippingAddressStates: State[] = [];
   billingAddressStates: State[] = [];
 
   // Stripe (Milestone 5)
+  private config = inject(ConfigService);
   private stripe: Stripe | null = null;
   private cardElement?: StripeCardElement;
   cardError = '';
-  // True only when a real Stripe publishable key is set (not the shipped placeholder).
-  stripeConfigured = !environment.stripePublishableKey.includes('REPLACE');
   private paymentInfo = new PaymentInfo();
+  /** Captured after a successful card payment so the order can later be refunded on a return. */
+  private paymentIntentId = '';
+
+  /** True only when a real Stripe publishable key is configured (runtime config.json or environment). */
+  get stripeConfigured(): boolean {
+    return this.config.stripeConfigured;
+  }
 
   constructor(
     private formBuilder: FormBuilder,
@@ -61,16 +141,101 @@ export class Checkout implements OnInit, AfterViewInit {
       }),
       shippingAddress: this.buildAddressGroup(),
       billingAddress: this.buildAddressGroup(),
+      subscribeToNewsletter: [true],
     });
 
     this.formService.getCountries().subscribe(data => (this.countries = data));
+
+    this.checkoutService.getShippingMethods().subscribe(methods => {
+      this.shippingMethods = methods;
+      if (methods.length && !this.selectedShippingCode) {
+        this.selectedShippingCode = methods[0].code;
+      }
+      this.recomputeQuote();
+    });
+  }
+
+  /** Re-fetch the authoritative totals (discount + shipping + tax + total) from the server. */
+  recomputeQuote(): void {
+    if (this.totalPrice <= 0) {
+      this.quoteTotal = null;
+      this.shippingAmount = 0;
+      this.taxAmount = 0;
+      this.promotionName = null;
+      this.promotionDiscount = 0;
+      return;
+    }
+    const country = (this.shippingCountry?.value as Country)?.name;
+    const state = (this.shippingState?.value as State)?.name;
+    this.checkoutService.quote({
+      subtotal: this.totalPrice,
+      country,
+      state,
+      couponCode: this.appliedCode || undefined,
+      shippingMethodCode: this.selectedShippingCode || undefined,
+    }).subscribe({
+      next: q => {
+        this.discount = q.discount;
+        this.shippingAmount = q.shippingAmount;
+        this.taxAmount = q.taxAmount;
+        this.quoteTotal = q.total;
+        this.promotionName = q.promotionName ?? null;
+        this.promotionDiscount = q.promotionDiscount ?? 0;
+      },
+      error: () => { /* keep the last-known totals on a transient failure */ },
+    });
+  }
+
+  selectShipping(code: string): void {
+    this.selectedShippingCode = code;
+    this.recomputeQuote();
+  }
+
+  /** On email blur: snapshot the cart for recovery + load any saved addresses for that email. */
+  onEmailBlur(): void {
+    this.captureAbandonedCart();
+    const email = (this.email?.value ?? '').trim();
+    if (email.includes('@')) {
+      this.accountService.getAddresses(email).subscribe({
+        next: list => (this.savedAddresses = list),
+        error: () => (this.savedAddresses = []),
+      });
+    }
+  }
+
+  /** Autofills the shipping form from a saved address (matching country/state objects). */
+  applySavedAddress(addr: SavedAddress): void {
+    const group = this.checkoutFormGroup.get('shippingAddress');
+    group?.patchValue({ street: addr.street, city: addr.city, zipCode: addr.zipCode });
+    const country = this.countries.find(c => c.name === addr.country);
+    if (country) {
+      group?.get('country')?.setValue(country);
+      this.formService.getStates(country.code).subscribe(states => {
+        this.shippingAddressStates = states;
+        group?.get('state')?.setValue(states.find(s => s.name === addr.state) ?? '');
+        this.recomputeQuote();
+      });
+    }
+  }
+
+  /** Snapshot the cart (by email) so it can be recovered if checkout isn't completed. */
+  captureAbandonedCart(): void {
+    const email = (this.email?.value ?? '').trim();
+    if (!email || !email.includes('@') || this.totalQuantity === 0) {
+      return;
+    }
+    const summary = this.cartService.cartItems
+      .map(i => `${i.quantity}× ${i.name}`).join(', ').slice(0, 900);
+    this.checkoutService.captureAbandonedCart({
+      email, itemCount: this.totalQuantity, total: this.totalPrice, summary,
+    }).subscribe({ next: () => { /* best-effort */ }, error: () => { /* best-effort */ } });
   }
 
   async ngAfterViewInit(): Promise<void> {
     if (!this.stripeConfigured) {
       return; // demo mode: no card element to mount
     }
-    this.stripe = await loadStripe(environment.stripePublishableKey);
+    this.stripe = await loadStripe(this.config.stripePublishableKey);
     if (!this.stripe) {
       return;
     }
@@ -115,6 +280,107 @@ export class Checkout implements OnInit, AfterViewInit {
   get billingCountry() { return this.checkoutFormGroup.get('billingAddress.country'); }
   get billingZipCode() { return this.checkoutFormGroup.get('billingAddress.zipCode'); }
 
+  applyCoupon(): void {
+    const code = this.couponCode.trim();
+    if (!code) {
+      return;
+    }
+    this.applyingCoupon = true;
+    this.couponError = '';
+    this.couponService.validate(code, this.totalPrice).subscribe({
+      next: res => {
+        if (res.valid) {
+          this.appliedCode = res.code;
+          this.couponError = '';
+        } else {
+          this.discount = 0;
+          this.appliedCode = '';
+          this.couponError = res.message;
+        }
+        this.applyingCoupon = false;
+        this.recomputeQuote();
+      },
+      error: () => {
+        this.couponError = 'Could not check that code. Please try again.';
+        this.applyingCoupon = false;
+      },
+    });
+  }
+
+  removeCoupon(): void {
+    this.discount = 0;
+    this.appliedCode = '';
+    this.couponCode = '';
+    this.couponError = '';
+    this.recomputeQuote();
+  }
+
+  applyGiftCard(): void {
+    const code = this.giftCardCode.trim();
+    if (!code) {
+      return;
+    }
+    this.applyingGift = true;
+    this.giftCardError = '';
+    this.checkoutService.checkGiftCard(code).subscribe({
+      next: res => {
+        if (res.valid) {
+          this.appliedGiftCode = res.code;
+          this.giftCardBalance = res.balance;
+          this.giftCardError = '';
+        } else {
+          this.appliedGiftCode = '';
+          this.giftCardBalance = 0;
+          this.giftCardError = res.message;
+        }
+        this.applyingGift = false;
+      },
+      error: () => {
+        this.giftCardError = 'Could not check that gift card. Please try again.';
+        this.applyingGift = false;
+      },
+    });
+  }
+
+  removeGiftCard(): void {
+    this.appliedGiftCode = '';
+    this.giftCardBalance = 0;
+    this.giftCardCode = '';
+    this.giftCardError = '';
+  }
+
+  /** Looks up the customer's points (by the email entered above) and applies them as store credit. */
+  applyLoyalty(): void {
+    const email = (this.email?.value ?? '').trim();
+    if (!email) {
+      this.loyaltyError = 'Enter your email above first so we can find your rewards.';
+      return;
+    }
+    this.loadingLoyalty = true;
+    this.loyaltyError = '';
+    this.loyalty.summary(email).subscribe({
+      next: s => {
+        this.loyaltyBalance = s.balance;
+        this.loyaltyTier = s.tier;
+        if (s.balance > 0) {
+          this.useLoyalty = true;
+        } else {
+          this.loyaltyError = 'No points available on this account yet.';
+        }
+        this.loadingLoyalty = false;
+      },
+      error: () => {
+        this.loyaltyError = 'Could not load your rewards. Please try again.';
+        this.loadingLoyalty = false;
+      },
+    });
+  }
+
+  removeLoyalty(): void {
+    this.useLoyalty = false;
+    this.loyaltyError = '';
+  }
+
   copyShippingToBilling(event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
     if (checked) {
@@ -138,7 +404,15 @@ export class Checkout implements OnInit, AfterViewInit {
         this.billingAddressStates = data;
       }
       formGroup?.get('state')?.setValue(data[0] ?? '');
+      if (addressType === 'shippingAddress') {
+        this.recomputeQuote(); // destination changed → tax may change
+      }
     });
+  }
+
+  /** Bound to the shipping state selector so tax recalculates when the destination changes. */
+  onShippingStateChange(): void {
+    this.recomputeQuote();
   }
 
   onSubmit(): void {
@@ -148,8 +422,8 @@ export class Checkout implements OnInit, AfterViewInit {
     }
     this.errorMessage = '';
 
-    // Demo mode: no Stripe configured -> skip the card payment and save the order directly.
-    if (!this.stripeConfigured) {
+    // Skip the card step when Stripe isn't configured (demo) OR store credit covers the whole order.
+    if (!this.stripeConfigured || this.amountDue <= 0) {
       this.isSubmitting = true;
       this.placeOrder();
       return;
@@ -161,12 +435,13 @@ export class Checkout implements OnInit, AfterViewInit {
 
     this.isSubmitting = true;
 
-    this.paymentInfo.amount = Math.round(this.totalPrice * 100);
+    this.paymentInfo.amount = Math.round(this.amountDue * 100);
     this.paymentInfo.currency = 'USD';
     this.paymentInfo.receiptEmail = this.email?.value;
 
     this.checkoutService.createPaymentIntent(this.paymentInfo).subscribe({
       next: response => {
+        this.paymentIntentId = response.id;
         this.stripe!.confirmCardPayment(
           response.client_secret,
           {
@@ -203,7 +478,10 @@ export class Checkout implements OnInit, AfterViewInit {
   }
 
   private placeOrder(): void {
-    const order = new Order(this.totalQuantity, this.totalPrice);
+    const order = new Order(this.totalQuantity, this.grandTotal);
+    order.shippingAmount = this.shippingAmount;
+    order.taxAmount = this.taxAmount;
+    order.shippingMethod = this.selectedShippingCode;
     const orderItems: OrderItem[] = this.cartService.cartItems.map(item => new OrderItem(item));
 
     const purchase = new Purchase();
@@ -218,6 +496,17 @@ export class Checkout implements OnInit, AfterViewInit {
 
     purchase.order = order;
     purchase.orderItems = orderItems;
+    purchase.subscribeToNewsletter = !!this.checkoutFormGroup.get('subscribeToNewsletter')?.value;
+    // Always send the subtotal + chosen method so the server recomputes shipping + tax (+ coupon).
+    purchase.subtotal = this.totalPrice;
+    purchase.shippingMethodCode = this.selectedShippingCode || undefined;
+    purchase.paymentIntentId = this.paymentIntentId || undefined;
+    purchase.giftCardCode = this.appliedGiftCode || undefined;
+    purchase.pointsToRedeem = this.pointsApplied || undefined;
+    purchase.referralCode = this.referral.getStoredCode() || undefined;
+    if (this.appliedCode && this.discount > 0) {
+      purchase.couponCode = this.appliedCode;
+    }
 
     this.checkoutService.placeOrder(purchase).subscribe({
       next: response => this.completeOrder(response.orderTrackingNumber),
@@ -231,7 +520,10 @@ export class Checkout implements OnInit, AfterViewInit {
   private completeOrder(trackingNumber: string): void {
     const summary = {
       totalQuantity: this.totalQuantity,
-      totalPrice: this.totalPrice,
+      totalPrice: this.grandTotal,
+      shippingAmount: this.shippingAmount,
+      taxAmount: this.taxAmount,
+      discount: this.discount,
       items: this.cartService.cartItems.map(item => ({
         name: item.name,
         imageUrl: item.imageUrl,
@@ -241,6 +533,7 @@ export class Checkout implements OnInit, AfterViewInit {
     };
 
     this.cartService.clear();
+    this.referral.clear(); // a referral applies to the first order only
     this.checkoutFormGroup.reset();
     this.router.navigate(['/order-confirmation', trackingNumber], { state: { summary } });
   }

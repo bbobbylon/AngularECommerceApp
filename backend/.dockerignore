@@ -1,0 +1,11 @@
+target/
+.git/
+.gitignore
+*.md
+HELP.md
+.mvn/
+mvnw
+mvnw.cmd
+compose.yaml
+schema.sql
+seed-database.sql

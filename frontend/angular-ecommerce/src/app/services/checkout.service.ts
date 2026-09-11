@@ -11,6 +11,9 @@ export class CheckoutService {
 
   private readonly purchaseUrl = `${environment.apiUrl}/checkout/purchase`;
   private readonly paymentIntentUrl = `${environment.apiUrl}/checkout/payment-intent`;
+  private readonly shippingMethodsUrl = `${environment.apiUrl}/checkout/shipping-methods`;
+  private readonly quoteUrl = `${environment.apiUrl}/checkout/quote`;
+  private readonly giftCardUrl = `${environment.apiUrl}/checkout/gift-card`;
 
   constructor(private httpClient: HttpClient) {}
 
@@ -21,6 +24,35 @@ export class CheckoutService {
   createPaymentIntent(paymentInfo: PaymentInfo): Observable<PaymentIntentResponse> {
     return this.httpClient.post<PaymentIntentResponse>(this.paymentIntentUrl, paymentInfo);
   }
+
+  /** Active shipping options for the checkout selector. */
+  getShippingMethods(): Observable<ShippingMethodView[]> {
+    return this.httpClient.get<ShippingMethodView[]>(this.shippingMethodsUrl);
+  }
+
+  /** Server-computed totals breakdown (discount + shipping + tax + total). */
+  quote(request: QuoteRequest): Observable<QuoteResponse> {
+    return this.httpClient.post<QuoteResponse>(this.quoteUrl, request);
+  }
+
+  /** Snapshot the cart by email at checkout so it can be recovered if the order isn't completed. */
+  captureAbandonedCart(request: { email: string; itemCount: number; total: number; summary: string }): Observable<void> {
+    return this.httpClient.post<void>(`${environment.apiUrl}/abandoned-cart`, request);
+  }
+
+  /** Check a gift card's available balance before applying it. */
+  checkGiftCard(code: string): Observable<GiftCardCheck> {
+    return this.httpClient.get<GiftCardCheck>(`${this.giftCardUrl}`, {
+      params: { code },
+    });
+  }
+}
+
+export interface GiftCardCheck {
+  valid: boolean;
+  code: string;
+  balance: number;
+  message: string;
 }
 
 export interface PurchaseResponse {
@@ -28,5 +60,35 @@ export interface PurchaseResponse {
 }
 
 export interface PaymentIntentResponse {
+  id: string;
   client_secret: string;
+}
+
+export interface ShippingMethodView {
+  id: number;
+  code: string;
+  name: string;
+  baseRate: number;
+  freeOverThreshold?: number | null;
+  estimatedDays?: string;
+}
+
+export interface QuoteRequest {
+  subtotal: number;
+  country?: string;
+  state?: string;
+  couponCode?: string;
+  shippingMethodCode?: string;
+}
+
+export interface QuoteResponse {
+  subtotal: number;
+  discount: number;
+  shippingAmount: number;
+  taxAmount: number;
+  taxRatePercent: number;
+  total: number;
+  shippingMethodCode?: string;
+  promotionName?: string | null;
+  promotionDiscount: number;
 }

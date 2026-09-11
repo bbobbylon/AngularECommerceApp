@@ -1,0 +1,111 @@
+# =====================================================================
+#  MANUAL deploy · Google Cloud (Cloud Run + Artifact Registry + Cloud SQL)
+#  Local `./run.sh` / `docker compose up` stay the primary dev paths — this is opt-in.
+#  Run it from the GitHub "Actions" tab (workflow_dispatch).
+#
+#  PLUG & PLAY: all config is read from `deploy/gcp.env` (the one file you edit) — there is
+#  nothing to change in this YAML. ONE-TIME SETUP: edit GCP_PROJECT in deploy/gcp.env, then run
+#  `bash deploy/gcp-setup.sh` (it provisions the registry / Cloud SQL / service accounts and, if
+#  the `gh` CLI is authenticated, pushes the two secrets below for you).
+#    Secrets needed:  GCP_SA_KEY (deployer SA JSON), DB_PASS
+#
+#  This workflow is SINGLE-PASS (no chicken-and-egg): it deploys the backend, reads its live URL,
+#  builds the frontend against that URL, deploys it, then points the backend's CORS allowlist +
+#  email links at the live frontend URL. See docs/DEPLOYMENT.md.
+# =====================================================================
+name: Deploy · GCP (Cloud Run)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Single source of truth: load deploy/gcp.env into the job environment so every
+      # subsequent step sees $GCP_PROJECT, $GCP_REGION, $AR_REPO, $CLOUD_SQL_INSTANCE, etc.
+      - name: Load deploy config (deploy/gcp.env)
+        run: |
+          grep -E '^[A-Z_]+=' deploy/gcp.env | sed 's/\r$//' >> "$GITHUB_ENV"
+          if grep -q '^GCP_PROJECT=your-project-id' deploy/gcp.env; then
+            echo "::error::Edit GCP_PROJECT in deploy/gcp.env (still 'your-project-id')."; exit 1
+          fi
+          echo "Loaded deploy/gcp.env"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker "$GCP_REGION-docker.pkg.dev" --quiet
+
+      - name: Build & push backend image
+        run: |
+          REG="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT/$AR_REPO"
+          docker build -t "$REG/backend:${{ github.sha }}" ./backend
+          docker push "$REG/backend:${{ github.sha }}"
+
+      # Connects to Cloud SQL via the Cloud SQL JDBC Socket Factory (bundled in the backend jar):
+      # IAM-authenticated + mTLS, no public DB password port. The runtime SA needs roles/cloudsql.client
+      # (gcp-setup.sh grants it). The empty DB is migrated by Flyway on first boot — no SQL script.
+      - name: Deploy backend (prod profile + Cloud SQL connector)
+        run: |
+          CONN="$GCP_PROJECT:$GCP_REGION:$CLOUD_SQL_INSTANCE"
+          DB_URL="jdbc:mysql:///$DB_NAME?cloudSqlInstance=${CONN}&socketFactory=com.google.cloud.sql.mysql.SocketFactory&ipTypes=PUBLIC"
+          gcloud run deploy "$BACKEND_SERVICE" \
+            --image "$GCP_REGION-docker.pkg.dev/$GCP_PROJECT/$AR_REPO/backend:${{ github.sha }}" \
+            --region "$GCP_REGION" --platform managed \
+            --port 8585 --allow-unauthenticated \
+            --memory "$BACKEND_MEMORY" --cpu 1 --min-instances 0 --max-instances "$BACKEND_MAX_INSTANCES" \
+            --add-cloudsql-instances "$CONN" \
+            --set-env-vars "^@@^SPRING_PROFILES_ACTIVE=prod@@SPRING_DOCKER_COMPOSE_ENABLED=false@@SPRING_DATASOURCE_URL=${DB_URL}@@SPRING_DATASOURCE_USERNAME=${DB_USER}@@SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASS }}"
+
+      - name: Capture backend URL
+        id: be
+        run: |
+          URL=$(gcloud run services describe "$BACKEND_SERVICE" --region "$GCP_REGION" --format='value(status.url)')
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Backend deployed at $URL"
+
+      # The SPA bakes its API base URL in at build time, so build it AFTER the backend exists and
+      # point it at the live backend. No empty-URL footgun: the previous step guarantees a real URL.
+      - name: Build & push frontend image (API baked to the live backend)
+        run: |
+          REG="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT/$AR_REPO"
+          docker build --build-arg API_URL="${{ steps.be.outputs.url }}/api" \
+            -t "$REG/frontend:${{ github.sha }}" ./frontend/angular-ecommerce
+          docker push "$REG/frontend:${{ github.sha }}"
+
+      - name: Deploy frontend
+        run: |
+          gcloud run deploy "$FRONTEND_SERVICE" \
+            --image "$GCP_REGION-docker.pkg.dev/$GCP_PROJECT/$AR_REPO/frontend:${{ github.sha }}" \
+            --region "$GCP_REGION" --platform managed \
+            --port 80 --allow-unauthenticated \
+            --memory "$FRONTEND_MEMORY" --cpu 1 --min-instances 0 --max-instances "$FRONTEND_MAX_INSTANCES"
+
+      - name: Capture frontend URL
+        id: fe
+        run: |
+          URL=$(gcloud run services describe "$FRONTEND_SERVICE" --region "$GCP_REGION" --format='value(status.url)')
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Frontend deployed at $URL"
+
+      # The deployed SPA calls the backend cross-origin, so the backend must allowlist the frontend's
+      # origin (APP_CORS_ALLOWED_ORIGINS) — and email links should point at it (APP_FRONTEND_URL).
+      - name: Point backend CORS + email links at the live frontend
+        run: |
+          gcloud run services update "$BACKEND_SERVICE" --region "$GCP_REGION" \
+            --update-env-vars "APP_CORS_ALLOWED_ORIGINS=${{ steps.fe.outputs.url }},APP_FRONTEND_URL=${{ steps.fe.outputs.url }},APP_API_URL=${{ steps.be.outputs.url }}"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Deployed to Cloud Run 🚀"
+            echo "- **Frontend:** ${{ steps.fe.outputs.url }}"
+            echo "- **Backend:**  ${{ steps.be.outputs.url }}"
+            echo ""
+            echo "_The empty Cloud SQL database is migrated by Flyway on the backend's first boot and seeded by the DataLoader._"
+          } >> "$GITHUB_STEP_SUMMARY"

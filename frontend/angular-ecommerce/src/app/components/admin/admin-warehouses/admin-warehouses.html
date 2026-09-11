@@ -1,0 +1,123 @@
+<div class="mb-4">
+  <h1 class="fw-bold mb-0">Warehouses</h1>
+  <p class="text-muted mb-0">Fulfillment locations and how each SKU's stock is distributed between them.</p>
+</div>
+
+@if (loading()) {
+  <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+} @else {
+  <div class="row g-4">
+    <!-- Warehouses -->
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header fw-semibold"><i class="fa-solid fa-warehouse me-2 text-primary"></i>Warehouses</div>
+        <div class="card-body">
+          <div class="table-responsive mb-3">
+            <table class="table table-sm align-middle mb-0">
+              <thead><tr><th>Warehouse</th><th>Priority</th><th></th></tr></thead>
+              <tbody>
+                @for (w of warehouses(); track w.id) {
+                  <tr [class.table-active]="selectedWarehouse()?.id === w.id">
+                    <td>
+                      <button type="button" class="btn btn-link p-0 fw-semibold text-decoration-none" (click)="selectWarehouse(w)">
+                        {{ w.name }}
+                      </button>
+                      <span class="d-block text-muted small">
+                        {{ w.code }}@if (w.city) { · {{ w.city }}{{ w.state ? ', ' + w.state : '' }} }
+                      </span>
+                      @if (!w.active) { <span class="badge bg-secondary-subtle text-secondary-emphasis">inactive</span> }
+                    </td>
+                    <td>{{ w.priority }}</td>
+                    <td class="text-end text-nowrap">
+                      <button class="btn btn-sm btn-outline-secondary me-1" (click)="selectWarehouse(w)" aria-label="View stock"><i class="fa-solid fa-boxes-stacked"></i></button>
+                      <button class="btn btn-sm btn-outline-secondary me-1" (click)="edit(w)" aria-label="Edit"><i class="fa-solid fa-pen"></i></button>
+                      <button class="btn btn-sm btn-outline-danger" (click)="delete(w)" aria-label="Delete"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="3" class="text-muted">No warehouses yet.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <h6 class="fw-bold">{{ form.id ? 'Edit warehouse' : 'Add warehouse' }}</h6>
+          <div class="row g-2">
+            <div class="col-4"><input class="form-control form-control-sm" placeholder="Code" [(ngModel)]="form.code" name="wCode" /></div>
+            <div class="col-8"><input class="form-control form-control-sm" placeholder="Name" [(ngModel)]="form.name" name="wName" /></div>
+            <div class="col-4"><input class="form-control form-control-sm" placeholder="City" [(ngModel)]="form.city" name="wCity" /></div>
+            <div class="col-4"><input class="form-control form-control-sm" placeholder="State" [(ngModel)]="form.state" name="wState" /></div>
+            <div class="col-4"><input class="form-control form-control-sm" placeholder="Country" [(ngModel)]="form.country" name="wCountry" /></div>
+            <div class="col-6">
+              <input type="number" class="form-control form-control-sm" placeholder="Priority (lower ships first)" [(ngModel)]="form.priority" name="wPriority" />
+            </div>
+            <div class="col-6 d-flex align-items-center gap-3">
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="whActive" [(ngModel)]="form.active" name="wActive" />
+                <label class="form-check-label small" for="whActive">Active</label>
+              </div>
+            </div>
+            <div class="col-12 d-flex gap-2">
+              <button class="btn btn-primary btn-sm" (click)="save()" [disabled]="saving()">
+                {{ form.id ? 'Save' : 'Add' }}
+              </button>
+              @if (form.id) { <button class="btn btn-outline-secondary btn-sm" (click)="cancelEdit()">Cancel</button> }
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stock at selected warehouse -->
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">
+          <i class="fa-solid fa-boxes-stacked me-2 text-primary"></i>
+          @if (selectedWarehouse(); as w) { Stock at {{ w.name }} } @else { Stock }
+        </div>
+        <div class="card-body">
+          @if (!selectedWarehouse()) {
+            <div class="text-muted">Select a warehouse to view and edit its stock.</div>
+          } @else if (stockLoading()) {
+            <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+          } @else {
+            <input type="search" class="form-control form-control-sm w-auto mb-2" placeholder="Search SKU or product…"
+                   [ngModel]="stockSearch()" (ngModelChange)="stockSearch.set($event)" />
+            <div class="table-responsive" style="max-height: 26rem; overflow-y: auto;">
+              <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>SKU</th><th>Product</th><th>Qty</th><th></th></tr></thead>
+                <tbody>
+                  @for (row of filteredStockRows(); track row.sku) {
+                    <tr>
+                      <td class="font-monospace small">{{ row.sku }}</td>
+                      <td class="small">
+                        {{ row.productName }}
+                        @if (row.variantLabel) { <span class="text-muted"> · {{ row.variantLabel }}</span> }
+                      </td>
+                      <td style="max-width: 6rem;">
+                        <input type="number" min="0" class="form-control form-control-sm"
+                               [ngModel]="stockDrafts[row.sku]" (ngModelChange)="stockDrafts[row.sku] = $event" />
+                      </td>
+                      <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-primary" (click)="saveStock(row)"
+                                [disabled]="stockSaving() === row.sku || stockDrafts[row.sku] === row.quantity">
+                          @if (stockSaving() === row.sku) {
+                            <i class="fa-solid fa-spinner fa-spin"></i>
+                          } @else {
+                            Save
+                          }
+                        </button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="4" class="text-muted">No SKUs match.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+}

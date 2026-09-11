@@ -1,0 +1,121 @@
+<div class="mb-4">
+  <h1 class="fw-bold mb-1">Analytics</h1>
+  <p class="text-muted mb-0">Sales trends over the last 30 days.</p>
+</div>
+
+@if (summary(); as s) {
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+      <div class="stat-card">
+        <div class="stat-icon"><i class="fa-solid fa-scale-balanced"></i></div>
+        <div class="stat-value">{{ s.averageOrderValue | currency:'USD' }}</div>
+        <div class="stat-label">Avg. order value</div>
+        <div class="stat-sub">all time</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="stat-card">
+        <div class="stat-icon text-success"><i class="fa-solid fa-calendar-check"></i></div>
+        <div class="stat-value">{{ s.revenueThisMonth | currency:'USD' }}</div>
+        <div class="stat-label">Revenue this month</div>
+        @if (s.growthPercent !== null) {
+          <div class="stat-sub" [class.text-success]="s.growthPercent >= 0" [class.text-danger]="s.growthPercent < 0">
+            <i class="fa-solid" [class.fa-arrow-up]="s.growthPercent >= 0" [class.fa-arrow-down]="s.growthPercent < 0"></i>
+            {{ s.growthPercent | number:'1.0-1' }}% vs. last month
+          </div>
+        } @else {
+          <div class="stat-sub">no data last month to compare</div>
+        }
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="stat-card">
+        <div class="stat-icon"><i class="fa-solid fa-calendar-minus"></i></div>
+        <div class="stat-value">{{ s.revenueLastMonth | currency:'USD' }}</div>
+        <div class="stat-label">Revenue last month</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="stat-card">
+        <div class="stat-icon text-primary"><i class="fa-solid fa-receipt"></i></div>
+        <div class="stat-value">{{ totalOrders30d() }}</div>
+        <div class="stat-label">Orders (30d)</div>
+      </div>
+    </div>
+  </div>
+}
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header fw-semibold"><i class="fa-solid fa-chart-column me-2 text-primary"></i>Revenue — last 30 days</div>
+      <div class="card-body">
+        @if (loading()) {
+          <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+        } @else if (!revenue().length) {
+          <div class="text-muted">No orders yet.</div>
+        } @else {
+          <div class="revenue-chart" role="img" [attr.aria-label]="'Daily revenue for the last 30 days'">
+            @for (point of revenue(); track point.date) {
+              <div class="revenue-bar" [style.height.%]="barHeight(point.revenue)"
+                   [title]="(point.date | date:'MMM d') + ': ' + (point.revenue | currency:'USD') + ' (' + point.orderCount + ' order' + (point.orderCount === 1 ? '' : 's') + ')'">
+              </div>
+            }
+          </div>
+          <div class="d-flex justify-content-between text-muted small mt-2">
+            <span>{{ revenue()[0].date | date:'MMM d' }}</span>
+            <span>{{ revenue()[revenue().length - 1].date | date:'MMM d' }}</span>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header fw-semibold"><i class="fa-solid fa-ranking-star me-2 text-primary"></i>Top products — last 30 days</div>
+      <div class="card-body">
+        @if (!topProducts().length) {
+          <div class="text-muted">No sales yet.</div>
+        } @else {
+          @for (p of topProducts(); track p.productId) {
+            <div class="mb-3">
+              <div class="d-flex justify-content-between small mb-1">
+                <span class="fw-semibold text-truncate me-2">{{ p.name }}</span>
+                <span class="text-muted text-nowrap">{{ p.revenue | currency:'USD' }} · {{ p.unitsSold }} sold</span>
+              </div>
+              <div class="rating-bar">
+                <span class="bar-fill-accent" [style.width.%]="barWidth(p.revenue, maxTopProductRevenue())"></span>
+              </div>
+            </div>
+          }
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header fw-semibold"><i class="fa-solid fa-list-check me-2 text-primary"></i>Orders by status</div>
+      <div class="card-body">
+        @if (!statusBreakdown().length) {
+          <div class="text-muted">No orders yet.</div>
+        } @else {
+          <div class="row g-3">
+            @for (s of statusBreakdown(); track s.status) {
+              <div class="col-md-6">
+                <div class="d-flex justify-content-between small mb-1">
+                  <span class="fw-semibold">{{ s.status }}</span>
+                  <span class="text-muted">{{ s.count }}</span>
+                </div>
+                <div class="rating-bar">
+                  <span class="bar-fill-accent" [style.width.%]="barWidth(s.count, maxStatusCount())"></span>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</div>

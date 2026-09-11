@@ -1,0 +1,13 @@
+<span class="star-rating" [attr.aria-label]="value + ' out of 5 stars'">
+  @if (showValue && value > 0) { <span class="star-value">{{ value }}</span> }
+  @for (s of stars; track $index) {
+    @if (s === 'full') {
+      <i class="fa-solid fa-star"></i>
+    } @else if (s === 'half') {
+      <i class="fa-solid fa-star-half-stroke"></i>
+    } @else {
+      <i class="fa-regular fa-star empty"></i>
+    }
+  }
+  @if (showCount) { <span class="star-count">({{ count ?? 0 }})</span> }
+</span>
