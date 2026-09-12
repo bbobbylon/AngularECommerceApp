@@ -366,6 +366,39 @@ export class AdminService {
   recordBillingPaymentMethod(paymentMethodId: string): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/billing/payment-method`, { paymentMethodId });
   }
+
+  // ----- headless API keys (roadmap #23) -----
+
+  getApiKeys(): Observable<AdminApiKey[]> {
+    return this.http.get<AdminApiKey[]>(`${this.baseUrl}/api-keys`);
+  }
+
+  issueApiKey(payload: AdminApiKeyPayload): Observable<AdminApiKeyCreated> {
+    return this.http.post<AdminApiKeyCreated>(`${this.baseUrl}/api-keys`, payload);
+  }
+
+  revokeApiKey(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/api-keys/${id}`);
+  }
+
+  // ----- webhooks (roadmap #23, Milestones B + D) -----
+
+  getWebhooks(): Observable<AdminWebhookSubscription[]> {
+    return this.http.get<AdminWebhookSubscription[]>(`${this.baseUrl}/webhooks`);
+  }
+
+  saveWebhook(payload: AdminWebhookSubscriptionPayload): Observable<AdminWebhookSubscription | AdminWebhookSubscriptionCreated> {
+    return this.http.post<AdminWebhookSubscription | AdminWebhookSubscriptionCreated>(`${this.baseUrl}/webhooks`, payload);
+  }
+
+  deactivateWebhook(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/webhooks/${id}`);
+  }
+
+  getWebhookDeliveries(id: number, page: number, size: number): Observable<PageResponse<WebhookDeliveryAttempt>> {
+    const params = new HttpParams().set('page', page).set('size', size);
+    return this.http.get<PageResponse<WebhookDeliveryAttempt>>(`${this.baseUrl}/webhooks/${id}/deliveries`, { params });
+  }
 }
 
 export interface AdminGiftCard {
@@ -634,4 +667,70 @@ export interface BillingInvoice {
 export interface SetupIntentResponse {
   enabled: boolean;
   clientSecret: string | null;
+}
+
+export interface AdminApiKey {
+  id: number;
+  name: string;
+  keyPrefix: string;
+  authorities: string;
+  active: boolean;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  dateCreated: string;
+}
+
+export interface AdminApiKeyPayload {
+  name: string;
+  authorities: string[];
+  expiresAt?: string | null;
+}
+
+/** Returned exactly once, at issue time — {@code rawKey} is never retrievable again afterward. */
+export interface AdminApiKeyCreated {
+  id: number;
+  name: string;
+  keyPrefix: string;
+  authorities: string;
+  rawKey: string;
+  expiresAt: string | null;
+  dateCreated: string;
+}
+
+export interface AdminWebhookSubscription {
+  id: number;
+  url: string;
+  maskedSecret: string;
+  eventTypes: string;
+  active: boolean;
+  dateCreated: string;
+}
+
+export interface AdminWebhookSubscriptionPayload {
+  id?: number | null;
+  url: string;
+  eventTypes: string[];
+  active: boolean;
+}
+
+/** Returned only when {@code saveWebhook} creates a new subscription — {@code secret} is full, one-time. */
+export interface AdminWebhookSubscriptionCreated {
+  id: number;
+  url: string;
+  secret: string;
+  eventTypes: string;
+  active: boolean;
+  dateCreated: string;
+}
+
+export interface WebhookDeliveryAttempt {
+  id: number;
+  webhookEventId: number;
+  eventType: string;
+  attemptNumber: number;
+  outcome: string;
+  httpStatusCode: number | null;
+  errorMessage: string | null;
+  attemptedAt: string;
 }

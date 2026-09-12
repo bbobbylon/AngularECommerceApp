@@ -1,6 +1,8 @@
 package com.bob.ecommerceangularapp.config;
 
+import com.bob.ecommerceangularapp.entity.ApiKey;
 import com.bob.ecommerceangularapp.entity.Tenant;
+import com.bob.ecommerceangularapp.service.ApiKeyLookupService;
 import com.bob.ecommerceangularapp.service.TenantResolutionService;
 import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.AfterEach;
@@ -24,6 +26,7 @@ import static org.mockito.Mockito.when;
 class TenantResolutionFilterTest {
 
     private final TenantResolutionService tenantResolutionService = mock(TenantResolutionService.class);
+    private final ApiKeyLookupService apiKeyLookupService = mock(ApiKeyLookupService.class);
 
     @AfterEach
     void clearContext() {
@@ -32,7 +35,8 @@ class TenantResolutionFilterTest {
     }
 
     private TenantResolutionFilter filter(String baseDomain) {
-        return new TenantResolutionFilter(tenantResolutionService, "X-Tenant-Id", baseDomain, "demo");
+        return new TenantResolutionFilter(tenantResolutionService, apiKeyLookupService, "X-Tenant-Id",
+                "X-Api-Key", baseDomain, "demo");
     }
 
     private Tenant tenant(String slug, long id) {
@@ -41,6 +45,13 @@ class TenantResolutionFilterTest {
         t.setSlug(slug);
         t.setActive(true);
         return t;
+    }
+
+    private ApiKey apiKey(long tenantId, String prefix) {
+        ApiKey key = new ApiKey();
+        key.setTenantId(tenantId);
+        key.setKeyPrefix(prefix);
+        return key;
     }
 
     @Test
@@ -137,6 +148,70 @@ class TenantResolutionFilterTest {
         assertThat(chain.tenantIdSeen).isNull();
         assertThat(response.getStatus()).isEqualTo(200);
         verifyNoInteractions(tenantResolutionService);
+    }
+
+    @Test
+    void apiKeyHeaderWinsOverEverythingElseAndNeverConsultsSlugResolution() throws ServletException, IOException {
+        ApiKey key = apiKey(9L, "lsk_abcd1234");
+        when(apiKeyLookupService.lookup("secret-raw-key")).thenReturn(Optional.of(key));
+        when(apiKeyLookupService.isUsable(key)).thenReturn(true);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/admin/orders");
+        request.addHeader("X-Api-Key", "secret-raw-key");
+        request.addHeader("X-Tenant-Id", "acme");
+        request.addParameter("tenant", "demo");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        RecordingFilterChain chain = new RecordingFilterChain();
+
+        filter("").doFilter(request, response, chain);
+
+        assertThat(chain.tenantIdSeen).isEqualTo(9L);
+        assertThat(response.getStatus()).isEqualTo(200);
+        verifyNoInteractions(tenantResolutionService);
+    }
+
+    @Test
+    void unknownApiKey404sAndNeverReachesTheChain() throws ServletException, IOException {
+        when(apiKeyLookupService.lookup("bogus")).thenReturn(Optional.empty());
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/admin/orders");
+        request.addHeader("X-Api-Key", "bogus");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        RecordingFilterChain chain = new RecordingFilterChain();
+
+        filter("").doFilter(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(404);
+        assertThat(chain.invoked).isFalse();
+        verifyNoInteractions(tenantResolutionService);
+    }
+
+    @Test
+    void revokedOrExpiredApiKeyIsRejectedTheSameAsUnknown() throws ServletException, IOException {
+        ApiKey key = apiKey(9L, "lsk_abcd1234");
+        when(apiKeyLookupService.lookup("stale-key")).thenReturn(Optional.of(key));
+        when(apiKeyLookupService.isUsable(key)).thenReturn(false);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/admin/orders");
+        request.addHeader("X-Api-Key", "stale-key");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        RecordingFilterChain chain = new RecordingFilterChain();
+
+        filter("").doFilter(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(404);
+        assertThat(chain.invoked).isFalse();
+    }
+
+    @Test
+    void tenantContextIsClearedAfterAnApiKeyRequestToo() throws ServletException, IOException {
+        ApiKey key = apiKey(9L, "lsk_abcd1234");
+        when(apiKeyLookupService.lookup("secret-raw-key")).thenReturn(Optional.of(key));
+        when(apiKeyLookupService.isUsable(key)).thenReturn(true);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/admin/orders");
+        request.addHeader("X-Api-Key", "secret-raw-key");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter("").doFilter(request, response, new MockFilterChain());
+
+        assertThat(TenantContext.currentTenantId()).isNull();
     }
 
     /** Records the tenant id visible to downstream code, mirroring how a real controller would see it. */

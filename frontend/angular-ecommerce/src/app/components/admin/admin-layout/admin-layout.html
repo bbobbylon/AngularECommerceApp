@@ -56,6 +56,12 @@
       <a routerLink="/admin/billing" routerLinkActive="active">
         <i class="fa-solid fa-credit-card"></i> Billing
       </a>
+      <a routerLink="/admin/api-keys" routerLinkActive="active">
+        <i class="fa-solid fa-key"></i> API Keys
+      </a>
+      <a routerLink="/admin/webhooks" routerLinkActive="active">
+        <i class="fa-solid fa-bolt"></i> Webhooks
+      </a>
       @if (roles().includes('SuperAdmin')) {
         <a routerLink="/platform/tenants" routerLinkActive="active">
           <i class="fa-solid fa-building-shield"></i> Platform

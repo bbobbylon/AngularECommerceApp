@@ -42,13 +42,16 @@ public class ReturnService {
 
     private final ReturnRequestRepository returnRepository;
     private final OrderRepository orderRepository;
+    private final WebhookEventPublisher webhookEventPublisher;
     private final String stripeKey;
 
     public ReturnService(ReturnRequestRepository returnRepository,
                          OrderRepository orderRepository,
+                         WebhookEventPublisher webhookEventPublisher,
                          @Value("${stripe.key.secret}") String stripeKey) {
         this.returnRepository = returnRepository;
         this.orderRepository = orderRepository;
+        this.webhookEventPublisher = webhookEventPublisher;
         this.stripeKey = stripeKey;
     }
 
@@ -103,7 +106,13 @@ public class ReturnService {
 
         if ("DENY".equalsIgnoreCase(decision.action())) {
             rr.setStatus(DENIED);
-            return toView(returnRepository.save(rr));
+            ReturnRequestView view = toView(returnRepository.save(rr));
+            Map<String, Object> deniedPayload = new HashMap<>();
+            deniedPayload.put("returnId", rr.getId());
+            deniedPayload.put("orderTrackingNumber", rr.getOrderTrackingNumber());
+            deniedPayload.put("reason", rr.getReason());
+            webhookEventPublisher.publish("return.denied", deniedPayload);
+            return view;
         }
 
         // APPROVE
@@ -132,7 +141,14 @@ public class ReturnService {
                 rr.setAdminNote(appendNote(rr.getAdminNote(), "Stripe refund failed: " + e.getMessage()));
             }
         }
-        return toView(returnRepository.save(rr));
+        ReturnRequestView view = toView(returnRepository.save(rr));
+        Map<String, Object> approvedPayload = new HashMap<>();
+        approvedPayload.put("returnId", rr.getId());
+        approvedPayload.put("orderTrackingNumber", rr.getOrderTrackingNumber());
+        approvedPayload.put("status", rr.getStatus());
+        approvedPayload.put("refundAmount", rr.getRefundAmount());
+        webhookEventPublisher.publish("return.approved", approvedPayload);
+        return view;
     }
 
     private boolean stripeConfigured() {

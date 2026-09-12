@@ -39,6 +39,8 @@ export const routes: Routes = [
       { path: 'warehouses', loadComponent: () => import('./components/admin/admin-warehouses/admin-warehouses').then(m => m.AdminWarehouses) },
       { path: 'audit-log', loadComponent: () => import('./components/admin/admin-audit-log/admin-audit-log').then(m => m.AdminAuditLog) },
       { path: 'billing', loadComponent: () => import('./components/admin/admin-billing/admin-billing').then(m => m.AdminBilling) },
+      { path: 'api-keys', loadComponent: () => import('./components/admin/admin-api-keys/admin-api-keys').then(m => m.AdminApiKeys) },
+      { path: 'webhooks', loadComponent: () => import('./components/admin/admin-webhooks/admin-webhooks').then(m => m.AdminWebhooks) },
     ],
   },
   {

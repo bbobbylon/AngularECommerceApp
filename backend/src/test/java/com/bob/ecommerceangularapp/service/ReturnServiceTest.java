@@ -30,7 +30,8 @@ class ReturnServiceTest {
 
     private final ReturnRequestRepository returnRepository = mock(ReturnRequestRepository.class);
     private final OrderRepository orderRepository = mock(OrderRepository.class);
-    private final ReturnService service = new ReturnService(returnRepository, orderRepository, "");
+    private final WebhookEventPublisher webhookEventPublisher = mock(WebhookEventPublisher.class);
+    private final ReturnService service = new ReturnService(returnRepository, orderRepository, webhookEventPublisher, "");
 
     @BeforeEach
     void setTenantContext() {

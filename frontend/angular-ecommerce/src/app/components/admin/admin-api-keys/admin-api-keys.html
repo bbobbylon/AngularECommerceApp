@@ -1,0 +1,74 @@
+<div class="mb-4">
+  <h1 class="fw-bold mb-0">API Keys</h1>
+  <p class="text-muted mb-0">Issue credentials for headless/programmatic access to this back office.</p>
+</div>
+
+@if (justCreated(); as created) {
+  <div class="alert alert-warning">
+    <h6 class="fw-bold mb-2"><i class="fa-solid fa-triangle-exclamation me-1"></i>Copy this key now — it won't be shown again</h6>
+    <div class="input-group mb-2">
+      <input type="text" class="form-control font-monospace" readonly [value]="created.rawKey" />
+    </div>
+    <div class="small text-muted mb-2">Name: {{ created.name }} &middot; Authorities: {{ created.authorities }}</div>
+    <button class="btn btn-sm btn-outline-secondary" (click)="dismissReveal()">Done</button>
+  </div>
+}
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h6 class="fw-bold mb-3">Issue a key</h6>
+    <div class="row g-2 align-items-end">
+      <div class="col-sm-4">
+        <label class="form-label small mb-0">Name</label>
+        <input class="form-control form-control-sm" placeholder="inventory-sync-bot" [(ngModel)]="name" name="name" />
+      </div>
+      <div class="col-sm-5">
+        <label class="form-label small mb-0 d-block">Authorities</label>
+        @for (a of availableAuthorities; track a) {
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" [id]="'auth-' + a" [(ngModel)]="selectedAuthorities[a]" [name]="'auth-' + a" />
+            <label class="form-check-label small" [for]="'auth-' + a">{{ a }}</label>
+          </div>
+        }
+      </div>
+      <div class="col-sm-3 text-end">
+        <button class="btn btn-primary btn-sm" (click)="issue()" [disabled]="saving()">Issue key</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+@if (loading()) {
+  <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+} @else if (keys().length === 0) {
+  <div class="alert alert-secondary">No API keys issued yet.</div>
+} @else {
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>Name</th><th>Prefix</th><th>Authorities</th><th>Status</th><th>Expires</th><th>Issued</th><th></th></tr></thead>
+      <tbody>
+        @for (k of keys(); track k.id) {
+          <tr [class.opacity-50]="!k.active">
+            <td>{{ k.name }}</td>
+            <td class="font-monospace small">{{ k.keyPrefix }}…</td>
+            <td class="small">{{ k.authorities }}</td>
+            <td>
+              @if (k.active) {
+                <span class="badge bg-success-subtle text-success-emphasis">active</span>
+              } @else {
+                <span class="badge bg-secondary-subtle text-secondary-emphasis">revoked</span>
+              }
+            </td>
+            <td class="small text-muted">{{ k.expiresAt ? (k.expiresAt | date:'mediumDate') : 'Never' }}</td>
+            <td class="small text-muted">{{ k.dateCreated | date:'mediumDate' }}</td>
+            <td class="text-end">
+              @if (k.active) {
+                <button class="btn btn-sm btn-outline-danger" (click)="revoke(k)">Revoke</button>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
