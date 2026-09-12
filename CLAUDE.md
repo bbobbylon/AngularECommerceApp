@@ -749,12 +749,32 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   not new work — the feature (entities/migration/services/controllers/frontend, `BillingServiceTest`+
   `BillingPlanServiceTest`) had already been built and merged in a prior session; this pass was a full
   re-audit (tenant scoping, RBAC gating, audit logging, endpoint-to-service-call wiring, nav-link
-  reachability) that found **zero gaps** — no code changes were needed. **Not verified live in a
-  browser this session**: Docker wasn't running, so neither `docker compose up` nor
-  `./mvnw spring-boot:run` (both MySQL-only) could start; an H2 fallback isn't available either since
-  the H2 driver is test-scope only. Verification here rests on the static re-audit plus the pre-existing
-  203 backend + 17 frontend automated tests (unchanged, still green) — a real click-through with Docker
-  available is still worth doing before calling this fully closed out to the same bar as #1-21.
+  reachability) that found **zero gaps** — no code changes were needed at the feature-code level, though
+  the re-audit's own live-verification attempt was blocked at the time by Docker not running, deferring
+  the click-through to a follow-up session. **Browser-verified live** in that follow-up, after starting
+  Docker Desktop and running `docker compose up --build`: created a plan via `/platform/billing-plans`,
+  assigned it to the demo tenant via `/platform/tenants` (`[ngModel]`-bound `<select>`, confirming the
+  #20 lesson holds here too), and confirmed `/admin/billing` correctly rendered the plan name/price/
+  features/ACTIVE status/renewal date with no invoices yet (correct — `MonthlyBillingScheduler` hasn't
+  run); "Update card" no-ops cleanly with zero console errors when Stripe is unconfigured. This surfaced
+  two real infrastructure bugs unrelated to the billing feature's own code, both now fixed: (1)
+  `backend/src/main/resources/application.properties` had `server.port=8586`/MySQL port `3308` baked
+  into the **primary** instance's defaults — leftover from the alt-instance (`compose.deploy.yaml`) work
+  — while `compose.yaml` never overrides `SERVER_PORT` (only `SPRING_DATASOURCE_URL`), so the container's
+  Tomcat silently bound 8586 while Docker only published 8585; (2) the same class of bug in
+  `frontend/.../environment.ts`, which hardcoded `apiUrl` to the alt-instance's 8586 — the Dockerfile's
+  build-time `sed` only replaces the literal string `http://localhost:8585/api`, so once the source
+  already said 8586 the substitution silently no-op'd and every Docker-built frontend image called the
+  wrong backend port regardless of the `API_URL` build arg in `compose.yaml`. A third, genuine bug in the
+  billing-adjacent code was also found and fixed: `ProductRepository` had two `findAllByTenantId`
+  overloads (`List` and `Page`/`Pageable`, added across #21 Milestones B and D) that Spring Data REST
+  mapped to the same `/findAllByTenantId` search-resource path by name alone, throwing
+  `IllegalStateException("Ambiguous search mapping detected")` on the very first hit to
+  `GET /api/products` — fixed with `@RestResource(exported = false)` on both, matching the existing
+  precedent in `OrderRepository`. **Lesson for future work here: whenever two overloaded repository
+  methods share a name, exclude both from Spring Data REST explicitly — SDR's search-resource mapping
+  keys on method name only, ignoring parameter types, so Java-legal overloads are not automatically
+  SDR-safe.** With all three fixed, the stack now matches the #1-21 verification bar.
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
