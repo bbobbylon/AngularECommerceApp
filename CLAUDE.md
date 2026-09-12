@@ -797,7 +797,7 @@ boots and the catalog/cart/checkout flow works with placeholder config, so they 
 - Second full-stack instance on alt ports (runs alongside the above without clashing): `./deploy.sh` (repo-root `compose.deploy.yaml`) → http://localhost:4251, API 8586, MySQL 3308. `./deploy.sh down` to stop. See `docs/DEPLOYMENT.md`.
 - Stripe setup (optional, for real card payments): see `docs/STRIPE.md`. Without it, checkout runs in demo mode.
 
-Ports are non-default on purpose: backend **8586**, frontend **4251**, MySQL **3308** (avoids 8080/4200/3306, and the 8585/4250/3307 set used by other clones of this app).
+Ports are non-default on purpose: backend **8585**, frontend **4250**, MySQL **3307** (avoids 8080/4200/3306).
 
 ## Conventions
 - Java 21 (pom pins `<java.version>21</java.version>`). Don't reintroduce the removed
