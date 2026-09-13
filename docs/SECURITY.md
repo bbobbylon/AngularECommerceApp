@@ -131,6 +131,28 @@ itself). While no issuer is configured, the open chain's `GET /api/admin/me` def
 `[Admin, SuperAdmin]` so local dev can reach `/platform` with zero Okta setup, matching this app's
 existing graceful-degradation default.
 
+### API-key authentication for headless callers (roadmap #23, Milestone A)
+
+Alongside the Okta JWT, a tenant can authenticate machine-to-machine calls to its own
+`/api/admin/**` with an **API key** presented as `X-Api-Key` (header configurable via
+`app.api-key.header`). Full guide: [WEBHOOKS.md](WEBHOOKS.md).
+
+- **Stored hashed.** The raw key is generated from `SecureRandom` (32 bytes hex, `lsk_`-prefixed so a
+  leak is greppable) and persisted only as a **SHA-256 hash** — it is returned exactly once at issue
+  time and is unrecoverable afterward. Every later read shows a 16-char masked prefix.
+- **One header, two jobs.** `TenantResolutionFilter` resolves the key's **tenant** at
+  `HIGHEST_PRECEDENCE + 5` (ahead of `X-Tenant-Id`/subdomain/default), and
+  `ApiKeyAuthenticationFilter` — registered *inside* the Spring Security chain, before
+  `BearerTokenAuthenticationFilter` — derives its **authorities**, so the role tiers above apply to
+  key-authenticated callers unchanged.
+- **No enumeration signal.** An unknown, revoked, or expired key gets the same generic **404** as an
+  unknown tenant slug.
+- **Revocation is immediate.** Revoking soft-deletes the key *and* evicts the whole `apiKeyLookup`
+  cache, so it stops working on the next request rather than when a TTL lapses.
+- **Outbound webhooks are signed**, not authenticated in reverse: each callback carries a hex
+  `X-Webhook-Signature` (HMAC-SHA256 over the raw body, keyed with the subscription's own
+  once-shown secret). Receivers must verify it against the raw bytes before parsing.
+
 ### Security response headers
 
 `SecurityConfig.applyHardening()` runs on **both** chains, so every response carries:
@@ -210,7 +232,9 @@ Three layers keep dependencies patched and known-vulnerable versions out:
    GitHub Advisory DB (no NVD API key required).
 3. **`npm audit` gate** (CI) — `npm audit --omit=dev --audit-level=high` on every push/PR. It scans
    **shipped (production) dependencies**; dev-tooling advisories are left to Dependabot since they
-   never reach users. Today the production tree is clean of high+ advisories, so this gate is green.
+   never reach users. Today the production tree is clean of high+ advisories, so this gate is green — the
+   Angular 21→22 upgrade (2026-09-13) cleared the last two high advisories the 21.x line could not patch
+   (`GHSA-jj27-h5hq-8x99`, `GHSA-hh8m-fm6v-7cvg`).
 4. **SBOM** — the backend build generates a CycloneDX Software Bill of Materials
    (`cyclonedx-maven-plugin` → `target/bom.json`, also embedded in the jar under `META-INF/sbom`).
    Feed it to a scanner (Grype/Trivy) or Dependency-Track for continuous supply-chain monitoring.

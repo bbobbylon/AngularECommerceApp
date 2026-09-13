@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { MoneyPipe } from '../../common/money.pipe';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NgbPaginationModule } from '@ng-bootstrap/ng-bootstrap';
@@ -17,13 +17,28 @@ import { NewsletterSignup } from '../newsletter-signup/newsletter-signup';
 import { RecentlyViewed } from '../recently-viewed/recently-viewed';
 import { StarRating } from '../star-rating/star-rating';
 
+/**
+ * The one grid component behind the home page, a category page, `/search/:keyword`, and `/sale` —
+ * `isHome`/`searchMode`/`saleMode` distinguish which scope is active. Unified onto
+ * `ProductService`'s faceted `/api/catalog/search` (category/keyword/price/in-stock/on-sale/rating/
+ * sort + pagination) rather than one endpoint per scope.
+ */
 @Component({
   selector: 'app-product-list',
-  imports: [CommonModule, MoneyPipe, FormsModule, RouterLink, NgbPaginationModule, NewsletterSignup, RecentlyViewed, StarRating],
+  imports: [
+    CommonModule,
+    MoneyPipe,
+    FormsModule,
+    RouterLink,
+    NgbPaginationModule,
+    NewsletterSignup,
+    RecentlyViewed,
+    StarRating,
+  ],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './product-list.html',
 })
 export class ProductList implements OnInit {
-
   products: Product[] = [];
   isLoading = false;
 
@@ -67,8 +82,13 @@ export class ProductList implements OnInit {
   ];
 
   get hasActiveFilters(): boolean {
-    return this.filterMinPrice != null || this.filterMaxPrice != null
-      || this.filterInStock || this.filterOnSale || this.filterMinRating > 0;
+    return (
+      this.filterMinPrice != null ||
+      this.filterMaxPrice != null ||
+      this.filterInStock ||
+      this.filterOnSale ||
+      this.filterMinRating > 0
+    );
   }
 
   protected favorites = inject(FavoritesService);
@@ -93,7 +113,7 @@ export class ProductList implements OnInit {
 
   ngOnInit(): void {
     this.saleMode = this.route.snapshot.data['mode'] === 'sale';
-    this.productService.getProductCategories().subscribe(data => (this.categories = data));
+    this.productService.getProductCategories().subscribe((data) => (this.categories = data));
     this.route.paramMap.subscribe(() => this.listProducts());
   }
 
@@ -105,10 +125,13 @@ export class ProductList implements OnInit {
     this.currentCategoryId = hasCategoryId ? Number(this.route.snapshot.paramMap.get('id')) : 1;
 
     // reset to first page whenever the scope (home/category/search/sale) changes
-    const scopeKey = this.saleMode ? 'sale'
-      : this.searchMode ? `search:${keyword}`
-      : hasCategoryId ? `category:${this.currentCategoryId}`
-      : 'home';
+    const scopeKey = this.saleMode
+      ? 'sale'
+      : this.searchMode
+        ? `search:${keyword}`
+        : hasCategoryId
+          ? `category:${this.currentCategoryId}`
+          : 'home';
     if (this.previousScopeKey !== scopeKey) {
       this.pageNumber = 1;
     }
@@ -121,7 +144,7 @@ export class ProductList implements OnInit {
       minPrice: this.filterMinPrice ?? undefined,
       maxPrice: this.filterMaxPrice ?? undefined,
       inStock: this.filterInStock || undefined,
-      onSale: this.saleMode ? true : (this.filterOnSale || undefined),
+      onSale: this.saleMode ? true : this.filterOnSale || undefined,
       minRating: this.filterMinRating || undefined,
     };
     if (this.searchMode) {
@@ -131,7 +154,7 @@ export class ProductList implements OnInit {
     }
 
     this.productService.searchCatalog(filters).subscribe({
-      next: data => this.processResult(data),
+      next: (data) => this.processResult(data),
       error: () => {
         this.products = [];
         this.totalElements = 0;
@@ -154,7 +177,7 @@ export class ProductList implements OnInit {
     if (this.saleMode) {
       this.seo.update({
         title: 'Sale',
-        description: 'Shop today\'s sale items and limited-time discounts at Luv2Shop.',
+        description: "Shop today's sale items and limited-time discounts at Luv2Shop.",
       });
       return;
     }
@@ -169,11 +192,13 @@ export class ProductList implements OnInit {
     if (this.isHome) {
       this.seo.update({
         title: 'Shop All Products',
-        description: 'Browse the full Luv2Shop catalog — books, mugs, mouse pads, luggage, and more.',
+        description:
+          'Browse the full Luv2Shop catalog — books, mugs, mouse pads, luggage, and more.',
       });
       return;
     }
-    const categoryName = this.categories.find(c => c.id === this.currentCategoryId)?.categoryName ?? 'Category';
+    const categoryName =
+      this.categories.find((c) => c.id === this.currentCategoryId)?.categoryName ?? 'Category';
     this.seo.update({
       title: categoryName,
       description: `Shop ${categoryName} at Luv2Shop.`,

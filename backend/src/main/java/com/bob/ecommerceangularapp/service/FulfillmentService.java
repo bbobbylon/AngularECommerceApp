@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,19 +57,22 @@ public class FulfillmentService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final InventoryService inventoryService;
+    private final WebhookEventPublisher webhookEventPublisher;
 
     public FulfillmentService(WarehouseRepository warehouseRepository,
                               WarehouseStockRepository stockRepository,
                               ShipmentRepository shipmentRepository,
                               OrderRepository orderRepository,
                               ProductRepository productRepository,
-                              InventoryService inventoryService) {
+                              InventoryService inventoryService,
+                              WebhookEventPublisher webhookEventPublisher) {
         this.warehouseRepository = warehouseRepository;
         this.stockRepository = stockRepository;
         this.shipmentRepository = shipmentRepository;
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.inventoryService = inventoryService;
+        this.webhookEventPublisher = webhookEventPublisher;
     }
 
     // ---------- warehouses ----------
@@ -241,7 +245,11 @@ public class FulfillmentService {
             shipment.setStatus(PENDING);
             advanceOrderStatus(order, "Processing");
         }
-        return toView(shipmentRepository.save(shipment));
+        Shipment saved = shipmentRepository.save(shipment);
+        if (handedToCarrier) {
+            publishShipmentEvent("shipment.shipped", saved);
+        }
+        return toView(saved);
     }
 
     /** Moves a shipment forward (PENDING → SHIPPED → DELIVERED); carrier/tracking can be filled in here. */
@@ -279,7 +287,22 @@ public class FulfillmentService {
 
         orderRepository.findByIdAndTenantId(shipment.getOrderId(), shipment.getTenantId()).ifPresent(order ->
                 advanceOrderStatus(order, SHIPPED.equals(target) ? "Shipped" : "Delivered"));
-        return toView(shipmentRepository.save(shipment));
+        Shipment saved = shipmentRepository.save(shipment);
+        publishShipmentEvent(SHIPPED.equals(target) ? "shipment.shipped" : "shipment.delivered", saved);
+        return toView(saved);
+    }
+
+    /** Fires from the ambient {@link TenantContext} tenant, which always matches the shipment's own
+     * tenant here — both call sites reach this only via an admin request already scoped to that tenant. */
+    private void publishShipmentEvent(String eventType, Shipment shipment) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("shipmentId", shipment.getId());
+        payload.put("orderId", shipment.getOrderId());
+        payload.put("orderTrackingNumber", shipment.getOrderTrackingNumber());
+        payload.put("carrier", shipment.getCarrier());
+        payload.put("trackingNumber", shipment.getTrackingNumber());
+        payload.put("status", shipment.getStatus());
+        webhookEventPublisher.publish(eventType, payload);
     }
 
     // ---------- helpers ----------

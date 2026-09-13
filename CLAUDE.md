@@ -1,7 +1,7 @@
 # AngularECommerceApp — Claude Code guide
 
 Full-stack e-commerce app (Udemy course project) on a modern stack:
-**Spring Boot 4.1 + Java 21** backend, **Angular 21 (standalone)** frontend.
+**Spring Boot 4.1 + Java 21** backend, **Angular 22 (standalone)** frontend.
 
 ## Source of truth for the build
 Read **`docs/BUILD_PLAN.md`** before starting work. It has the full milestone
@@ -717,19 +717,271 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   fourth and final planned pass under roadmap #21 — all 24 originally-scoped tables now carry
   `tenant_id`; no further entities are pending. 174 backend tests (incl. all 3 real-MySQL IT cases,
   run only when Docker is available) + full `./mvnw clean package` + `npx ng build` all green.
+- ✅ **Tenant billing/plans (roadmap #22)** — the first SaaS-facing (not storefront-facing) feature:
+  each `Tenant` can be put on a `BillingPlan` and charged monthly. `BillingPlan` (name/monthlyPrice/
+  currency/features/active/sortOrder) is **platform-level, no `tenant_id`** — a plan is offered to
+  every tenant, not owned by one, same shape as `Tenant` itself. `TenantBillingAccount` (`V20`,
+  unique on `tenant_id`) is the per-tenant subscription state — plan/status
+  (`NO_PLAN`/`ACTIVE`/`PAST_DUE`/`CANCELED`)/`currentPeriodEnd`/one card-on-file — created lazily on
+  first plan assignment, not seeded for every tenant. `BillingInvoice` is an append-only ledger (same
+  idiom as `AuditLogEntry`) — one row per billing *attempt*, snapshotting `planNameSnapshot`/`amount`
+  at charge time so a later price change never rewrites history. **Deliberately no Stripe Customer or
+  Subscription object** — `BillingService` recomputes plan/status/renewal itself and never reads it
+  back from Stripe, reusing the bare-`PaymentMethod`-id pattern `PaymentMethodService` (#9) already
+  established; this also means no webhook is needed, since `MonthlyBillingScheduler` (daily cron,
+  `app.billing.cron`, default 4am) drives everything by sweeping this app's own tables for accounts
+  past `currentPeriodEnd`, not by Stripe pushing events. Every branch of the charge attempt (no plan,
+  Stripe unconfigured, no card on file, Stripe decline, success) writes a `BillingInvoice` row and
+  returns normally — one tenant's failure never affects another's, mirroring
+  `AbandonedCartService.remindStale()`'s per-item isolation. Split cleanly along the existing platform/
+  tenant boundary from #21 Milestone B: `PlatformBillingPlanController` (`/api/platform/billing-plans`,
+  `SuperAdmin`-only, catalog CRUD) and plan *assignment* (`PUT
+  /api/platform/tenants/{id}/billing-plan`, added to `PlatformTenantController`) are platform-level;
+  `AdminBillingController` (`/api/admin/billing`, the existing tenant-scoped matcher) is read-only
+  status/invoice-history for any back-office role plus self-service card management (Admin-only,
+  reuses `account-settings.ts`'s exact Stripe Elements SetupIntent flow) for the signed-in tenant.
+  Every mutation (`assignPlan`, `recordPaymentMethod`, plan create/update/deactivate) calls
+  `AuditLogService.record(...)`, matching #19's completeness precedent. Frontend: `/admin/billing`
+  (tenant self-service) and `/platform/billing-plans` (SuperAdmin catalog CRUD, mirrors
+  `PlatformTenants`'s layout/access-check pattern exactly) both have sidebar nav links; the Platform
+  Tenants page gained a per-row plan-assignment `<select>` bound with `[ngModel]`/`(ngModelChange)`
+  (not plain `[value]`, per #20's native-`<select>` lesson). This entry closes a documentation gap,
+  not new work — the feature (entities/migration/services/controllers/frontend, `BillingServiceTest`+
+  `BillingPlanServiceTest`) had already been built and merged in a prior session; this pass was a full
+  re-audit (tenant scoping, RBAC gating, audit logging, endpoint-to-service-call wiring, nav-link
+  reachability) that found **zero gaps** — no code changes were needed at the feature-code level, though
+  the re-audit's own live-verification attempt was blocked at the time by Docker not running, deferring
+  the click-through to a follow-up session. **Browser-verified live** in that follow-up, after starting
+  Docker Desktop and running `docker compose up --build`: created a plan via `/platform/billing-plans`,
+  assigned it to the demo tenant via `/platform/tenants` (`[ngModel]`-bound `<select>`, confirming the
+  #20 lesson holds here too), and confirmed `/admin/billing` correctly rendered the plan name/price/
+  features/ACTIVE status/renewal date with no invoices yet (correct — `MonthlyBillingScheduler` hasn't
+  run); "Update card" no-ops cleanly with zero console errors when Stripe is unconfigured. This surfaced
+  two real infrastructure bugs unrelated to the billing feature's own code, both now fixed: (1)
+  `backend/src/main/resources/application.properties` had `server.port=8586`/MySQL port `3308` baked
+  into the **primary** instance's defaults — leftover from the alt-instance (`compose.deploy.yaml`) work
+  — while `compose.yaml` never overrides `SERVER_PORT` (only `SPRING_DATASOURCE_URL`), so the container's
+  Tomcat silently bound 8586 while Docker only published 8585; (2) the same class of bug in
+  `frontend/.../environment.ts`, which hardcoded `apiUrl` to the alt-instance's 8586 — the Dockerfile's
+  build-time `sed` only replaces the literal string `http://localhost:8585/api`, so once the source
+  already said 8586 the substitution silently no-op'd and every Docker-built frontend image called the
+  wrong backend port regardless of the `API_URL` build arg in `compose.yaml`. A third, genuine bug in the
+  billing-adjacent code was also found and fixed: `ProductRepository` had two `findAllByTenantId`
+  overloads (`List` and `Page`/`Pageable`, added across #21 Milestones B and D) that Spring Data REST
+  mapped to the same `/findAllByTenantId` search-resource path by name alone, throwing
+  `IllegalStateException("Ambiguous search mapping detected")` on the very first hit to
+  `GET /api/products` — fixed with `@RestResource(exported = false)` on both, matching the existing
+  precedent in `OrderRepository`. **Lesson for future work here: whenever two overloaded repository
+  methods share a name, exclude both from Spring Data REST explicitly — SDR's search-resource mapping
+  keys on method name only, ignoring parameter types, so Java-legal overloads are not automatically
+  SDR-safe.** With all three fixed, the stack now matches the #1-21 verification bar.
+- ✅ **Headless API + webhooks (roadmap #23)** — the second SaaS-facing feature after #22, built in four
+  milestones. **A — API keys** (`ApiKey`, `V21`): a tenant issues itself a bearer credential
+  (`SecureRandom` 32 bytes hex, `lsk_`-tagged so a leak is greppable) that is **persisted only as a
+  SHA-256 hash** and returned exactly once at issue time — extending the existing `SecureRandom`
+  generation idiom (`GiftCardService`/`ReferralService`) with hashing, since unlike a gift-card code
+  this value is a credential. The key does **two** jobs from one `X-Api-Key` header:
+  `TenantResolutionFilter` gained a fourth, *highest*-precedence resolution step ahead of
+  `X-Tenant-Id`/subdomain/default (a headless caller needs no tenant header — its key already says who
+  it is), and a separate `ApiKeyAuthenticationFilter` derives Spring Security authorities so #19's
+  role tiers apply unchanged. **Those must be two filters, not one**: `TenantResolutionFilter` runs at
+  `@Order(HIGHEST_PRECEDENCE+5)`, before `FilterChainProxy` even starts, so anything it set on the
+  `SecurityContextHolder` would be discarded the moment `SecurityContextHolderFilter` installs the
+  request's context — the auth half is therefore registered *inside* `SecurityConfig`'s `HttpSecurity`
+  via `addFilterBefore(..., BearerTokenAuthenticationFilter.class)`, exactly where
+  `BasicAuthenticationFilter`/X.509 client-cert auth set authentication (and deliberately **not** a
+  `@Component`, which would register it a second time as a generic servlet filter outside the chain).
+  An unknown/revoked/expired key gets the same generic **404** as an unknown tenant slug (no
+  enumeration signal, the `ReturnService` precedent); revocation evicts the whole `apiKeyLookup`
+  Caffeine cache so a revoked key dies on the next request, not at TTL — matching
+  `PlatformTenantService`'s `TENANT_LOOKUP` precedent. **B — subscriptions** (`WebhookSubscription`,
+  `V22`): register a URL + comma-separated event types; the HMAC signing secret is shown **once**,
+  masked on every later read (same once-only disclosure shape as the API key). **C — transactional
+  outbox** (`WebhookEvent`, `V23`): `WebhookEventPublisher.publish()` is `@Transactional` and
+  deliberately **joins the caller's transaction rather than `REQUIRES_NEW`**, writing one outbox row
+  per matching active subscription — so a rolled-back order can never emit a webhook for an order that
+  doesn't exist. It reads `TenantContext` ambiently (the `AuditLogService` idiom, since every call site
+  is request-scoped — unlike `BillingService`'s explicit-tenant-parameter style, which exists to serve
+  a tenant-less background sweep). Publish points are exactly the five mutations `AuditLogService`
+  already instruments: `order.created`, `shipment.shipped`, `shipment.delivered`, `return.approved`,
+  `return.denied`. **D — delivery + retry + ledger** (`WebhookDeliveryAttempt`, `V23`):
+  `WebhookDeliveryScheduler` (cron `app.webhook.delivery-cron`, default every 30s — far shorter than
+  billing's daily sweep, since a subscriber expects near-real-time notification) drives
+  `WebhookDeliveryService.deliverDue()`, which mirrors `BillingService`'s
+  `chargeDueAccounts()/chargeOne()/recordInvoice()` triad exactly: **every** branch (2xx, non-2xx,
+  network error, deactivated subscription) writes a ledger row and returns normally, so one
+  subscriber's dead endpoint never blocks another's delivery. Backoff is `1m → 5m → 15m → 60m → 360m`,
+  then `ABANDONED`. Each request is signed `X-Webhook-Signature` (hex HMAC-SHA256 over the raw JSON
+  body, keyed with the subscription's secret — the scheme Stripe documents for its own webhooks) plus
+  `X-Webhook-Event`. Frontend: admin **API keys** (`/admin/api-keys`) and **Webhooks**
+  (`/admin/webhooks`) pages, the latter with a per-subscription **Deliveries** expand-in-place row
+  (#20's pattern, reused rather than reaching for a modal) paginating the attempt ledger — the first
+  place to look when a subscriber says "we never got it", since it distinguishes *never tried* (no
+  rows) from *tried and your endpoint 500'd* (rows with the status code). Two real issues fixed while
+  finishing Milestone D: (1) **no `ObjectMapper` bean existed to inject** — this app uses the
+  per-web-stack `spring-boot-starter-webmvc`, which (unlike the old `spring-boot-starter-web`) doesn't
+  transitively pull `jackson-databind`, so Spring Boot's Jackson auto-configuration never registers
+  one; confirmed via `dependency:tree` that the only `jackson-databind` on the classpath arrives
+  incidentally through springdoc-openapi. Rather than depend on that easily-broken transitive path,
+  `WebhookClientConfig` declares an explicit bean alongside its existing `webhookRestClient`.
+  **Lesson for future backend work here: do not assume an `ObjectMapper` (or anything else
+  `spring-boot-starter-web` used to drag in) is injectable — this project is on the per-web-stack
+  starters.** (2) The one network call was extracted to a package-private `sendRequest(...)` seam so
+  `WebhookDeliveryServiceTest` can stub it with a Mockito **spy** — mocking `RestClient`'s
+  heavily self-referential generic builder chain with deep stubs is fragile, and isolating exactly the
+  external seam mirrors how `BillingServiceTest` never exercises Stripe's static SDK calls. Docs: new
+  integrator-facing `docs/WEBHOOKS.md` (key issuance, signature verification with a
+  `timingSafeEqual` snippet, per-event payload fields, retry ladder, status table) + new `docs/API.md`
+  and `docs/SECURITY.md` sections. **Note on history: all of Milestones A–C and most of D landed under
+  commit `c647e28`, whose message reads "renaming the app to TaskFlow" — that message is wrong and
+  unrelated (nothing named TaskFlow exists in the repo); it was left uncorrected because the commit was
+  already pushed.** **Runtime-verified end to end** via `docker compose up --build` (the backend now
+  boots cleanly, which is itself the proof of the `ObjectMapper` fix — the committed code could not
+  have started): issued a key and called `GET /api/admin/stats` with **only** `X-Api-Key` and no tenant
+  header (200), confirmed a bogus key 404s, and confirmed revocation is immediate (200 → revoke → 404
+  on the very next request, proving the cache eviction). Registered two subscriptions — one at a live
+  local receiver, one at a dead port — placed a real order, and confirmed the sweep delivered to both
+  independently: the healthy one `SUCCEEDED`/200, the dead one `FAILED` with
+  `Connection refused` and a null status code, **from the same order** (per-subscriber isolation,
+  observed rather than assumed). The received `X-Webhook-Signature` was **verified against the
+  subscription secret with an independent HMAC-SHA256 implementation** — it matched, and a
+  single-byte-tampered body did not, validating the exact verification snippet in `docs/WEBHOOKS.md`.
+  Retry/backoff confirmed live (attempt 1 at 02:04:30 → attempt 2 at 02:06:00, i.e. the 1-minute rung
+  picked up by the next 30s sweep). Browser-verified both admin pages, including the new expand-in-place
+  Deliveries panel rendering SUCCEEDED/200 and FAILED/error rows with zero console errors; the audit log
+  (#19) correctly recorded `API_KEY_ISSUE`/`API_KEY_REVOKE`/`WEBHOOK_CREATE`/`WEBHOOK_DEACTIVATE`. Test
+  subscriptions were deactivated and the test key revoked afterward. **Also fixed a pre-existing,
+  never-actually-executed test defect from #22** surfaced by this pass: `MySqlIntegrationTest`'s
+  `billingRoundTripsAgainstMySqlWithoutStripeConfigured` forced an account due with MySQL's `now()`,
+  but `current_period_end` is a bare `datetime(6)` with no timezone and `BillingService` compares it
+  against a Java `new Date()` — the Testcontainers MySQL runs UTC while this JVM is UTC-7, so `now()`
+  wrote a value 7h "in the future" relative to the sweep's cutoff and nothing came back due. It had
+  never failed before because the IT only runs when Docker is available, and #22 shipped on a session
+  where it wasn't. Fixed by writing the cutoff from the JVM (`new Timestamp(...)`), matching how
+  production writes that column; production itself was never affected (it writes *and* reads the column
+  from Java only). **Lesson: never mix MySQL's `now()` with a Java-side `new Date()` comparison against
+  a timezone-less `datetime` column in a test — write both ends from the same clock.** 243 backend
+  tests green with **zero skips** (`ApiKeyServiceTest` 5, `ApiKeyLookupServiceTest` 8,
+  `ApiKeyAuthenticationFilterTest` 3, `WebhookSubscriptionServiceTest` 7, `WebhookEventPublisherTest` 4,
+  `WebhookDeliveryServiceTest` 9 — signing determinism against an independently computed HMAC, the full
+  retry/abandon state machine, and per-event isolation in a sweep), including all 5 real-MySQL IT cases
+  validating `V21`/`V22`/`V23` on MySQL 8.4 + 17 frontend tests + production `ng build` green.
+  **Process note: `./mvnw ... | tail` swallows Maven's exit code (the pipeline reports `tail`'s status),
+  which masked this very failure as a pass earlier in the session — always capture Maven's own exit
+  code, never read a build's success through a pipe.**
+
+- ✅ **GDPR + cookie consent (roadmap #24)** — the 24th and final feature of the sellable-feature
+  roadmap: a real consent ledger plus self-service data-subject rights, not just a cosmetic banner.
+  `ConsentRecord` (append-only — every Accept/Reject/Customize writes a **new** row rather than
+  updating one, so there's a demonstrable history satisfying GDPR Art. 7(1)'s "able to demonstrate
+  that the data subject has consented" requirement, not just a current-state flag) and `DataRequest`
+  (Art. 15/20 export, Art. 17 erasure — a single-use, time-limited token model: **email proves
+  identity** rather than requiring the customer to be signed in, matching the `ReturnService`/
+  `FulfillmentService` precedent of email-as-identity-proof for customer-facing self-service actions
+  that predate any login system in this app). `V24` migration creates both tables (MySQL-IT-validated).
+  `PrivacyConsentService` records/reads consent by `visitorId` (a client-generated UUID, not tied to
+  any account) and exposes the active `policyVersion` so the frontend can re-prompt only when the
+  policy changes, not on every visit. `DataRequestService` issues the token, emails a confirm link
+  (falls back to a log line when `EmailService` is unconfigured, matching every other gated-email
+  feature's degradation pattern), and on confirm executes the actual **export** (JSON dump of the
+  customer's orders/addresses/reviews/loyalty/wishlist/etc.) or **erasure** (deletes convenience data
+  outright, anonymizes retained financial records — orders must survive for accounting/tax reasons, so
+  erasure scrubs PII fields on them rather than deleting the rows). Both confirm/export/erase links are
+  **single-use**: the token is marked consumed on first use and returns HTTP 410 on any replay —
+  verified live, not just asserted by a unit test (see below). `PrivacyController` exposes
+  `GET /api/privacy/config`, `GET/POST /api/privacy/consent`, `POST /api/privacy/data-requests`, and
+  the safe `GET /api/privacy/confirm` vs. destructive/data-returning `POST /api/privacy/erase` /
+  `GET /api/privacy/export`; the public write endpoints route through the existing `RateLimitFilter`
+  (#security-hardening's 30/min-per-IP + body-cap gate), matching the `/reviews|coupons|newsletter`
+  precedent. Frontend: `ConsentService` (`providedIn: 'root'`) holds consent as a signal, generates
+  and persists a `visitorId`, and shows the banner whenever there's no record or the stored
+  `policyVersion` is stale; `PrivacyService` wraps the HTTP calls with the same
+  `catchError(() => of(null))` graceful-degradation idiom `ContentService` established for #17.
+  `CookieConsent` component renders a slim banner (Accept all / Reject all / Customize) plus a modal
+  preferences panel with the 4 categories — `necessary` (always on, never gated), `functional`
+  (recently-viewed), `analytics` (unused today but modeled for a future addition), `marketing`
+  (referral capture) — mounted once in the app shell (`app.html`) alongside a persistent footer
+  "Cookie preferences" link that reopens the panel after a decision was already made. The two
+  existing services that write to localStorage without asking are now genuinely gated, not just
+  documented as gated: `RecentlyViewedService.record()` no-ops entirely unless `functional` is
+  allowed, and `ReferralService` solves a real ordering problem — it must capture a `?ref=CODE` URL
+  param **synchronously** on first load (the param is gone after that first navigation), but consent
+  state resolves **asynchronously** via HTTP — by splitting `captureFromUrl()` into a synchronous
+  `readFromUrl()` that holds the code in memory (`pendingCode`, never touching storage) and a
+  constructor `effect()` that calls a new `persist(code)` only once `consentService.isAllowed('marketing')`
+  flips true, so a marketing-consenting visitor's referral still lands correctly even though consent
+  resolved after the code was read. `account-settings` gained a "Privacy & your data" card
+  (cookie-preferences link, "Download my data"/"Delete my data" self-service buttons wired to
+  `PrivacyService.submitDataRequest`, erasure requires an in-page confirm) and `info-page`'s `/privacy`
+  route gained a "Cookies & storage" section, replacing the old "contact us" erasure language with the
+  actual self-service flow. New `e2e/cookie-consent.spec.ts` (5 tests: banner shows + Accept all
+  dismisses, Reject all dismisses, Customize panel + Save preferences posts the exact chosen
+  categories — asserted via `page.waitForRequest`/`postDataJSON()`, footer link reopens the panel
+  post-consent, and a new axe-core WCAG 2.1 AA scan of the **open** banner/panel) plus new
+  `mock-backend.ts` stubs for `/api/privacy/{config,consent,data-requests}` defaulting to
+  "already consented" so none of the other 32 pre-existing specs see the banner. Two real
+  infrastructure bugs (not the feature's own code) were found and fixed while getting the E2E suite
+  green: (1) a **stale Docker container** (`ecommerceangularapp-frontend-1`, left running 4 hours from
+  an earlier session) was squatting on port 4250, and Playwright's `reuseExistingServer:
+  !process.env.CI` silently reused it instead of starting a fresh `ng serve` — the first E2E run
+  "tested" old code and failed 8 specs in confusing, unrelated-looking ways before `docker compose stop
+  frontend` freed the port; (2) `angular.json`'s `serve.options.port` was `4251`, contradicting both
+  `CLAUDE.md`'s documented `npm start → :4250` and `playwright.config.ts`'s hardcoded `:4250`
+  `baseURL`/`webServer.url` — traced via `git log`/`git diff` to an earlier merge commit
+  (`4f03c4bd`, unrelated to this feature), fixed by restoring `"port": 4250`. **Lesson: a long-lived
+  Docker Compose stack (this project's `compose.yaml`) can silently squat on the exact port Playwright's
+  `reuseExistingServer` will happily reuse — always check `docker compose ps`/`Get-NetTCPConnection`
+  before trusting an E2E "pass," especially after a long or multi-session gap.** 267 backend tests +
+  17 frontend unit tests + 37 E2E tests (32 pre-existing + 5 new, incl. the WCAG scan) green, plus full
+  `npx ng build` production. **Runtime-verified** via `docker compose up --build`: Flyway migrated a
+  real, populated MySQL DB cleanly from V23 to V24; the banner/panel and the account-settings privacy
+  card rendered and functioned correctly in a live browser; the full export lifecycle (submit → logged
+  confirm link → confirm page → JSON download with correct structure → second use of the same link
+  correctly returns 410) and the full erasure lifecycle (submit → confirm → erase → correct result
+  summary → second use returns 410) were both verified end to end against the real database via a
+  combination of browser interaction and direct `curl`/MySQL queries; test artifacts (`data_request`/
+  `consent_record` rows) were cleaned up afterward. Deliberately **not** exercised live: the full
+  customer/order anonymization branch of erasure against a real seeded customer row — the exhaustive
+  `DataRequestServiceTest` unit coverage of that branch was judged sufficient, and mutating real seeded
+  data for marginal extra confidence wasn't worth the one-way trip. This closes the 24-feature roadmap;
+  see `sellable-feature-roadmap.md`.
+- ✅ **Angular 22 upgrade (2026-09-13)** — frontend moved from Angular 21.2 to **22.1** (`@angular/*`
+  22.1.6, CLI/build 22.1.8), **TypeScript 5.9 → 6.0** (the v22 compiler pins `>=6.0 <6.1`; don't let
+  Dependabot push TS to 7.x), **ng-bootstrap 20 → 21** — all in **one** `ng update @angular/core@22
+  @angular/cli@22 @ng-bootstrap/ng-bootstrap@21 typescript@6.0` call, because the Angular packages must
+  move in lockstep (the three per-package Dependabot PRs #9/#10/#12 broke the build for exactly that
+  reason; they should auto-close once this lands on `newMasterBranch`. The vitest 5 PR #11 stays open:
+  `@angular/build@22` pins `vitest ^4`). This was the only way to clear the last two HIGH Angular XSS
+  advisories (`GHSA-jj27-h5hq-8x99`, `GHSA-hh8m-fm6v-7cvg`): `npm audit --omit=dev --audit-level=high`
+  went from 10 findings (3 high) to **0**. Angular's migration schematics made three behavior-preserving
+  edits — `changeDetection: ChangeDetectionStrategy.Eager` on every component (v22 changes the default
+  strategy; `Eager` is the explicit name for the old `Default`), `withXhr()` on `provideHttpClient` (v22
+  defaults `HttpClient` to `fetch`; this keeps the XHR backend), and a `tsconfig.app.json` suppression of
+  the `optionalChainNotNullable`/`nullishCoalescingNotNullable` extended diagnostics (verified: without
+  it the build still passes but emits ~14 NG8107 warnings in the `admin-product-form` and `checkout`
+  templates — a follow-up template cleanup, not a blocker). The schematics also ran the project
+  `.prettierrc` over the 48 `.ts` files they touched, so those are now formatted while the other ~49
+  `.ts` files are not; `npx prettier --write "src/**/*.ts"` in its own commit would finish the job.
+  **Node floor moved**: `@angular/cli@22` hard-exits (code 3) below Node 24.15.0 / 22.22.3, so
+  `package.json` now declares `engines.node`. CI (`setup-node` `'22'` → 22.23.x) and the frontend
+  Dockerfile (`node:22-alpine`) already clear it; a dev machine on Node 24.14.x does not (`winget upgrade
+  --id OpenJS.NodeJS.LTS`, or `fnm use 24`). Verified green: `npx ng build` (prod), 17/17 unit tests,
+  37/37 Playwright E2E (incl. 24 axe-core WCAG checks), `npm audit` 0 findings, and the frontend Docker
+  image build (`docker compose build frontend`).
+
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
 
 ## Layout
 - `backend/` — Spring Boot (Maven). Package root `com.bob.ecommerceangularapp`.
-- `frontend/angular-ecommerce/` — Angular 21 standalone app.
+- `frontend/angular-ecommerce/` — Angular 22 standalone app.
 
 ## Commands
 
 - Backend build + tests: `cd backend && ./mvnw clean package` (unit/slice tests run on in-memory H2 — no Docker needed; the **Testcontainers MySQL integration test** runs when Docker is available and auto-skips otherwise)
 - Backend run (needs Docker for MySQL on :3307): `cd backend && ./mvnw spring-boot:run` (→ http://localhost:8585)
-- Frontend build: `cd frontend/angular-ecommerce && npm install && npx ng build`
+- Frontend build: `cd frontend/angular-ecommerce && npm install && npx ng build` (Node ≥ 24.15 or ≥ 22.22.3 — the Angular 22 CLI hard-exits below that floor)
 - Frontend tests: `cd frontend/angular-ecommerce && CI=true npx ng test --watch=false`
 - Frontend E2E (Playwright, hermetic — stubs the API, starts `ng serve` itself): `cd frontend/angular-ecommerce && npx playwright install chromium` (one-time) then `npm run e2e`
 - Frontend dev server: `cd frontend/angular-ecommerce && npm start` (→ http://localhost:4250)
@@ -739,7 +991,7 @@ boots and the catalog/cart/checkout flow works with placeholder config, so they 
 - Second full-stack instance on alt ports (runs alongside the above without clashing): `./deploy.sh` (repo-root `compose.deploy.yaml`) → http://localhost:4251, API 8586, MySQL 3308. `./deploy.sh down` to stop. See `docs/DEPLOYMENT.md`.
 - Stripe setup (optional, for real card payments): see `docs/STRIPE.md`. Without it, checkout runs in demo mode.
 
-Ports are non-default on purpose: backend **8586**, frontend **4251**, MySQL **3308** (avoids 8080/4200/3306, and the 8585/4250/3307 set used by other clones of this app).
+Ports are non-default on purpose: backend **8585**, frontend **4250**, MySQL **3307** (avoids 8080/4200/3306).
 
 ## Conventions
 - Java 21 (pom pins `<java.version>21</java.version>`). Don't reintroduce the removed

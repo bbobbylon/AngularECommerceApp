@@ -50,6 +50,7 @@ public class CheckoutServiceImpl implements CheckoutService {
     private final LoyaltyService loyaltyService;
     private final ReferralService referralService;
     private final AbandonedCartService abandonedCartService;
+    private final WebhookEventPublisher webhookEventPublisher;
 
     public CheckoutServiceImpl(CustomerRepository customerRepository,
                                EmailService emailService,
@@ -59,6 +60,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                                LoyaltyService loyaltyService,
                                ReferralService referralService,
                                AbandonedCartService abandonedCartService,
+                               WebhookEventPublisher webhookEventPublisher,
                                @Value("${stripe.key.secret}") String secretKey) {
         this.customerRepository = customerRepository;
         this.emailService = emailService;
@@ -68,6 +70,7 @@ public class CheckoutServiceImpl implements CheckoutService {
         this.loyaltyService = loyaltyService;
         this.referralService = referralService;
         this.abandonedCartService = abandonedCartService;
+        this.webhookEventPublisher = webhookEventPublisher;
         // Stripe is keyed globally via a static field.
         Stripe.apiKey = secretKey;
     }
@@ -173,6 +176,14 @@ public class CheckoutServiceImpl implements CheckoutService {
 
         // The order completed — clear any abandoned-cart reminder queued for this email.
         abandonedCartService.markRecovered(saved.getEmail());
+
+        Map<String, Object> orderCreatedPayload = new HashMap<>();
+        orderCreatedPayload.put("orderId", order.getId());
+        orderCreatedPayload.put("orderTrackingNumber", orderTrackingNumber);
+        orderCreatedPayload.put("totalPrice", order.getTotalPrice());
+        orderCreatedPayload.put("status", order.getStatus());
+        orderCreatedPayload.put("customerEmail", saved.getEmail());
+        webhookEventPublisher.publish("order.created", orderCreatedPayload);
 
         // Email is gated inside EmailService — these are safe no-ops when SMTP isn't configured.
         emailService.sendOrderConfirmation(saved.getEmail(), saved.getFirstName(),

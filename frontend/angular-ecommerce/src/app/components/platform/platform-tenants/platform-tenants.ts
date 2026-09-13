@@ -1,10 +1,15 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
 import { AdminService } from '../../../services/admin.service';
-import { BillingPlan, PlatformService, PlatformTenant, PlatformTenantPayload } from '../../../services/platform.service';
+import {
+  BillingPlan,
+  PlatformService,
+  PlatformTenant,
+  PlatformTenantPayload,
+} from '../../../services/platform.service';
 import { TenantContextService } from '../../../services/tenant-context.service';
 import { ToastService } from '../../../services/toast.service';
 
@@ -21,10 +26,10 @@ import { ToastService } from '../../../services/toast.service';
 @Component({
   selector: 'app-platform-tenants',
   imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './platform-tenants.html',
 })
 export class PlatformTenants implements OnInit {
-
   readonly tenants = signal<PlatformTenant[]>([]);
   readonly plans = signal<BillingPlan[]>([]);
   readonly loading = signal(true);
@@ -42,7 +47,7 @@ export class PlatformTenants implements OnInit {
 
   ngOnInit(): void {
     this.adminService.getCurrentAdmin().subscribe({
-      next: res => {
+      next: (res) => {
         this.checkingAccess.set(false);
         this.authorized.set(res.roles.includes('SuperAdmin'));
         if (this.authorized()) {
@@ -59,11 +64,17 @@ export class PlatformTenants implements OnInit {
   load(): void {
     this.loading.set(true);
     this.platform.getTenants().subscribe({
-      next: list => { this.tenants.set(list); this.loading.set(false); },
-      error: () => { this.loading.set(false); this.toast.error('Could not load tenants.'); },
+      next: (list) => {
+        this.tenants.set(list);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.toast.error('Could not load tenants.');
+      },
     });
     this.platform.getBillingPlans().subscribe({
-      next: list => this.plans.set(list.filter(p => p.active)),
+      next: (list) => this.plans.set(list.filter((p) => p.active)),
       error: () => this.toast.error('Could not load billing plans.'),
     });
   }
@@ -74,22 +85,24 @@ export class PlatformTenants implements OnInit {
       return;
     }
     this.saving.set(true);
-    this.platform.saveTenant({
-      ...this.form,
-      slug: this.form.slug.trim().toLowerCase(),
-      displayName: this.form.displayName.trim(),
-    }).subscribe({
-      next: () => {
-        this.toast.success('Tenant saved');
-        this.form = this.empty();
-        this.saving.set(false);
-        this.load();
-      },
-      error: err => {
-        this.saving.set(false);
-        this.toast.error(err?.error?.message ?? 'Could not save tenant.');
-      },
-    });
+    this.platform
+      .saveTenant({
+        ...this.form,
+        slug: this.form.slug.trim().toLowerCase(),
+        displayName: this.form.displayName.trim(),
+      })
+      .subscribe({
+        next: () => {
+          this.toast.success('Tenant saved');
+          this.form = this.empty();
+          this.saving.set(false);
+          this.load();
+        },
+        error: (err) => {
+          this.saving.set(false);
+          this.toast.error(err?.error?.message ?? 'Could not save tenant.');
+        },
+      });
   }
 
   edit(tenant: PlatformTenant): void {
@@ -107,11 +120,18 @@ export class PlatformTenants implements OnInit {
   }
 
   deactivate(tenant: PlatformTenant): void {
-    if (!confirm(`Deactivate tenant "${tenant.displayName}"? Its storefront/admin traffic will 404 until reactivated.`)) {
+    if (
+      !confirm(
+        `Deactivate tenant "${tenant.displayName}"? Its storefront/admin traffic will 404 until reactivated.`,
+      )
+    ) {
       return;
     }
     this.platform.deactivateTenant(tenant.id).subscribe({
-      next: () => { this.toast.success('Deactivated'); this.load(); },
+      next: () => {
+        this.toast.success('Deactivated');
+        this.load();
+      },
       error: () => this.toast.error('Could not deactivate tenant.'),
     });
   }
@@ -119,7 +139,10 @@ export class PlatformTenants implements OnInit {
   assignPlan(tenant: PlatformTenant, planId: string): void {
     const id = planId ? Number(planId) : null;
     this.platform.assignTenantPlan(tenant.id, id).subscribe({
-      next: () => { this.toast.success('Billing plan updated'); this.load(); },
+      next: () => {
+        this.toast.success('Billing plan updated');
+        this.load();
+      },
       error: () => this.toast.error('Could not assign billing plan.'),
     });
   }

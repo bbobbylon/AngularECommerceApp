@@ -25,6 +25,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -191,9 +192,14 @@ class MySqlIntegrationTest {
                 null, "IT Test Plan", new BigDecimal("9.99"), "USD", null, null, true));
         billingService.assignPlan(demoTenantId, plan.getId());
 
-        // Force the account due now rather than a month from now.
-        jdbcTemplate.update("update tenant_billing_account set current_period_end = now() where tenant_id = ?",
-                demoTenantId);
+        // Force the account due rather than a month from now. The cutoff MUST be written from the JVM,
+        // not MySQL's now(): current_period_end is a bare datetime(6) with no timezone, and
+        // BillingService compares it against a Java `new Date()`. The Testcontainers MySQL runs UTC
+        // while the developer JVM may not (this failed at UTC-7 — now() wrote a value 7h "in the
+        // future" relative to the sweep's cutoff, so nothing came back due). Production never mixes
+        // the two clocks: it writes and reads this column from Java only.
+        jdbcTemplate.update("update tenant_billing_account set current_period_end = ? where tenant_id = ?",
+                new Timestamp(System.currentTimeMillis() - 60_000), demoTenantId);
 
         int processed = billingService.chargeDueAccounts();
         assertThat(processed).isPositive();

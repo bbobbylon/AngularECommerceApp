@@ -22,6 +22,7 @@ export interface LoyaltySummary {
   history: LoyaltyTransactionView[];
 }
 
+/** Wraps `LoyaltyController` (#5): reads a customer's points balance/tier/history for the account page. */
 @Injectable({ providedIn: 'root' })
 export class LoyaltyService {
 

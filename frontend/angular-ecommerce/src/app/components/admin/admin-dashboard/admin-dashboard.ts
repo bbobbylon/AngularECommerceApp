@@ -1,16 +1,21 @@
 import { CurrencyPipe, DecimalPipe } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { AdminService, AdminStats, SystemHealth } from '../../../services/admin.service';
 
+/**
+ * The admin back-office landing page: top-line `AdminStats` (products/orders/revenue) plus a
+ * "System health" card wrapping `SystemHealthService`'s actuator-derived `SystemHealth` reading.
+ * Links out to every other admin page rather than duplicating their detail.
+ */
 @Component({
   selector: 'app-admin-dashboard',
   imports: [CurrencyPipe, DecimalPipe, RouterLink],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-dashboard.html',
 })
 export class AdminDashboard implements OnInit {
-
   readonly stats = signal<AdminStats | null>(null);
   readonly loading = signal(true);
   readonly error = signal(false);
@@ -21,7 +26,7 @@ export class AdminDashboard implements OnInit {
 
   ngOnInit(): void {
     this.admin.getStats().subscribe({
-      next: stats => {
+      next: (stats) => {
         this.stats.set(stats);
         this.loading.set(false);
       },
@@ -32,7 +37,7 @@ export class AdminDashboard implements OnInit {
     });
 
     this.admin.getSystemHealth().subscribe({
-      next: health => this.health.set(health),
+      next: (health) => this.health.set(health),
       error: () => this.health.set(null),
     });
   }

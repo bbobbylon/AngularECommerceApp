@@ -349,6 +349,56 @@ footer h6 { font-family: var(--font-body); }
   .install-prompt { left: 1rem; right: 1rem; max-width: none; }
 }
 
+/* ---------- Cookie consent (roadmap #24) ---------- */
+/* The banner sits along the bottom edge, above back-to-top/install-prompt, so those two shift up
+   out from underneath it while it's showing (see the html.cookie-consent-open rules below). */
+.cookie-consent {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 1090;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: 1rem 1.4rem;
+  background: var(--surface); color: var(--ink); border-top: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+  animation: toastIn 0.3s var(--ease) both;
+}
+.cookie-consent-body { display: flex; flex-direction: column; gap: 0.2rem; max-width: 640px; font-size: 0.88rem; }
+.cookie-consent-body span { color: var(--ink-soft); }
+.cookie-consent-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.cookie-consent-overlay {
+  position: fixed; inset: 0; z-index: 1091;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex; align-items: center; justify-content: center; padding: 1rem;
+}
+.cookie-consent-panel {
+  width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow-lg);
+  padding: 1.3rem 1.4rem;
+}
+.cookie-consent-panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+.cookie-consent-panel-header strong { font-size: 1.05rem; }
+.cookie-consent-dismiss { border: 0; background: none; color: var(--muted); padding: 0.2rem; line-height: 1; cursor: pointer; }
+.cookie-consent-dismiss:hover { color: var(--ink); }
+.cookie-consent-panel-intro { color: var(--ink-soft); font-size: 0.86rem; margin-bottom: 1rem; }
+.cookie-consent-category {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+  padding: 0.7rem 0; border-bottom: 1px solid var(--line);
+}
+.cookie-consent-category:last-of-type { border-bottom: 0; }
+.cookie-consent-category-text { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.86rem; }
+.cookie-consent-category-text span { color: var(--ink-soft); font-size: 0.82rem; }
+.cookie-consent-category input[type='checkbox'] { flex-shrink: 0; width: 1.1rem; height: 1.1rem; margin-top: 0.2rem; }
+.cookie-consent-panel-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
+
+/* Shift the corner-anchored back-to-top/install-prompt buttons above the open banner so it never
+   covers them (both are position: fixed, bottom-anchored, same z-index tier as the banner). */
+html.cookie-consent-open .back-to-top,
+html.cookie-consent-open .install-prompt { bottom: 6rem; }
+@media (max-width: 480px) {
+  html.cookie-consent-open .back-to-top,
+  html.cookie-consent-open .install-prompt { bottom: 8rem; }
+}
+
 /* ---------- Animations ---------- */
 @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes toastIn { from { opacity: 0; transform: translateY(18px) scale(0.96); } to { opacity: 1; transform: none; } }

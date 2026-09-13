@@ -1,5 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, HostListener, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  computed,
+  inject,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { catchError, debounceTime, distinctUntilChanged, map, of, switchMap, tap } from 'rxjs';
@@ -21,6 +29,7 @@ const DEBOUNCE_MS = 250;
 @Component({
   selector: 'app-search',
   imports: [CommonModule, MoneyPipe, RouterLink],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './search.html',
 })
 export class Search {
@@ -42,14 +51,14 @@ export class Search {
 
   readonly suggestions = toSignal(
     toObservable(this.debouncedQuery).pipe(
-      switchMap(raw => {
+      switchMap((raw) => {
         const keyword = raw.trim();
         if (keyword.length < MIN_QUERY_LENGTH) {
           this.loading.set(false);
           return of<Product[]>([]);
         }
         return this.productService.searchCatalog({ keyword, size: MAX_SUGGESTIONS, page: 0 }).pipe(
-          map(page => page.content),
+          map((page) => page.content),
           catchError(() => of<Product[]>([])),
           tap(() => this.loading.set(false)),
         );
@@ -58,7 +67,9 @@ export class Search {
     { initialValue: [] as Product[] },
   );
 
-  readonly showDropdown = computed(() => this.open() && this.query().trim().length >= MIN_QUERY_LENGTH);
+  readonly showDropdown = computed(
+    () => this.open() && this.query().trim().length >= MIN_QUERY_LENGTH,
+  );
 
   readonly activeDescendantId = computed(() => {
     const idx = this.activeIndex();

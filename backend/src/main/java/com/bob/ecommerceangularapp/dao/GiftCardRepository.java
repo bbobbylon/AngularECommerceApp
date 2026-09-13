@@ -18,4 +18,7 @@ public interface GiftCardRepository extends JpaRepository<GiftCard, Long> {
     List<GiftCard> findAllByTenantId(Long tenantId);
 
     Optional<GiftCard> findByIdAndTenantId(Long id, Long tenantId);
+
+    /** Cards addressed to the subject — roadmap #24 export/erasure (the card itself is retained). */
+    List<GiftCard> findByRecipientEmailIgnoreCaseAndTenantId(String recipientEmail, Long tenantId);
 }

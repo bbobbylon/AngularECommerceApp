@@ -42,9 +42,10 @@ class FulfillmentServiceTest {
     private final OrderRepository orderRepo = mock(OrderRepository.class);
     private final ProductRepository productRepo = mock(ProductRepository.class);
     private final InventoryService inventoryService = mock(InventoryService.class);
+    private final WebhookEventPublisher webhookEventPublisher = mock(WebhookEventPublisher.class);
 
     private final FulfillmentService service = new FulfillmentService(
-            warehouseRepo, stockRepo, shipmentRepo, orderRepo, productRepo, inventoryService);
+            warehouseRepo, stockRepo, shipmentRepo, orderRepo, productRepo, inventoryService, webhookEventPublisher);
 
     @BeforeEach
     void setTenantContext() {

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { OktaAuthStateService } from '@okta/okta-angular';
@@ -7,9 +7,16 @@ import { Stripe, StripeCardElement, loadStripe } from '@stripe/stripe-js';
 
 import { isOktaConfigured } from '../../auth/dev-auth.guard';
 import { oktaConfig } from '../../auth/okta-config';
-import { AccountPreferences, AccountService, SavedAddress, SavedPaymentMethod } from '../../services/account.service';
+import {
+  AccountPreferences,
+  AccountService,
+  SavedAddress,
+  SavedPaymentMethod,
+} from '../../services/account.service';
 import { ConfigService } from '../../services/config.service';
+import { ConsentService } from '../../services/consent.service';
 import { LoyaltyService, LoyaltySummary } from '../../services/loyalty.service';
+import { PrivacyService } from '../../services/privacy.service';
 import { ReferralService, ReferralSummary } from '../../services/referral.service';
 import { ToastService } from '../../services/toast.service';
 
@@ -23,10 +30,10 @@ import { ToastService } from '../../services/toast.service';
 @Component({
   selector: 'app-account-settings',
   imports: [CommonModule, FormsModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './account-settings.html',
 })
 export class AccountSettings implements OnInit {
-
   email = '';
 
   // editable fields, bound once preferences are loaded
@@ -68,9 +75,14 @@ export class AccountSettings implements OnInit {
   private referralService = inject(ReferralService);
   private authStateService = inject(OktaAuthStateService);
   private toast = inject(ToastService);
+  private privacyService = inject(PrivacyService);
+  protected readonly consentService = inject(ConsentService);
+
+  readonly submittingDataRequest = signal(false);
+  readonly dataRequestMessage = signal('');
 
   ngOnInit(): void {
-    this.authStateService.authState$.subscribe(state => {
+    this.authStateService.authState$.subscribe((state) => {
       const claimEmail = state?.isAuthenticated ? (state.idToken?.claims?.email as string) : '';
       if (claimEmail && !this.prefs()) {
         this.email = claimEmail;
@@ -88,15 +100,15 @@ export class AccountSettings implements OnInit {
     this.loading.set(true);
     this.notFound.set(false);
     this.accountService.getPreferences(email).subscribe({
-      next: prefs => {
+      next: (prefs) => {
         this.applyPrefs(prefs);
         this.loading.set(false);
         this.loyaltyService.summary(email).subscribe({
-          next: summary => this.loyalty.set(summary),
+          next: (summary) => this.loyalty.set(summary),
           error: () => this.loyalty.set(null),
         });
         this.referralService.summary(email).subscribe({
-          next: summary => this.referral.set(summary),
+          next: (summary) => this.referral.set(summary),
           error: () => this.referral.set(null),
         });
         this.loadAddressesAndCards(email);
@@ -123,7 +135,7 @@ export class AccountSettings implements OnInit {
         newsletterSubscribed: this.newsletterSubscribed,
       })
       .subscribe({
-        next: updated => {
+        next: (updated) => {
           this.applyPrefs(updated);
           this.toast.success('Your preferences were saved.');
           this.saving.set(false);
@@ -141,11 +153,11 @@ export class AccountSettings implements OnInit {
 
   private loadAddressesAndCards(email: string): void {
     this.accountService.getAddresses(email).subscribe({
-      next: list => this.addresses.set(list),
+      next: (list) => this.addresses.set(list),
       error: () => this.addresses.set([]),
     });
     this.accountService.getPaymentMethods(email).subscribe({
-      next: list => this.cards.set(list),
+      next: (list) => this.cards.set(list),
       error: () => this.cards.set([]),
     });
   }
@@ -155,7 +167,13 @@ export class AccountSettings implements OnInit {
   saveAddress(): void {
     const email = this.currentEmail();
     const a = this.addressForm;
-    if (!a.street?.trim() || !a.city?.trim() || !a.state?.trim() || !a.country?.trim() || !a.zipCode?.trim()) {
+    if (
+      !a.street?.trim() ||
+      !a.city?.trim() ||
+      !a.state?.trim() ||
+      !a.country?.trim() ||
+      !a.zipCode?.trim()
+    ) {
       this.toast.error('Please fill in the full address.');
       return;
     }
@@ -166,9 +184,12 @@ export class AccountSettings implements OnInit {
         this.addressForm = this.emptyAddress();
         this.editingAddress.set(false);
         this.savingAddress.set(false);
-        this.accountService.getAddresses(email).subscribe(list => this.addresses.set(list));
+        this.accountService.getAddresses(email).subscribe((list) => this.addresses.set(list));
       },
-      error: () => { this.savingAddress.set(false); this.toast.error('Could not save the address.'); },
+      error: () => {
+        this.savingAddress.set(false);
+        this.toast.error('Could not save the address.');
+      },
     });
   }
 
@@ -188,7 +209,10 @@ export class AccountSettings implements OnInit {
     }
     const email = this.currentEmail();
     this.accountService.deleteAddress(email, a.id).subscribe({
-      next: () => { this.toast.success('Address removed'); this.accountService.getAddresses(email).subscribe(l => this.addresses.set(l)); },
+      next: () => {
+        this.toast.success('Address removed');
+        this.accountService.getAddresses(email).subscribe((l) => this.addresses.set(l));
+      },
       error: () => this.toast.error('Could not remove the address.'),
     });
   }
@@ -201,14 +225,17 @@ export class AccountSettings implements OnInit {
     }
     const email = this.currentEmail();
     this.accountService.deletePaymentMethod(email, c.id).subscribe({
-      next: () => { this.toast.success('Card removed'); this.accountService.getPaymentMethods(email).subscribe(l => this.cards.set(l)); },
+      next: () => {
+        this.toast.success('Card removed');
+        this.accountService.getPaymentMethods(email).subscribe((l) => this.cards.set(l));
+      },
       error: () => this.toast.error('Could not remove the card.'),
     });
   }
 
   async startAddCard(): Promise<void> {
     const email = this.currentEmail();
-    this.accountService.createSetupIntent(email).subscribe(async res => {
+    this.accountService.createSetupIntent(email).subscribe(async (res) => {
       if (!res.enabled || !res.clientSecret) {
         this.toast.error('Saving cards needs Stripe configured — see docs/STRIPE.md.');
         return;
@@ -224,7 +251,10 @@ export class AccountSettings implements OnInit {
         }
         this.cardSetupElement = this.stripe.elements().create('card', { hidePostalCode: true });
         this.cardSetupElement.mount('#card-setup-element');
-        this.cardSetupElement.on('change', e => (this.cardSetupError = e.error ? e.error.message : ''));
+        this.cardSetupElement.on(
+          'change',
+          (e) => (this.cardSetupError = e.error ? e.error.message : ''),
+        );
       });
     });
   }
@@ -235,8 +265,9 @@ export class AccountSettings implements OnInit {
     }
     this.savingCard.set(true);
     const email = this.currentEmail();
-    this.stripe.confirmCardSetup(this.setupClientSecret, { payment_method: { card: this.cardSetupElement } })
-      .then(result => {
+    this.stripe
+      .confirmCardSetup(this.setupClientSecret, { payment_method: { card: this.cardSetupElement } })
+      .then((result) => {
         if (result.error || !result.setupIntent?.payment_method) {
           this.savingCard.set(false);
           this.cardSetupError = result.error?.message ?? 'Could not save the card.';
@@ -248,9 +279,12 @@ export class AccountSettings implements OnInit {
             this.toast.success('Card saved');
             this.savingCard.set(false);
             this.cardSetupOpen.set(false);
-            this.accountService.getPaymentMethods(email).subscribe(l => this.cards.set(l));
+            this.accountService.getPaymentMethods(email).subscribe((l) => this.cards.set(l));
           },
-          error: () => { this.savingCard.set(false); this.toast.error('Could not save the card.'); },
+          error: () => {
+            this.savingCard.set(false);
+            this.toast.error('Could not save the card.');
+          },
         });
       });
   }
@@ -260,8 +294,45 @@ export class AccountSettings implements OnInit {
     this.cardSetupError = '';
   }
 
+  /** Raises a self-service GDPR export/erasure request (roadmap #24) for the address currently entered. */
+  requestData(requestType: 'EXPORT' | 'ERASURE'): void {
+    const email = this.currentEmail();
+    if (!email || !email.includes('@')) {
+      this.toast.error('Enter a valid email address first.');
+      return;
+    }
+    if (
+      requestType === 'ERASURE' &&
+      !confirm('This permanently erases your account data. Continue?')
+    ) {
+      return;
+    }
+    this.submittingDataRequest.set(true);
+    this.dataRequestMessage.set('');
+    this.privacyService.submitDataRequest(email, requestType).subscribe({
+      next: (result) => {
+        this.submittingDataRequest.set(false);
+        this.dataRequestMessage.set(result.message);
+      },
+      error: () => {
+        this.submittingDataRequest.set(false);
+        this.toast.error('Could not submit the request. Please try again.');
+      },
+    });
+  }
+
   private emptyAddress(): SavedAddress {
-    return { id: null, label: '', recipientName: '', street: '', city: '', state: '', country: '', zipCode: '', defaultAddress: false };
+    return {
+      id: null,
+      label: '',
+      recipientName: '',
+      street: '',
+      city: '',
+      state: '',
+      country: '',
+      zipCode: '',
+      defaultAddress: false,
+    };
   }
 
   referralLink(code: string): string {

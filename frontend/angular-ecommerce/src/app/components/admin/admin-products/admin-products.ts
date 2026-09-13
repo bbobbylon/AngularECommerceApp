@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { NgbPaginationModule } from '@ng-bootstrap/ng-bootstrap';
 
@@ -7,13 +7,17 @@ import { isOnSale } from '../../../common/product';
 import { AdminProduct, AdminService } from '../../../services/admin.service';
 import { ToastService } from '../../../services/toast.service';
 
+/**
+ * Admin product list — paginated table with edit/delete links into `admin-product-form`. Reuses the
+ * storefront's `isOnSale()` helper so the admin view's sale badge matches what customers see.
+ */
 @Component({
   selector: 'app-admin-products',
   imports: [CommonModule, RouterLink, NgbPaginationModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-products.html',
 })
 export class AdminProducts implements OnInit {
-
   readonly products = signal<AdminProduct[]>([]);
   readonly loading = signal(true);
 
@@ -33,7 +37,7 @@ export class AdminProducts implements OnInit {
   load(): void {
     this.loading.set(true);
     this.admin.getProducts(this.pageNumber - 1, this.pageSize).subscribe({
-      next: res => {
+      next: (res) => {
         this.products.set(res.content);
         this.totalElements = res.totalElements;
         this.loading.set(false);

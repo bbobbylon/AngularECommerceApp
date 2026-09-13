@@ -3,6 +3,12 @@ import { BehaviorSubject } from 'rxjs';
 
 import { CartItem, cartItemKey } from '../common/cart-item';
 
+/**
+ * The shopping cart — sessionStorage-backed (survives a refresh, not a new tab/session), no backend
+ * counterpart. Lines are keyed by `cartItemKey` (`id`+`variantSku`) rather than product id alone, so
+ * two variants of the same product occupy separate lines. Read by `checkout.service.ts` at purchase
+ * time and cleared there once an order is placed.
+ */
 @Injectable({ providedIn: 'root' })
 export class CartService {
 

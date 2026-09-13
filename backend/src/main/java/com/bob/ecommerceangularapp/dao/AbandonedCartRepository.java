@@ -21,4 +21,7 @@ public interface AbandonedCartRepository extends JpaRepository<AbandonedCart, Lo
     // Unscoped by design: read only by the reminder scheduler, a background job with no per-tenant
     // request context that emails every idle cart across every tenant (see AbandonedCartScheduler).
     List<AbandonedCart> findByRecoveredFalseAndRemindedFalseAndLastUpdatedBefore(Date cutoff);
+
+    /** Every captured cart for a subject, recovered or not — roadmap #24 export/erasure. */
+    List<AbandonedCart> findByEmailIgnoreCaseAndTenantId(String email, Long tenantId);
 }

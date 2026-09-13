@@ -29,6 +29,11 @@ export interface ReturnDecisionRequest {
   adminNote?: string;
 }
 
+/**
+ * Wraps both the customer-facing `ReturnController` (`/api/returns`, email-match required — no
+ * account needed) and the admin approve/deny endpoints on `AdminReturnController` (#3). Used by
+ * `order-history`'s "Request a return" form and the admin Returns queue respectively.
+ */
 @Injectable({ providedIn: 'root' })
 export class ReturnService {
 

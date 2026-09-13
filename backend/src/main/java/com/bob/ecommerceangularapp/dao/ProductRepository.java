@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.rest.core.annotation.RepositoryRestResource;
+import org.springframework.data.rest.core.annotation.RestResource;
 
 import java.util.List;
 import java.util.Optional;
@@ -40,10 +41,16 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     boolean existsByIdAndTenantId(Long id, Long tenantId);
 
     // ----- admin back office, tenant-scoped (roadmap #21, Milestone B) -----
+    // Both overloads must stay unexported: SDR maps search methods by name only, so two
+    // findAllByTenantId methods (regardless of signature) collide on the same /findAllByTenantId
+    // search path and throw IllegalStateException("Ambiguous search mapping detected") on first
+    // request to the products collection resource.
+    @RestResource(exported = false)
     Page<Product> findAllByTenantId(Long tenantId, Pageable pageable);
 
     // Unpaged variant backs the roadmap-#15 merged inventory view (roadmap #21, Milestone D — replaces
     // an unscoped findAll()/findBySku() that mixed every tenant's stock into one admin inventory screen).
+    @RestResource(exported = false)
     List<Product> findAllByTenantId(Long tenantId);
 
     Optional<Product> findBySkuAndTenantId(String sku, Long tenantId);

@@ -3,7 +3,7 @@
 ## Context
 We're building the "Full Stack: Angular and Java Spring Boot E-Commerce Website" Udemy
 course project as a vibe-coding exercise. We're on a newer stack than the videos
-(**Spring Boot 4.1, Angular 21 standalone**), so we implement the course's concepts in
+(**Spring Boot 4.1, Angular 22 standalone**), so we implement the course's concepts in
 modern idiom; code won't match the videos line-for-line.
 
 **Goal:** a working full-stack app — product catalog → cart → checkout → order save →
@@ -20,10 +20,10 @@ security → HTTPS → Stripe — built in milestones mirroring the course relea
 ## Local toolchain (this machine — Windows 11)
 - **JDK 24** installed. The pom pins `<java.version>21</java.version>`; javac 24 compiles to
   the 21 release target, so the build is reproducible against Java 21 semantics.
-- **Node 24 / npm 11**, Angular CLI via `npx @angular/cli@21`.
+- **Node 24 (≥ 24.15) / npm 11**, Angular CLI via `npx @angular/cli@22`.
 - **Docker 29** available locally, so MySQL runs and full end-to-end verification works here
   (unlike the planning sandbox, where image pulls were blocked).
-- Resolved versions: Spring Boot 4.1.0; Angular 21.2; ng-bootstrap 20; Bootstrap 5.3;
+- Resolved versions: Spring Boot 4.1.0; Angular 22.1 (upgraded from 21.2 on 2026-09-13, with TypeScript 6.0); ng-bootstrap 21; Bootstrap 5.3;
   Font Awesome 7.
 
 ## Build & dependency notes
@@ -80,7 +80,7 @@ security → HTTPS → Stripe — built in milestones mirroring the course relea
 `/api/products/search/findByCategoryId?id=&page=&size=`,
 `/api/products/search/findByNameContaining?name=&page=&size=`, `/api/product-category`.
 
-### Frontend (`frontend/angular-ecommerce`, standalone Angular 21)
+### Frontend (`frontend/angular-ecommerce`, standalone Angular 22)
 - `common/product.ts`, `common/product-category.ts` — models.
 - `services/product.service.ts` — `HttpClient`, base URL from `environments/environment.ts`
   (`apiUrl='http://localhost:8080/api'`); paginated list/search, categories, single product;

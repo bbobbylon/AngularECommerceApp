@@ -1,12 +1,12 @@
 # Luv2Shop — Full-Stack E-Commerce (Angular + Spring Boot)
 
 A modern build of the Udemy *"Full Stack: Angular and Spring Boot E-Commerce"* course
-project, on a current stack: **Spring Boot 4.1 / Java 21** and **Angular 21 (standalone)**.
+project, on a current stack: **Spring Boot 4.1 / Java 21** and **Angular 22 (standalone)**.
 
 ## Stack
 - **Backend:** Spring Boot 4.1, Spring Data JPA + REST, Spring Security (OAuth2 resource
   server), MySQL, Stripe (`stripe-java`).
-- **Frontend:** Angular 21 standalone, Bootstrap 5, ng-bootstrap, Okta (`@okta/okta-angular`),
+- **Frontend:** Angular 22 standalone, Bootstrap 5, ng-bootstrap, Okta (`@okta/okta-angular`),
   Stripe Elements (`@stripe/stripe-js`).
 
 ## Layout
@@ -32,7 +32,7 @@ with placeholder config, and lights up the moment real keys are supplied.
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'fontFamily':'DM Sans, system-ui, sans-serif','lineColor':'#9aa3b8'}}}%%
 flowchart LR
-  user([🛍️ Shopper]):::user --> spa["Angular 21 SPA<br/>:4251"]:::fe
+  user([🛍️ Shopper]):::user --> spa["Angular 22 SPA<br/>:4251"]:::fe
   spa -->|"REST / JSON · CORS"| api["Spring Boot 4.1 API<br/>:8586"]:::be
   api -->|"JPA / JDBC"| db[("MySQL 8<br/>:3308")]:::db
   spa -.->|optional| okta{{"Okta · Stripe"}}:::ext
@@ -59,7 +59,7 @@ Full diagrams (backend layers, frontend, ER model, request + checkout flows) liv
 | [Build plan](docs/BUILD_PLAN.md) | milestones M0–M5 + decisions |
 
 ## Run locally
-Prerequisites: **JDK 21+**, **Node 20+**, and **Docker running**.
+Prerequisites: **JDK 21+**, **Node 24 (≥ 24.15) or 22 (≥ 22.22.3)**, and **Docker running**.
 
 One command (from **Git Bash**) — builds both, launches them, and opens the browser:
 

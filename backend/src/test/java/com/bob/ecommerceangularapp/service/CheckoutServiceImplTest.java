@@ -36,9 +36,10 @@ class CheckoutServiceImplTest {
     private final LoyaltyService loyaltyService = mock(LoyaltyService.class);
     private final ReferralService referralService = mock(ReferralService.class);
     private final AbandonedCartService abandonedCartService = mock(AbandonedCartService.class);
+    private final WebhookEventPublisher webhookEventPublisher = mock(WebhookEventPublisher.class);
     private final CheckoutServiceImpl service = new CheckoutServiceImpl(customerRepository, emailService,
             taxShippingService, productVariantService, giftCardService, loyaltyService, referralService,
-            abandonedCartService, "");
+            abandonedCartService, webhookEventPublisher, "");
 
     @BeforeEach
     void stubSave() {

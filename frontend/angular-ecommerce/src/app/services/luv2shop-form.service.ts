@@ -6,6 +6,11 @@ import { environment } from '../../environments/environment';
 import { Country } from '../common/country';
 import { State } from '../common/state';
 
+/**
+ * Reference data for the checkout form: countries/states (Spring Data REST HAL, unwrapped from
+ * `_embedded`) plus locally-generated credit-card month/year dropdown ranges (no backend call needed
+ * for those two — they're pure calendar math).
+ */
 @Injectable({ providedIn: 'root' })
 export class Luv2ShopFormService {
 
