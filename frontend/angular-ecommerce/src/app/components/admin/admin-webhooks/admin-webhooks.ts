@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgbPaginationModule } from '@ng-bootstrap/ng-bootstrap';
 
@@ -29,10 +29,10 @@ const AVAILABLE_EVENT_TYPES = [
 @Component({
   selector: 'app-admin-webhooks',
   imports: [CommonModule, FormsModule, NgbPaginationModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-webhooks.html',
 })
 export class AdminWebhooks implements OnInit {
-
   readonly availableEventTypes = AVAILABLE_EVENT_TYPES;
 
   readonly subscriptions = signal<AdminWebhookSubscription[]>([]);
@@ -63,8 +63,14 @@ export class AdminWebhooks implements OnInit {
   load(): void {
     this.loading.set(true);
     this.admin.getWebhooks().subscribe({
-      next: list => { this.subscriptions.set(list); this.loading.set(false); },
-      error: () => { this.loading.set(false); this.toast.error('Could not load webhook subscriptions.'); },
+      next: (list) => {
+        this.subscriptions.set(list);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.toast.error('Could not load webhook subscriptions.');
+      },
     });
   }
 
@@ -83,7 +89,7 @@ export class AdminWebhooks implements OnInit {
   }
 
   save(): void {
-    const eventTypes = this.availableEventTypes.filter(t => this.selectedEventTypes[t]);
+    const eventTypes = this.availableEventTypes.filter((t) => this.selectedEventTypes[t]);
     if (!this.url.trim()) {
       this.toast.error('Enter a target URL.');
       return;
@@ -94,17 +100,22 @@ export class AdminWebhooks implements OnInit {
     }
     this.saving.set(true);
     const id = this.editingId();
-    this.admin.saveWebhook({ id, url: this.url.trim(), eventTypes, active: this.active }).subscribe({
-      next: result => {
-        if (id == null) {
-          this.justCreated.set(result as AdminWebhookSubscriptionCreated);
-        }
-        this.saving.set(false);
-        this.resetForm();
-        this.load();
-      },
-      error: () => { this.saving.set(false); this.toast.error('Could not save the webhook subscription.'); },
-    });
+    this.admin
+      .saveWebhook({ id, url: this.url.trim(), eventTypes, active: this.active })
+      .subscribe({
+        next: (result) => {
+          if (id == null) {
+            this.justCreated.set(result as AdminWebhookSubscriptionCreated);
+          }
+          this.saving.set(false);
+          this.resetForm();
+          this.load();
+        },
+        error: () => {
+          this.saving.set(false);
+          this.toast.error('Could not save the webhook subscription.');
+        },
+      });
   }
 
   dismissReveal(): void {
@@ -116,7 +127,10 @@ export class AdminWebhooks implements OnInit {
       return;
     }
     this.admin.deactivateWebhook(sub.id).subscribe({
-      next: () => { this.toast.success('Webhook deactivated.'); this.load(); },
+      next: () => {
+        this.toast.success('Webhook deactivated.');
+        this.load();
+      },
       error: () => this.toast.error('Could not deactivate the webhook.'),
     });
   }
@@ -133,14 +147,19 @@ export class AdminWebhooks implements OnInit {
 
   loadDeliveries(subscriptionId: number): void {
     this.deliveriesLoading.set(true);
-    this.admin.getWebhookDeliveries(subscriptionId, this.deliveriesPageNumber - 1, this.deliveriesPageSize).subscribe({
-      next: res => {
-        this.deliveries.set(res.content);
-        this.deliveriesTotalElements = res.totalElements;
-        this.deliveriesLoading.set(false);
-      },
-      error: () => { this.deliveriesLoading.set(false); this.toast.error('Could not load delivery history.'); },
-    });
+    this.admin
+      .getWebhookDeliveries(subscriptionId, this.deliveriesPageNumber - 1, this.deliveriesPageSize)
+      .subscribe({
+        next: (res) => {
+          this.deliveries.set(res.content);
+          this.deliveriesTotalElements = res.totalElements;
+          this.deliveriesLoading.set(false);
+        },
+        error: () => {
+          this.deliveriesLoading.set(false);
+          this.toast.error('Could not load delivery history.');
+        },
+      });
   }
 
   private resetForm(): void {

@@ -1,4 +1,4 @@
-import { Component, Input, inject, signal } from '@angular/core';
+import { Component, Input, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { NewsletterService } from '../../services/newsletter.service';
@@ -12,10 +12,10 @@ import { ToastService } from '../../services/toast.service';
 @Component({
   selector: 'app-newsletter-signup',
   imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './newsletter-signup.html',
 })
 export class NewsletterSignup {
-
   @Input() variant: 'band' | 'inline' = 'inline';
 
   email = '';
@@ -32,7 +32,7 @@ export class NewsletterSignup {
     }
     this.submitting.set(true);
     this.newsletter.subscribe(email).subscribe({
-      next: res => {
+      next: (res) => {
         this.toast.success(res?.message ?? "You're subscribed!");
         this.email = '';
         this.submitting.set(false);

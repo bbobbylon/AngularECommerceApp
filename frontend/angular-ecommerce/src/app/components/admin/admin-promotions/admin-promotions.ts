@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { AdminService, Promotion, PromotionPayload } from '../../../services/admin.service';
@@ -12,16 +12,17 @@ import { ToastService } from '../../../services/toast.service';
 @Component({
   selector: 'app-admin-promotions',
   imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-promotions.html',
 })
 export class AdminPromotions implements OnInit {
-
   readonly promotions = signal<Promotion[]>([]);
   readonly loading = signal(true);
   readonly saving = signal(false);
 
   // create form
-  form: PromotionPayload & { discountType: 'percent' | 'amount'; discountValue: number | null } = this.emptyForm();
+  form: PromotionPayload & { discountType: 'percent' | 'amount'; discountValue: number | null } =
+    this.emptyForm();
 
   private admin = inject(AdminService);
   private toast = inject(ToastService);
@@ -33,7 +34,7 @@ export class AdminPromotions implements OnInit {
   load(): void {
     this.loading.set(true);
     this.admin.getPromotions().subscribe({
-      next: list => {
+      next: (list) => {
         this.promotions.set(list);
         this.loading.set(false);
       },

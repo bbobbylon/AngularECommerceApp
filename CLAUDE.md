@@ -1,7 +1,7 @@
 # AngularECommerceApp — Claude Code guide
 
 Full-stack e-commerce app (Udemy course project) on a modern stack:
-**Spring Boot 4.1 + Java 21** backend, **Angular 21 (standalone)** frontend.
+**Spring Boot 4.1 + Java 21** backend, **Angular 22 (standalone)** frontend.
 
 ## Source of truth for the build
 Read **`docs/BUILD_PLAN.md`** before starting work. It has the full milestone
@@ -945,19 +945,43 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   `DataRequestServiceTest` unit coverage of that branch was judged sufficient, and mutating real seeded
   data for marginal extra confidence wasn't worth the one-way trip. This closes the 24-feature roadmap;
   see `sellable-feature-roadmap.md`.
+- ✅ **Angular 22 upgrade (2026-09-13)** — frontend moved from Angular 21.2 to **22.1** (`@angular/*`
+  22.1.6, CLI/build 22.1.8), **TypeScript 5.9 → 6.0** (the v22 compiler pins `>=6.0 <6.1`; don't let
+  Dependabot push TS to 7.x), **ng-bootstrap 20 → 21** — all in **one** `ng update @angular/core@22
+  @angular/cli@22 @ng-bootstrap/ng-bootstrap@21 typescript@6.0` call, because the Angular packages must
+  move in lockstep (the three per-package Dependabot PRs #9/#10/#12 broke the build for exactly that
+  reason; they should auto-close once this lands on `newMasterBranch`. The vitest 5 PR #11 stays open:
+  `@angular/build@22` pins `vitest ^4`). This was the only way to clear the last two HIGH Angular XSS
+  advisories (`GHSA-jj27-h5hq-8x99`, `GHSA-hh8m-fm6v-7cvg`): `npm audit --omit=dev --audit-level=high`
+  went from 10 findings (3 high) to **0**. Angular's migration schematics made three behavior-preserving
+  edits — `changeDetection: ChangeDetectionStrategy.Eager` on every component (v22 changes the default
+  strategy; `Eager` is the explicit name for the old `Default`), `withXhr()` on `provideHttpClient` (v22
+  defaults `HttpClient` to `fetch`; this keeps the XHR backend), and a `tsconfig.app.json` suppression of
+  the `optionalChainNotNullable`/`nullishCoalescingNotNullable` extended diagnostics (verified: without
+  it the build still passes but emits ~14 NG8107 warnings in the `admin-product-form` and `checkout`
+  templates — a follow-up template cleanup, not a blocker). The schematics also ran the project
+  `.prettierrc` over the 48 `.ts` files they touched, so those are now formatted while the other ~49
+  `.ts` files are not; `npx prettier --write "src/**/*.ts"` in its own commit would finish the job.
+  **Node floor moved**: `@angular/cli@22` hard-exits (code 3) below Node 24.15.0 / 22.22.3, so
+  `package.json` now declares `engines.node`. CI (`setup-node` `'22'` → 22.23.x) and the frontend
+  Dockerfile (`node:22-alpine`) already clear it; a dev machine on Node 24.14.x does not (`winget upgrade
+  --id OpenJS.NodeJS.LTS`, or `fnm use 24`). Verified green: `npx ng build` (prod), 17/17 unit tests,
+  37/37 Playwright E2E (incl. 24 axe-core WCAG checks), `npm audit` 0 findings, and the frontend Docker
+  image build (`docker compose build frontend`).
+
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
 
 ## Layout
 - `backend/` — Spring Boot (Maven). Package root `com.bob.ecommerceangularapp`.
-- `frontend/angular-ecommerce/` — Angular 21 standalone app.
+- `frontend/angular-ecommerce/` — Angular 22 standalone app.
 
 ## Commands
 
 - Backend build + tests: `cd backend && ./mvnw clean package` (unit/slice tests run on in-memory H2 — no Docker needed; the **Testcontainers MySQL integration test** runs when Docker is available and auto-skips otherwise)
 - Backend run (needs Docker for MySQL on :3307): `cd backend && ./mvnw spring-boot:run` (→ http://localhost:8585)
-- Frontend build: `cd frontend/angular-ecommerce && npm install && npx ng build`
+- Frontend build: `cd frontend/angular-ecommerce && npm install && npx ng build` (Node ≥ 24.15 or ≥ 22.22.3 — the Angular 22 CLI hard-exits below that floor)
 - Frontend tests: `cd frontend/angular-ecommerce && CI=true npx ng test --watch=false`
 - Frontend E2E (Playwright, hermetic — stubs the API, starts `ng serve` itself): `cd frontend/angular-ecommerce && npx playwright install chromium` (one-time) then `npm run e2e`
 - Frontend dev server: `cd frontend/angular-ecommerce && npm start` (→ http://localhost:4250)

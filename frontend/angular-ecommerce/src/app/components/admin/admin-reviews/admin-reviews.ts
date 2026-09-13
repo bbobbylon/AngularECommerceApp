@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { NgbPaginationModule } from '@ng-bootstrap/ng-bootstrap';
 
 import { AdminService } from '../../../services/admin.service';
@@ -15,10 +15,10 @@ import { StarRating } from '../../star-rating/star-rating';
 @Component({
   selector: 'app-admin-reviews',
   imports: [CommonModule, NgbPaginationModule, StarRating],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-reviews.html',
 })
 export class AdminReviews implements OnInit {
-
   readonly reviews = signal<Review[]>([]);
   readonly loading = signal(true);
 
@@ -36,7 +36,7 @@ export class AdminReviews implements OnInit {
   load(): void {
     this.loading.set(true);
     this.admin.getReviews(this.pageNumber - 1, this.pageSize).subscribe({
-      next: res => {
+      next: (res) => {
         this.reviews.set(res.content);
         this.totalElements = res.totalElements;
         this.loading.set(false);

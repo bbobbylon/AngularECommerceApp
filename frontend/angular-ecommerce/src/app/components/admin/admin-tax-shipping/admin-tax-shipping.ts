@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { AdminService, AdminShippingMethod, AdminTaxRate } from '../../../services/admin.service';
@@ -9,10 +9,10 @@ import { ToastService } from '../../../services/toast.service';
 @Component({
   selector: 'app-admin-tax-shipping',
   imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-tax-shipping.html',
 })
 export class AdminTaxShipping implements OnInit {
-
   readonly taxRates = signal<AdminTaxRate[]>([]);
   readonly shippingMethods = signal<AdminShippingMethod[]>([]);
   readonly loading = signal(true);
@@ -32,11 +32,11 @@ export class AdminTaxShipping implements OnInit {
   load(): void {
     this.loading.set(true);
     this.admin.getTaxRates().subscribe({
-      next: rates => this.taxRates.set(rates),
+      next: (rates) => this.taxRates.set(rates),
       error: () => this.toast.error('Could not load tax rates.'),
     });
     this.admin.getShippingMethods().subscribe({
-      next: methods => {
+      next: (methods) => {
         this.shippingMethods.set(methods);
         this.loading.set(false);
       },
@@ -55,22 +55,24 @@ export class AdminTaxShipping implements OnInit {
       return;
     }
     this.savingTax.set(true);
-    this.admin.saveTaxRate({
-      ...this.taxForm,
-      country: this.taxForm.country.trim(),
-      state: this.taxForm.state?.trim() || null,
-    }).subscribe({
-      next: () => {
-        this.toast.success('Tax rate saved');
-        this.taxForm = this.emptyTax();
-        this.savingTax.set(false);
-        this.load();
-      },
-      error: () => {
-        this.savingTax.set(false);
-        this.toast.error('Could not save tax rate.');
-      },
-    });
+    this.admin
+      .saveTaxRate({
+        ...this.taxForm,
+        country: this.taxForm.country.trim(),
+        state: this.taxForm.state?.trim() || null,
+      })
+      .subscribe({
+        next: () => {
+          this.toast.success('Tax rate saved');
+          this.taxForm = this.emptyTax();
+          this.savingTax.set(false);
+          this.load();
+        },
+        error: () => {
+          this.savingTax.set(false);
+          this.toast.error('Could not save tax rate.');
+        },
+      });
   }
 
   editTax(rate: AdminTaxRate): void {
@@ -78,11 +80,17 @@ export class AdminTaxShipping implements OnInit {
   }
 
   deleteTax(rate: AdminTaxRate): void {
-    if (!rate.id || !confirm(`Delete the ${rate.country}${rate.state ? ' / ' + rate.state : ''} tax rate?`)) {
+    if (
+      !rate.id ||
+      !confirm(`Delete the ${rate.country}${rate.state ? ' / ' + rate.state : ''} tax rate?`)
+    ) {
       return;
     }
     this.admin.deleteTaxRate(rate.id).subscribe({
-      next: () => { this.toast.success('Deleted'); this.load(); },
+      next: () => {
+        this.toast.success('Deleted');
+        this.load();
+      },
       error: () => this.toast.error('Could not delete.'),
     });
   }
@@ -90,28 +98,34 @@ export class AdminTaxShipping implements OnInit {
   // ----- shipping methods -----
 
   saveShip(): void {
-    if (!this.shipForm.code.trim() || !this.shipForm.name.trim() || this.shipForm.baseRate == null) {
+    if (
+      !this.shipForm.code.trim() ||
+      !this.shipForm.name.trim() ||
+      this.shipForm.baseRate == null
+    ) {
       this.toast.error('Code, name and base rate are required.');
       return;
     }
     this.savingShip.set(true);
-    this.admin.saveShippingMethod({
-      ...this.shipForm,
-      code: this.shipForm.code.trim().toUpperCase(),
-      name: this.shipForm.name.trim(),
-      freeOverThreshold: this.shipForm.freeOverThreshold || null,
-    }).subscribe({
-      next: () => {
-        this.toast.success('Shipping method saved');
-        this.shipForm = this.emptyShip();
-        this.savingShip.set(false);
-        this.load();
-      },
-      error: () => {
-        this.savingShip.set(false);
-        this.toast.error('Could not save shipping method.');
-      },
-    });
+    this.admin
+      .saveShippingMethod({
+        ...this.shipForm,
+        code: this.shipForm.code.trim().toUpperCase(),
+        name: this.shipForm.name.trim(),
+        freeOverThreshold: this.shipForm.freeOverThreshold || null,
+      })
+      .subscribe({
+        next: () => {
+          this.toast.success('Shipping method saved');
+          this.shipForm = this.emptyShip();
+          this.savingShip.set(false);
+          this.load();
+        },
+        error: () => {
+          this.savingShip.set(false);
+          this.toast.error('Could not save shipping method.');
+        },
+      });
   }
 
   editShip(method: AdminShippingMethod): void {
@@ -123,7 +137,10 @@ export class AdminTaxShipping implements OnInit {
       return;
     }
     this.admin.deleteShippingMethod(method.id).subscribe({
-      next: () => { this.toast.success('Deleted'); this.load(); },
+      next: () => {
+        this.toast.success('Deleted');
+        this.load();
+      },
       error: () => this.toast.error('Could not delete.'),
     });
   }
@@ -133,6 +150,15 @@ export class AdminTaxShipping implements OnInit {
   }
 
   private emptyShip(): AdminShippingMethod {
-    return { id: null, code: '', name: '', baseRate: 0, freeOverThreshold: null, estimatedDays: '', sortOrder: 0, active: true };
+    return {
+      id: null,
+      code: '',
+      name: '',
+      baseRate: 0,
+      freeOverThreshold: null,
+      estimatedDays: '',
+      sortOrder: 0,
+      active: true,
+    };
   }
 }

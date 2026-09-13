@@ -358,7 +358,7 @@ admin CRUD requests/views (one pair per admin-managed entity — `AdminProductRe
 
 ## Frontend — `frontend/angular-ecommerce/src/app/`
 
-Angular 21, **standalone components** throughout (no `NgModule`s) — every component/service is a
+Angular 22, **standalone components** throughout (no `NgModule`s) — every component/service is a
 single self-contained `.ts` (+ template/styles), wired together by DI and lazy-loaded routes.
 
 ### Root

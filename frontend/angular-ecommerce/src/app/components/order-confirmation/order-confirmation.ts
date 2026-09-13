@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { OrderTimeline } from '../order-timeline/order-timeline';
@@ -25,6 +25,7 @@ interface OrderSummary {
 @Component({
   selector: 'app-order-confirmation',
   imports: [CommonModule, RouterLink, OrderTimeline],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './order-confirmation.html',
 })
 export class OrderConfirmation {

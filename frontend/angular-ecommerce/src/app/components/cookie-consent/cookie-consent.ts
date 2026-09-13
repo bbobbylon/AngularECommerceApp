@@ -1,4 +1,4 @@
-import { Component, effect } from '@angular/core';
+import { Component, effect, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
@@ -12,6 +12,7 @@ import { ConsentService } from '../../services/consent.service';
 @Component({
   selector: 'app-cookie-consent',
   imports: [FormsModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (consentService.visible() && !consentService.panelOpen()) {
       <div class="cookie-consent" role="dialog" aria-live="polite" aria-label="Cookie consent">
@@ -24,33 +25,53 @@ import { ConsentService } from '../../services/consent.service';
           </span>
         </div>
         <div class="cookie-consent-actions">
-          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="customize()">Customize</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="rejectAll()">Reject all</button>
-          <button type="button" class="btn btn-sm btn-primary" (click)="acceptAll()">Accept all</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="customize()">
+            Customize
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="rejectAll()">
+            Reject all
+          </button>
+          <button type="button" class="btn btn-sm btn-primary" (click)="acceptAll()">
+            Accept all
+          </button>
         </div>
       </div>
     }
 
     @if (consentService.panelOpen()) {
       <div class="cookie-consent-overlay" (click)="close()">
-        <div class="cookie-consent-panel" role="dialog" aria-modal="true" aria-label="Cookie preferences" (click)="$event.stopPropagation()">
+        <div
+          class="cookie-consent-panel"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Cookie preferences"
+          (click)="$event.stopPropagation()"
+        >
           <div class="cookie-consent-panel-header">
             <strong>Cookie preferences</strong>
-            <button type="button" class="cookie-consent-dismiss" aria-label="Close" (click)="close()">
+            <button
+              type="button"
+              class="cookie-consent-dismiss"
+              aria-label="Close"
+              (click)="close()"
+            >
               <i class="fa-solid fa-xmark"></i>
             </button>
           </div>
           <p class="cookie-consent-panel-intro">
-            Choose which optional categories you're comfortable with. You can change this anytime from
-            "Cookie preferences" in the footer or your account settings.
+            Choose which optional categories you're comfortable with. You can change this anytime
+            from "Cookie preferences" in the footer or your account settings.
           </p>
 
           <div class="cookie-consent-category">
             <div class="cookie-consent-category-text">
               <strong>Necessary</strong>
-              <span>Always on — required for cart, checkout, sign-in, and site preferences to work.</span>
+              <span
+                >Always on — required for cart, checkout, sign-in, and site preferences to
+                work.</span
+              >
             </div>
-            <input type="checkbox" checked disabled aria-label="Necessary (always on)">
+            <input type="checkbox" checked disabled aria-label="Necessary (always on)" />
           </div>
 
           <div class="cookie-consent-category">
@@ -58,7 +79,7 @@ import { ConsentService } from '../../services/consent.service';
               <strong>Functional</strong>
               <span>Remembers items you've recently viewed so we can show them back to you.</span>
             </div>
-            <input type="checkbox" [(ngModel)]="functional" aria-label="Functional">
+            <input type="checkbox" [(ngModel)]="functional" aria-label="Functional" />
           </div>
 
           <div class="cookie-consent-category">
@@ -66,7 +87,7 @@ import { ConsentService } from '../../services/consent.service';
               <strong>Analytics</strong>
               <span>Helps us understand how the store is used so we can improve it.</span>
             </div>
-            <input type="checkbox" [(ngModel)]="analytics" aria-label="Analytics">
+            <input type="checkbox" [(ngModel)]="analytics" aria-label="Analytics" />
           </div>
 
           <div class="cookie-consent-category">
@@ -74,12 +95,16 @@ import { ConsentService } from '../../services/consent.service';
               <strong>Marketing</strong>
               <span>Lets a referral link credit whoever shared it with you.</span>
             </div>
-            <input type="checkbox" [(ngModel)]="marketing" aria-label="Marketing">
+            <input type="checkbox" [(ngModel)]="marketing" aria-label="Marketing" />
           </div>
 
           <div class="cookie-consent-panel-actions">
-            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="rejectAll()">Reject all</button>
-            <button type="button" class="btn btn-sm btn-primary" (click)="saveCustom()">Save preferences</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="rejectAll()">
+              Reject all
+            </button>
+            <button type="button" class="btn btn-sm btn-primary" (click)="saveCustom()">
+              Save preferences
+            </button>
           </div>
         </div>
       </div>
@@ -87,7 +112,6 @@ import { ConsentService } from '../../services/consent.service';
   `,
 })
 export class CookieConsent {
-
   functional = false;
   analytics = false;
   marketing = false;

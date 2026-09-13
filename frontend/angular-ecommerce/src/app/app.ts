@@ -1,5 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs';
@@ -32,8 +32,23 @@ import { ThemeService } from './services/theme.service';
  */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Search, ProductCategoryMenu, CartStatus, LoginStatus, Toast, BackToTop, InstallPrompt, CookieConsent, NewsletterSignup, TranslatePipe],
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    Search,
+    ProductCategoryMenu,
+    CartStatus,
+    LoginStatus,
+    Toast,
+    BackToTop,
+    InstallPrompt,
+    CookieConsent,
+    NewsletterSignup,
+    TranslatePipe,
+  ],
   templateUrl: './app.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './app.css',
 })
 export class App {
@@ -54,7 +69,7 @@ export class App {
   protected readonly banner = signal<SiteBanner | null>(null);
 
   constructor() {
-    this.contentService.getBanner().subscribe(banner => this.banner.set(banner));
+    this.contentService.getBanner().subscribe((banner) => this.banner.set(banner));
 
     // Site-wide structured data (roadmap #11 — SEO), set once; per-page JSON-LD (e.g. Product) is
     // managed separately by SeoService callers under a different id so this doesn't get clobbered.
@@ -79,7 +94,7 @@ export class App {
   /** Admin routes get a full-width canvas — hide the customer category sidebar there. */
   protected readonly isAdminRoute = toSignal(
     this.router.events.pipe(
-      filter(e => e instanceof NavigationEnd),
+      filter((e) => e instanceof NavigationEnd),
       map(() => this.router.url.startsWith('/admin')),
       startWith(this.router.url.startsWith('/admin')),
     ),

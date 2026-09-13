@@ -1,14 +1,14 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 
 type Star = 'full' | 'half' | 'empty';
 
 /** Read-only star display. Use for product cards, details, and review rows. */
 @Component({
   selector: 'app-star-rating',
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './star-rating.html',
 })
 export class StarRating {
-
   @Input() rating: number | null | undefined = 0;
   @Input() count: number | null | undefined = null;
   /** Show the "(N)" review count next to the stars. */

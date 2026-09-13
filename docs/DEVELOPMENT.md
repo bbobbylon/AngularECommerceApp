@@ -3,7 +3,7 @@
 Everything you need to build, run, test, and contribute.
 
 ## Prerequisites
-- **JDK 21+**, **Node 20+**, **Docker** (for MySQL), Git Bash (Windows).
+- **JDK 21+**, **Node 24 (≥ 24.15) or 22 (≥ 22.22.3)**, **Docker** (for MySQL), Git Bash (Windows).
 
 ## Repository layout
 ```
@@ -13,7 +13,7 @@ ecommerceAngularApp/
 │  ├─ src/test/java/...      JUnit 5 + H2 tests
 │  ├─ compose.yaml           MySQL 8 (port 3308)
 │  └─ schema.sql             generated DDL (manual DB provisioning)
-├─ frontend/angular-ecommerce/   Angular 21 standalone app
+├─ frontend/angular-ecommerce/   Angular 22 standalone app
 │  └─ src/app/               components · services · validators · interceptors · auth · common (models)
 ├─ docs/                     architecture, API, Stripe, build plan (this folder)
 ├─ run.sh                    one-command build + run + open

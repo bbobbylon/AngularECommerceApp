@@ -1,4 +1,4 @@
-import { Component, HostListener, signal } from '@angular/core';
+import { Component, HostListener, signal, ChangeDetectionStrategy } from '@angular/core';
 
 /**
  * Floating scroll-to-top button, mounted once in `App`'s global chrome. Purely presentational —
@@ -7,6 +7,7 @@ import { Component, HostListener, signal } from '@angular/core';
 @Component({
   selector: 'app-back-to-top',
   imports: [],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (visible()) {
       <button type="button" class="back-to-top" (click)="scrollTop()" aria-label="Back to top">
@@ -16,7 +17,6 @@ import { Component, HostListener, signal } from '@angular/core';
   `,
 })
 export class BackToTop {
-
   readonly visible = signal(false);
 
   @HostListener('window:scroll')

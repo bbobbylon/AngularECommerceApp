@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { AdminApiKey, AdminApiKeyCreated, AdminService } from '../../../services/admin.service';
@@ -16,10 +16,10 @@ const AVAILABLE_AUTHORITIES = ['Admin', 'OrderManager', 'Viewer'];
 @Component({
   selector: 'app-admin-api-keys',
   imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-api-keys.html',
 })
 export class AdminApiKeys implements OnInit {
-
   readonly availableAuthorities = AVAILABLE_AUTHORITIES;
 
   readonly keys = signal<AdminApiKey[]>([]);
@@ -28,7 +28,11 @@ export class AdminApiKeys implements OnInit {
   readonly justCreated = signal<AdminApiKeyCreated | null>(null);
 
   name = '';
-  selectedAuthorities: Record<string, boolean> = { Admin: false, OrderManager: false, Viewer: false };
+  selectedAuthorities: Record<string, boolean> = {
+    Admin: false,
+    OrderManager: false,
+    Viewer: false,
+  };
 
   private admin = inject(AdminService);
   private toast = inject(ToastService);
@@ -40,13 +44,19 @@ export class AdminApiKeys implements OnInit {
   load(): void {
     this.loading.set(true);
     this.admin.getApiKeys().subscribe({
-      next: list => { this.keys.set(list); this.loading.set(false); },
-      error: () => { this.loading.set(false); this.toast.error('Could not load API keys.'); },
+      next: (list) => {
+        this.keys.set(list);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.toast.error('Could not load API keys.');
+      },
     });
   }
 
   issue(): void {
-    const authorities = this.availableAuthorities.filter(a => this.selectedAuthorities[a]);
+    const authorities = this.availableAuthorities.filter((a) => this.selectedAuthorities[a]);
     if (!this.name.trim()) {
       this.toast.error('Enter a name for the key.');
       return;
@@ -57,14 +67,17 @@ export class AdminApiKeys implements OnInit {
     }
     this.saving.set(true);
     this.admin.issueApiKey({ name: this.name.trim(), authorities }).subscribe({
-      next: created => {
+      next: (created) => {
         this.justCreated.set(created);
         this.name = '';
         this.selectedAuthorities = { Admin: false, OrderManager: false, Viewer: false };
         this.saving.set(false);
         this.load();
       },
-      error: () => { this.saving.set(false); this.toast.error('Could not issue the API key.'); },
+      error: () => {
+        this.saving.set(false);
+        this.toast.error('Could not issue the API key.');
+      },
     });
   }
 
@@ -77,7 +90,10 @@ export class AdminApiKeys implements OnInit {
       return;
     }
     this.admin.revokeApiKey(key.id).subscribe({
-      next: () => { this.toast.success(`Revoked ${key.name}`); this.load(); },
+      next: () => {
+        this.toast.success(`Revoked ${key.name}`);
+        this.load();
+      },
       error: () => this.toast.error('Could not revoke the key.'),
     });
   }

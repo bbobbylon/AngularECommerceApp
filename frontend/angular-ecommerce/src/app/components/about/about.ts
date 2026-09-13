@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { SeoService } from '../../services/seo.service';
@@ -8,6 +8,7 @@ import { NewsletterSignup } from '../newsletter-signup/newsletter-signup';
 @Component({
   selector: 'app-about',
   imports: [RouterLink, NewsletterSignup],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './about.html',
 })
 export class About implements OnInit {

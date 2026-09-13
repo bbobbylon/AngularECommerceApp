@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { map, switchMap } from 'rxjs';
@@ -15,10 +15,10 @@ import { ToastService } from '../../../services/toast.service';
 @Component({
   selector: 'app-admin-product-form',
   imports: [ReactiveFormsModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-product-form.html',
 })
 export class AdminProductForm implements OnInit {
-
   form!: FormGroup;
   categories: ProductCategory[] = [];
   editId: number | null = null;
@@ -51,14 +51,14 @@ export class AdminProductForm implements OnInit {
       variants: this.fb.array([]),
     });
 
-    this.admin.getCategories().subscribe(cats => (this.categories = cats));
+    this.admin.getCategories().subscribe((cats) => (this.categories = cats));
 
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.editId = Number(id);
       this.loading.set(true);
       this.admin.getProduct(this.editId).subscribe({
-        next: product => {
+        next: (product) => {
           this.form.patchValue({
             name: product.name,
             sku: product.sku,
@@ -80,8 +80,10 @@ export class AdminProductForm implements OnInit {
         },
       });
       this.admin.getVariants(this.editId).subscribe({
-        next: variants => variants.forEach(v => this.variants.push(this.buildVariant(v))),
-        error: () => { /* no variants is fine */ },
+        next: (variants) => variants.forEach((v) => this.variants.push(this.buildVariant(v))),
+        error: () => {
+          /* no variants is fine */
+        },
       });
     }
   }
@@ -130,7 +132,7 @@ export class AdminProductForm implements OnInit {
           active: !!v.active,
         } as AdminVariant;
       })
-      .filter(v => v.sku.length > 0);
+      .filter((v) => v.sku.length > 0);
   }
 
   submit(): void {
@@ -157,10 +159,10 @@ export class AdminProductForm implements OnInit {
     // Save the product first, then replace its variant set against the resulting id.
     const productId$ = this.isEdit
       ? this.admin.updateProduct(this.editId!, payload).pipe(map(() => this.editId!))
-      : this.admin.createProduct(payload).pipe(map(product => product.id));
+      : this.admin.createProduct(payload).pipe(map((product) => product.id));
 
     productId$
-      .pipe(switchMap(productId => this.admin.replaceVariants(productId, variants)))
+      .pipe(switchMap((productId) => this.admin.replaceVariants(productId, variants)))
       .subscribe({
         next: () => {
           this.toast.success(this.isEdit ? 'Product updated' : 'Product created');
@@ -177,14 +179,24 @@ export class AdminProductForm implements OnInit {
   private parseImageLines(raw: unknown): string[] {
     return String(raw ?? '')
       .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
   }
 
   // template validation helpers
-  get name() { return this.form.get('name'); }
-  get sku() { return this.form.get('sku'); }
-  get unitPrice() { return this.form.get('unitPrice'); }
-  get unitsInStock() { return this.form.get('unitsInStock'); }
-  get categoryId() { return this.form.get('categoryId'); }
+  get name() {
+    return this.form.get('name');
+  }
+  get sku() {
+    return this.form.get('sku');
+  }
+  get unitPrice() {
+    return this.form.get('unitPrice');
+  }
+  get unitsInStock() {
+    return this.form.get('unitsInStock');
+  }
+  get categoryId() {
+    return this.form.get('categoryId');
+  }
 }
