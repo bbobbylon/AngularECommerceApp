@@ -57,7 +57,7 @@
       <thead><tr><th>URL</th><th>Secret</th><th>Events</th><th>Status</th><th>Registered</th><th></th></tr></thead>
       <tbody>
         @for (s of subscriptions(); track s.id) {
-          <tr [class.opacity-50]="!s.active">
+          <tr [class.opacity-50]="!s.active" [class.table-active]="expandedSubscriptionId === s.id">
             <td class="text-break">{{ s.url }}</td>
             <td class="font-monospace small">{{ s.maskedSecret }}</td>
             <td class="small">{{ s.eventTypes }}</td>
@@ -70,12 +70,53 @@
             </td>
             <td class="small text-muted">{{ s.dateCreated | date:'mediumDate' }}</td>
             <td class="text-end text-nowrap">
+              <button class="btn btn-sm btn-outline-secondary me-1" (click)="toggleDeliveries(s)">
+                <i class="fa-solid fa-clock-rotate-left me-1"></i>{{ expandedSubscriptionId === s.id ? 'Hide' : 'Deliveries' }}
+              </button>
               <button class="btn btn-sm btn-outline-secondary me-1" (click)="startEdit(s)">Edit</button>
               @if (s.active) {
                 <button class="btn btn-sm btn-outline-danger" (click)="deactivate(s)">Deactivate</button>
               }
             </td>
           </tr>
+          @if (expandedSubscriptionId === s.id) {
+            <tr>
+              <td colspan="6" class="bg-body-tertiary">
+                <h6 class="fw-bold small mb-2">Recent deliveries</h6>
+                @if (deliveriesLoading()) {
+                  <div class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+                } @else if (deliveries().length === 0) {
+                  <div class="text-muted small">No delivery attempts yet.</div>
+                } @else {
+                  <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                      <thead><tr><th>Event</th><th>Attempt</th><th>Outcome</th><th>HTTP status</th><th>Error</th><th>When</th></tr></thead>
+                      <tbody>
+                        @for (d of deliveries(); track d.id) {
+                          <tr>
+                            <td class="small">{{ d.eventType }}</td>
+                            <td class="small">{{ d.attemptNumber }}</td>
+                            <td>
+                              <span class="badge" [class.bg-success]="d.outcome === 'SUCCEEDED'" [class.bg-danger]="d.outcome === 'FAILED'">{{ d.outcome }}</span>
+                            </td>
+                            <td class="small">{{ d.httpStatusCode ?? '—' }}</td>
+                            <td class="small text-muted text-break">{{ d.errorMessage ?? '—' }}</td>
+                            <td class="small text-muted">{{ d.attemptedAt | date:'medium' }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                  @if (deliveriesTotalElements > deliveriesPageSize) {
+                    <div class="d-flex justify-content-center mt-2">
+                      <ngb-pagination [collectionSize]="deliveriesTotalElements" [(page)]="deliveriesPageNumber" [pageSize]="deliveriesPageSize"
+                                      [maxSize]="5" [boundaryLinks]="true" (pageChange)="loadDeliveries(s.id)"></ngb-pagination>
+                    </div>
+                  }
+                }
+              </td>
+            </tr>
+          }
         }
       </tbody>
     </table>

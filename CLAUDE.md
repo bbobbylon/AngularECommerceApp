@@ -775,6 +775,100 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   methods share a name, exclude both from Spring Data REST explicitly — SDR's search-resource mapping
   keys on method name only, ignoring parameter types, so Java-legal overloads are not automatically
   SDR-safe.** With all three fixed, the stack now matches the #1-21 verification bar.
+- ✅ **Headless API + webhooks (roadmap #23)** — the second SaaS-facing feature after #22, built in four
+  milestones. **A — API keys** (`ApiKey`, `V21`): a tenant issues itself a bearer credential
+  (`SecureRandom` 32 bytes hex, `lsk_`-tagged so a leak is greppable) that is **persisted only as a
+  SHA-256 hash** and returned exactly once at issue time — extending the existing `SecureRandom`
+  generation idiom (`GiftCardService`/`ReferralService`) with hashing, since unlike a gift-card code
+  this value is a credential. The key does **two** jobs from one `X-Api-Key` header:
+  `TenantResolutionFilter` gained a fourth, *highest*-precedence resolution step ahead of
+  `X-Tenant-Id`/subdomain/default (a headless caller needs no tenant header — its key already says who
+  it is), and a separate `ApiKeyAuthenticationFilter` derives Spring Security authorities so #19's
+  role tiers apply unchanged. **Those must be two filters, not one**: `TenantResolutionFilter` runs at
+  `@Order(HIGHEST_PRECEDENCE+5)`, before `FilterChainProxy` even starts, so anything it set on the
+  `SecurityContextHolder` would be discarded the moment `SecurityContextHolderFilter` installs the
+  request's context — the auth half is therefore registered *inside* `SecurityConfig`'s `HttpSecurity`
+  via `addFilterBefore(..., BearerTokenAuthenticationFilter.class)`, exactly where
+  `BasicAuthenticationFilter`/X.509 client-cert auth set authentication (and deliberately **not** a
+  `@Component`, which would register it a second time as a generic servlet filter outside the chain).
+  An unknown/revoked/expired key gets the same generic **404** as an unknown tenant slug (no
+  enumeration signal, the `ReturnService` precedent); revocation evicts the whole `apiKeyLookup`
+  Caffeine cache so a revoked key dies on the next request, not at TTL — matching
+  `PlatformTenantService`'s `TENANT_LOOKUP` precedent. **B — subscriptions** (`WebhookSubscription`,
+  `V22`): register a URL + comma-separated event types; the HMAC signing secret is shown **once**,
+  masked on every later read (same once-only disclosure shape as the API key). **C — transactional
+  outbox** (`WebhookEvent`, `V23`): `WebhookEventPublisher.publish()` is `@Transactional` and
+  deliberately **joins the caller's transaction rather than `REQUIRES_NEW`**, writing one outbox row
+  per matching active subscription — so a rolled-back order can never emit a webhook for an order that
+  doesn't exist. It reads `TenantContext` ambiently (the `AuditLogService` idiom, since every call site
+  is request-scoped — unlike `BillingService`'s explicit-tenant-parameter style, which exists to serve
+  a tenant-less background sweep). Publish points are exactly the five mutations `AuditLogService`
+  already instruments: `order.created`, `shipment.shipped`, `shipment.delivered`, `return.approved`,
+  `return.denied`. **D — delivery + retry + ledger** (`WebhookDeliveryAttempt`, `V23`):
+  `WebhookDeliveryScheduler` (cron `app.webhook.delivery-cron`, default every 30s — far shorter than
+  billing's daily sweep, since a subscriber expects near-real-time notification) drives
+  `WebhookDeliveryService.deliverDue()`, which mirrors `BillingService`'s
+  `chargeDueAccounts()/chargeOne()/recordInvoice()` triad exactly: **every** branch (2xx, non-2xx,
+  network error, deactivated subscription) writes a ledger row and returns normally, so one
+  subscriber's dead endpoint never blocks another's delivery. Backoff is `1m → 5m → 15m → 60m → 360m`,
+  then `ABANDONED`. Each request is signed `X-Webhook-Signature` (hex HMAC-SHA256 over the raw JSON
+  body, keyed with the subscription's secret — the scheme Stripe documents for its own webhooks) plus
+  `X-Webhook-Event`. Frontend: admin **API keys** (`/admin/api-keys`) and **Webhooks**
+  (`/admin/webhooks`) pages, the latter with a per-subscription **Deliveries** expand-in-place row
+  (#20's pattern, reused rather than reaching for a modal) paginating the attempt ledger — the first
+  place to look when a subscriber says "we never got it", since it distinguishes *never tried* (no
+  rows) from *tried and your endpoint 500'd* (rows with the status code). Two real issues fixed while
+  finishing Milestone D: (1) **no `ObjectMapper` bean existed to inject** — this app uses the
+  per-web-stack `spring-boot-starter-webmvc`, which (unlike the old `spring-boot-starter-web`) doesn't
+  transitively pull `jackson-databind`, so Spring Boot's Jackson auto-configuration never registers
+  one; confirmed via `dependency:tree` that the only `jackson-databind` on the classpath arrives
+  incidentally through springdoc-openapi. Rather than depend on that easily-broken transitive path,
+  `WebhookClientConfig` declares an explicit bean alongside its existing `webhookRestClient`.
+  **Lesson for future backend work here: do not assume an `ObjectMapper` (or anything else
+  `spring-boot-starter-web` used to drag in) is injectable — this project is on the per-web-stack
+  starters.** (2) The one network call was extracted to a package-private `sendRequest(...)` seam so
+  `WebhookDeliveryServiceTest` can stub it with a Mockito **spy** — mocking `RestClient`'s
+  heavily self-referential generic builder chain with deep stubs is fragile, and isolating exactly the
+  external seam mirrors how `BillingServiceTest` never exercises Stripe's static SDK calls. Docs: new
+  integrator-facing `docs/WEBHOOKS.md` (key issuance, signature verification with a
+  `timingSafeEqual` snippet, per-event payload fields, retry ladder, status table) + new `docs/API.md`
+  and `docs/SECURITY.md` sections. **Note on history: all of Milestones A–C and most of D landed under
+  commit `c647e28`, whose message reads "renaming the app to TaskFlow" — that message is wrong and
+  unrelated (nothing named TaskFlow exists in the repo); it was left uncorrected because the commit was
+  already pushed.** **Runtime-verified end to end** via `docker compose up --build` (the backend now
+  boots cleanly, which is itself the proof of the `ObjectMapper` fix — the committed code could not
+  have started): issued a key and called `GET /api/admin/stats` with **only** `X-Api-Key` and no tenant
+  header (200), confirmed a bogus key 404s, and confirmed revocation is immediate (200 → revoke → 404
+  on the very next request, proving the cache eviction). Registered two subscriptions — one at a live
+  local receiver, one at a dead port — placed a real order, and confirmed the sweep delivered to both
+  independently: the healthy one `SUCCEEDED`/200, the dead one `FAILED` with
+  `Connection refused` and a null status code, **from the same order** (per-subscriber isolation,
+  observed rather than assumed). The received `X-Webhook-Signature` was **verified against the
+  subscription secret with an independent HMAC-SHA256 implementation** — it matched, and a
+  single-byte-tampered body did not, validating the exact verification snippet in `docs/WEBHOOKS.md`.
+  Retry/backoff confirmed live (attempt 1 at 02:04:30 → attempt 2 at 02:06:00, i.e. the 1-minute rung
+  picked up by the next 30s sweep). Browser-verified both admin pages, including the new expand-in-place
+  Deliveries panel rendering SUCCEEDED/200 and FAILED/error rows with zero console errors; the audit log
+  (#19) correctly recorded `API_KEY_ISSUE`/`API_KEY_REVOKE`/`WEBHOOK_CREATE`/`WEBHOOK_DEACTIVATE`. Test
+  subscriptions were deactivated and the test key revoked afterward. **Also fixed a pre-existing,
+  never-actually-executed test defect from #22** surfaced by this pass: `MySqlIntegrationTest`'s
+  `billingRoundTripsAgainstMySqlWithoutStripeConfigured` forced an account due with MySQL's `now()`,
+  but `current_period_end` is a bare `datetime(6)` with no timezone and `BillingService` compares it
+  against a Java `new Date()` — the Testcontainers MySQL runs UTC while this JVM is UTC-7, so `now()`
+  wrote a value 7h "in the future" relative to the sweep's cutoff and nothing came back due. It had
+  never failed before because the IT only runs when Docker is available, and #22 shipped on a session
+  where it wasn't. Fixed by writing the cutoff from the JVM (`new Timestamp(...)`), matching how
+  production writes that column; production itself was never affected (it writes *and* reads the column
+  from Java only). **Lesson: never mix MySQL's `now()` with a Java-side `new Date()` comparison against
+  a timezone-less `datetime` column in a test — write both ends from the same clock.** 243 backend
+  tests green with **zero skips** (`ApiKeyServiceTest` 5, `ApiKeyLookupServiceTest` 8,
+  `ApiKeyAuthenticationFilterTest` 3, `WebhookSubscriptionServiceTest` 7, `WebhookEventPublisherTest` 4,
+  `WebhookDeliveryServiceTest` 9 — signing determinism against an independently computed HMAC, the full
+  retry/abandon state machine, and per-event isolation in a sweep), including all 5 real-MySQL IT cases
+  validating `V21`/`V22`/`V23` on MySQL 8.4 + 17 frontend tests + production `ng build` green.
+  **Process note: `./mvnw ... | tail` swallows Maven's exit code (the pipeline reports `tail`'s status),
+  which masked this very failure as a pass earlier in the session — always capture Maven's own exit
+  code, never read a build's success through a pipe.**
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.

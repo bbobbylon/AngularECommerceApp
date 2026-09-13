@@ -9,6 +9,7 @@ import com.bob.ecommerceangularapp.entity.WebhookSubscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
@@ -85,15 +86,7 @@ public class WebhookDeliveryService {
 
         int attemptNumber = event.getAttemptCount() + 1;
         try {
-            String signature = sign(subscription.getSecret(), event.getPayload());
-            var response = webhookRestClient.post()
-                    .uri(subscription.getUrl())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .header(SIGNATURE_HEADER, signature)
-                    .header(EVENT_TYPE_HEADER, event.getEventType())
-                    .body(event.getPayload())
-                    .retrieve()
-                    .toBodilessEntity();
+            ResponseEntity<Void> response = sendRequest(subscription, event);
             recordAttempt(event, subscription, attemptNumber, "SUCCEEDED", response.getStatusCode().value(), null);
             event.setStatus("DELIVERED");
             event.setAttemptCount(attemptNumber);
@@ -107,6 +100,23 @@ public class WebhookDeliveryService {
             recordAttempt(event, subscription, attemptNumber, "FAILED", null, e.getMessage());
             advanceAfterFailure(event, attemptNumber);
         }
+    }
+
+    /**
+     * The one call that actually reaches the network — isolated to its own method so tests can stub
+     * it directly (a {@link org.mockito.Mockito#spy} target) instead of fighting {@link RestClient}'s
+     * heavily self-referential generic builder chain with deep stubs.
+     */
+    ResponseEntity<Void> sendRequest(WebhookSubscription subscription, WebhookEvent event) {
+        String signature = sign(subscription.getSecret(), event.getPayload());
+        return webhookRestClient.post()
+                .uri(subscription.getUrl())
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(SIGNATURE_HEADER, signature)
+                .header(EVENT_TYPE_HEADER, event.getEventType())
+                .body(event.getPayload())
+                .retrieve()
+                .toBodilessEntity();
     }
 
     private void advanceAfterFailure(WebhookEvent event, int attemptNumber) {
@@ -138,7 +148,7 @@ public class WebhookDeliveryService {
         attemptRepository.save(attempt);
     }
 
-    private static String sign(String secret, String payload) {
+    static String sign(String secret, String payload) {
         try {
             Mac mac = Mac.getInstance(HMAC_ALGORITHM);
             mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC_ALGORITHM));

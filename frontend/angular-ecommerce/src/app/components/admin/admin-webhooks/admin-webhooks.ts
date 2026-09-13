@@ -1,11 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { NgbPaginationModule } from '@ng-bootstrap/ng-bootstrap';
 
 import {
   AdminService,
   AdminWebhookSubscription,
   AdminWebhookSubscriptionCreated,
+  WebhookDeliveryAttempt,
 } from '../../../services/admin.service';
 import { ToastService } from '../../../services/toast.service';
 
@@ -26,7 +28,7 @@ const AVAILABLE_EVENT_TYPES = [
  */
 @Component({
   selector: 'app-admin-webhooks',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, NgbPaginationModule],
   templateUrl: './admin-webhooks.html',
 })
 export class AdminWebhooks implements OnInit {
@@ -42,6 +44,13 @@ export class AdminWebhooks implements OnInit {
   url = '';
   active = true;
   selectedEventTypes: Record<string, boolean> = {};
+
+  expandedSubscriptionId: number | null = null;
+  readonly deliveries = signal<WebhookDeliveryAttempt[]>([]);
+  readonly deliveriesLoading = signal(false);
+  deliveriesPageNumber = 1;
+  deliveriesPageSize = 10;
+  deliveriesTotalElements = 0;
 
   private admin = inject(AdminService);
   private toast = inject(ToastService);
@@ -109,6 +118,28 @@ export class AdminWebhooks implements OnInit {
     this.admin.deactivateWebhook(sub.id).subscribe({
       next: () => { this.toast.success('Webhook deactivated.'); this.load(); },
       error: () => this.toast.error('Could not deactivate the webhook.'),
+    });
+  }
+
+  toggleDeliveries(sub: AdminWebhookSubscription): void {
+    if (this.expandedSubscriptionId === sub.id) {
+      this.expandedSubscriptionId = null;
+      return;
+    }
+    this.expandedSubscriptionId = sub.id;
+    this.deliveriesPageNumber = 1;
+    this.loadDeliveries(sub.id);
+  }
+
+  loadDeliveries(subscriptionId: number): void {
+    this.deliveriesLoading.set(true);
+    this.admin.getWebhookDeliveries(subscriptionId, this.deliveriesPageNumber - 1, this.deliveriesPageSize).subscribe({
+      next: res => {
+        this.deliveries.set(res.content);
+        this.deliveriesTotalElements = res.totalElements;
+        this.deliveriesLoading.set(false);
+      },
+      error: () => { this.deliveriesLoading.set(false); this.toast.error('Could not load delivery history.'); },
     });
   }
 
