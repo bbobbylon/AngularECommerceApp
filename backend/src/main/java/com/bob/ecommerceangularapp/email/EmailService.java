@@ -86,6 +86,17 @@ public class EmailService {
                         unsubscribeUrl(to, unsubscribeToken)));
     }
 
+    /**
+     * Verification link for a data-subject export/erasure request (roadmap #24). Sent to the
+     * address named in the request, because being able to read that mailbox is the only proof of
+     * identity this flow has.
+     */
+    public void sendDataRequestVerification(String to, String requestType, String confirmUrl, int ttlHours) {
+        boolean erasure = "ERASURE".equalsIgnoreCase(requestType);
+        send(to, erasure ? "Confirm your Luv2Shop data deletion request" : "Your Luv2Shop data is ready to download",
+                EmailTemplates.dataRequestVerification(erasure, confirmUrl, ttlHours));
+    }
+
     /** Backend unsubscribe link so it works straight from the inbox without loading the SPA. */
     private String unsubscribeUrl(String email, String token) {
         if (token != null && !token.isBlank()) {

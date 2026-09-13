@@ -6,6 +6,12 @@ import { environment } from '../../environments/environment';
 import { PaymentInfo } from '../common/payment-info';
 import { Purchase } from '../common/purchase';
 
+/**
+ * Wraps `CheckoutController` (`/api/checkout/**`): placing the order, creating a Stripe payment
+ * intent, live totals quoting (tax/shipping/discounts), shipping-method lookup, gift-card balance
+ * checks, and the abandoned-cart snapshot posted on email blur (#8). The checkout component is the
+ * only caller — this service has no state of its own, just the HTTP calls.
+ */
 @Injectable({ providedIn: 'root' })
 export class CheckoutService {
 

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { OKTA_AUTH } from '@okta/okta-angular';
@@ -11,13 +11,20 @@ import { ShipmentService, ShipmentView } from '../../services/shipment.service';
 import { ToastService } from '../../services/toast.service';
 import { OrderTimeline } from '../order-timeline/order-timeline';
 
+/**
+ * The `/order-history` page — has grown a section per later feature layered onto the base order list:
+ * `ReturnService` (#3, "Request a return" inline form + status badge) and `ShipmentService` (#20,
+ * read-only tracking block) both only populate once a real Okta email is known; without Okta
+ * configured (or signed out) the page falls back to `demoMode` and lists every order with no
+ * per-customer scoping, matching this codebase's established Okta-optional degradation pattern.
+ */
 @Component({
   selector: 'app-order-history',
   imports: [CommonModule, FormsModule, RouterLink, OrderTimeline],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './order-history.html',
 })
 export class OrderHistory implements OnInit {
-
   orderHistoryList: OrderHistoryModel[] = [];
   loaded = false;
   demoMode = false;
@@ -52,11 +59,13 @@ export class OrderHistory implements OnInit {
     }
 
     if (this.email) {
-      this.orderHistoryService.getOrderHistory(this.email).subscribe(data => this.setOrders(data));
+      this.orderHistoryService
+        .getOrderHistory(this.email)
+        .subscribe((data) => this.setOrders(data));
       this.loadReturns(this.email);
     } else {
       this.demoMode = true;
-      this.orderHistoryService.getAllOrders().subscribe(data => this.setOrders(data));
+      this.orderHistoryService.getAllOrders().subscribe((data) => this.setOrders(data));
     }
   }
 
@@ -70,8 +79,11 @@ export class OrderHistory implements OnInit {
 
   private loadReturns(email: string): void {
     this.returnService.myReturns(email).subscribe({
-      next: returns => returns.forEach(r => this.returnsByTracking.set(r.orderTrackingNumber, r)),
-      error: () => { /* non-fatal — returns just won't show a status badge */ },
+      next: (returns) =>
+        returns.forEach((r) => this.returnsByTracking.set(r.orderTrackingNumber, r)),
+      error: () => {
+        /* non-fatal — returns just won't show a status badge */
+      },
     });
   }
 
@@ -86,8 +98,10 @@ export class OrderHistory implements OnInit {
         continue; // nothing can have shipped yet — skip the call
       }
       this.shipmentService.track(order.orderTrackingNumber, email).subscribe({
-        next: shipments => this.shipmentsByTracking.set(order.orderTrackingNumber, shipments),
-        error: () => { /* non-fatal — tracking just won't show for this order */ },
+        next: (shipments) => this.shipmentsByTracking.set(order.orderTrackingNumber, shipments),
+        error: () => {
+          /* non-fatal — tracking just won't show for this order */
+        },
       });
     }
   }
@@ -98,14 +112,18 @@ export class OrderHistory implements OnInit {
 
   shipmentBadgeClass(status: string): string {
     switch (status) {
-      case 'DELIVERED': return 'bg-success-subtle text-success-emphasis';
-      case 'SHIPPED': return 'bg-info-subtle text-info-emphasis';
-      default: return 'bg-warning-subtle text-warning-emphasis';
+      case 'DELIVERED':
+        return 'bg-success-subtle text-success-emphasis';
+      case 'SHIPPED':
+        return 'bg-info-subtle text-info-emphasis';
+      default:
+        return 'bg-warning-subtle text-warning-emphasis';
     }
   }
 
   toggleReturn(order: OrderHistoryModel): void {
-    this.openReturnFor = this.openReturnFor === order.orderTrackingNumber ? null : order.orderTrackingNumber;
+    this.openReturnFor =
+      this.openReturnFor === order.orderTrackingNumber ? null : order.orderTrackingNumber;
     this.returnReason = '';
     this.returnEmail = this.email ?? '';
   }
@@ -121,30 +139,36 @@ export class OrderHistory implements OnInit {
       return;
     }
     this.submittingReturn = true;
-    this.returnService.createReturn({
-      orderTrackingNumber: order.orderTrackingNumber,
-      email,
-      reason: this.returnReason.trim(),
-    }).subscribe({
-      next: view => {
-        this.returnsByTracking.set(order.orderTrackingNumber, view);
-        this.toast.success('Return requested — we’ll review it shortly.');
-        this.openReturnFor = null;
-        this.submittingReturn = false;
-      },
-      error: err => {
-        this.submittingReturn = false;
-        this.toast.error(err?.error?.message ?? 'Could not request a return for this order.');
-      },
-    });
+    this.returnService
+      .createReturn({
+        orderTrackingNumber: order.orderTrackingNumber,
+        email,
+        reason: this.returnReason.trim(),
+      })
+      .subscribe({
+        next: (view) => {
+          this.returnsByTracking.set(order.orderTrackingNumber, view);
+          this.toast.success('Return requested — we’ll review it shortly.');
+          this.openReturnFor = null;
+          this.submittingReturn = false;
+        },
+        error: (err) => {
+          this.submittingReturn = false;
+          this.toast.error(err?.error?.message ?? 'Could not request a return for this order.');
+        },
+      });
   }
 
   returnBadgeClass(status: string): string {
     switch (status) {
-      case 'REFUNDED': return 'bg-success-subtle text-success-emphasis';
-      case 'APPROVED': return 'bg-info-subtle text-info-emphasis';
-      case 'DENIED': return 'bg-danger-subtle text-danger-emphasis';
-      default: return 'bg-warning-subtle text-warning-emphasis';
+      case 'REFUNDED':
+        return 'bg-success-subtle text-success-emphasis';
+      case 'APPROVED':
+        return 'bg-info-subtle text-info-emphasis';
+      case 'DENIED':
+        return 'bg-danger-subtle text-danger-emphasis';
+      default:
+        return 'bg-warning-subtle text-warning-emphasis';
     }
   }
 }

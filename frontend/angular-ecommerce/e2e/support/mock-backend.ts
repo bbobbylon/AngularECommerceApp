@@ -168,6 +168,34 @@ export async function mockBackend(page: Page): Promise<void> {
     route.fulfill(json([{ status: 'COMPLETED', count: 5 }])),
   );
 
+  // Privacy: cookie consent + data-subject rights (roadmap #24). Defaults to "already consented"
+  // (a 200, not the real backend's 204-for-no-record) so the banner never appears and the other 30+
+  // specs are unaffected; e2e/cookie-consent.spec.ts overrides these two routes per-test to exercise
+  // the first-visit banner flow.
+  await page.route(/\/api\/privacy\/config/, route =>
+    route.fulfill(json({ policyVersion: '2026-09-01' })),
+  );
+  await page.route(/\/api\/privacy\/consent/, route => {
+    if (route.request().method() === 'POST') {
+      const body = (route.request().postDataJSON() ?? {}) as { functional?: boolean; analytics?: boolean; marketing?: boolean; source?: string };
+      route.fulfill(json({
+        id: 1, necessary: true, functional: !!body.functional, analytics: !!body.analytics, marketing: !!body.marketing,
+        policyVersion: '2026-09-01', source: body.source ?? 'BANNER', dateCreated: '2026-01-01T00:00:00Z',
+      }));
+      return;
+    }
+    route.fulfill(json({
+      id: 1, necessary: true, functional: true, analytics: true, marketing: true,
+      policyVersion: '2026-09-01', source: 'BANNER', dateCreated: '2026-01-01T00:00:00Z',
+    }));
+  });
+  await page.route(/\/api\/privacy\/data-requests/, route =>
+    route.fulfill(json({
+      message: "We've emailed you a confirmation link.",
+      request: { id: 1, requestType: 'EXPORT', status: 'PENDING_VERIFICATION', resultSummary: null, dateCreated: '2026-01-01T00:00:00Z', completedAt: null },
+    })),
+  );
+
   // Admin RBAC + audit log (roadmap #19) — no storefront spec navigates here today, but stubbed
   // for consistency with the other admin surfaces in case a future E2E spec covers it.
   await page.route(/\/api\/admin\/me/, route => route.fulfill(json({ roles: ['Admin'] })));

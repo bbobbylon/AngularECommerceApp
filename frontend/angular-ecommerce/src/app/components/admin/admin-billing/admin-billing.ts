@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { NgbPaginationModule } from '@ng-bootstrap/ng-bootstrap';
 import { Stripe, StripeCardElement, loadStripe } from '@stripe/stripe-js';
 
@@ -16,10 +16,10 @@ import { ToastService } from '../../../services/toast.service';
 @Component({
   selector: 'app-admin-billing',
   imports: [CommonModule, NgbPaginationModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-billing.html',
 })
 export class AdminBilling implements OnInit {
-
   readonly account = signal<BillingAccount | null>(null);
   readonly invoices = signal<BillingInvoice[]>([]);
   readonly loading = signal(true);
@@ -46,15 +46,21 @@ export class AdminBilling implements OnInit {
   load(): void {
     this.loading.set(true);
     this.adminService.getBillingAccount().subscribe({
-      next: account => { this.account.set(account); this.loading.set(false); },
-      error: () => { this.loading.set(false); this.toast.error('Could not load billing information.'); },
+      next: (account) => {
+        this.account.set(account);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.toast.error('Could not load billing information.');
+      },
     });
     this.loadInvoices();
   }
 
   loadInvoices(): void {
     this.adminService.getBillingInvoices(this.pageNumber - 1, this.pageSize).subscribe({
-      next: res => {
+      next: (res) => {
         this.invoices.set(res.content);
         this.totalElements = res.totalElements;
       },
@@ -63,7 +69,7 @@ export class AdminBilling implements OnInit {
   }
 
   async startAddCard(): Promise<void> {
-    this.adminService.createBillingSetupIntent().subscribe(async res => {
+    this.adminService.createBillingSetupIntent().subscribe(async (res) => {
       if (!res.enabled || !res.clientSecret) {
         this.toast.error('Saving cards needs Stripe configured — see docs/STRIPE.md.');
         return;
@@ -79,7 +85,10 @@ export class AdminBilling implements OnInit {
         }
         this.cardSetupElement = this.stripe.elements().create('card', { hidePostalCode: true });
         this.cardSetupElement.mount('#billing-card-setup-element');
-        this.cardSetupElement.on('change', e => (this.cardSetupError = e.error ? e.error.message : ''));
+        this.cardSetupElement.on(
+          'change',
+          (e) => (this.cardSetupError = e.error ? e.error.message : ''),
+        );
       });
     });
   }
@@ -89,8 +98,9 @@ export class AdminBilling implements OnInit {
       return;
     }
     this.savingCard.set(true);
-    this.stripe.confirmCardSetup(this.setupClientSecret, { payment_method: { card: this.cardSetupElement } })
-      .then(result => {
+    this.stripe
+      .confirmCardSetup(this.setupClientSecret, { payment_method: { card: this.cardSetupElement } })
+      .then((result) => {
         if (result.error || !result.setupIntent?.payment_method) {
           this.savingCard.set(false);
           this.cardSetupError = result.error?.message ?? 'Could not save the card.';
@@ -104,7 +114,10 @@ export class AdminBilling implements OnInit {
             this.cardSetupOpen.set(false);
             this.load();
           },
-          error: () => { this.savingCard.set(false); this.toast.error('Could not save the card.'); },
+          error: () => {
+            this.savingCard.set(false);
+            this.toast.error('Could not save the card.');
+          },
         });
       });
   }

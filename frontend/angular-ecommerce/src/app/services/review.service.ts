@@ -28,6 +28,7 @@ export interface ReviewPayload {
   comment: string;
 }
 
+/** Wraps `ReviewController` — paginated reviews + rating summary for product-details, and the write form. */
 @Injectable({ providedIn: 'root' })
 export class ReviewService {
 

@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.config;
 
+import com.bob.ecommerceangularapp.service.ApiKeyLookupService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +18,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.header.writers.ContentSecurityPolicyHeaderWriter;
 import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter;
@@ -83,6 +85,14 @@ public class SecurityConfig {
     private String superAdminRole;
 
     /**
+     * Header a headless caller presents an API key in (roadmap #23, Milestone A). Read by
+     * {@link ApiKeyAuthenticationFilter}, registered below on both chains; {@link TenantResolutionFilter}
+     * reads the same header (and the same default) to resolve tenant identity from the same key.
+     */
+    @Value("${app.api-key.header:X-Api-Key}")
+    private String apiKeyHeaderName;
+
+    /**
      * Browser origins allowed to call the API cross-origin. Comma-separated; defaults to the two
      * local dev/compose origins. In a cloud deploy set {@code APP_CORS_ALLOWED_ORIGINS} to the
      * deployed frontend's URL (e.g. the Cloud Run frontend URL) — see docs/DEPLOYMENT.md.
@@ -112,9 +122,11 @@ public class SecurityConfig {
 
     @Bean
     @ConditionalOnProperty(prefix = "spring.security.oauth2.resourceserver.jwt", name = "issuer-uri")
-    SecurityFilterChain securedFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securedFilterChain(HttpSecurity http, ApiKeyLookupService apiKeyLookupService) throws Exception {
         http
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .addFilterBefore(new ApiKeyAuthenticationFilter(apiKeyLookupService, apiKeyHeaderName),
+                        BearerTokenAuthenticationFilter.class)
                 .authorizeHttpRequests(authorize -> authorize
                         // Health/liveness/readiness probes stay public for load balancers & orchestrators;
                         // metrics/info/prometheus require auth so operational detail isn't exposed publicly.
@@ -154,9 +166,11 @@ public class SecurityConfig {
 
     @Bean
     @ConditionalOnMissingBean(SecurityFilterChain.class)
-    SecurityFilterChain openFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain openFilterChain(HttpSecurity http, ApiKeyLookupService apiKeyLookupService) throws Exception {
         http
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .addFilterBefore(new ApiKeyAuthenticationFilter(apiKeyLookupService, apiKeyHeaderName),
+                        BearerTokenAuthenticationFilter.class)
                 .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable());

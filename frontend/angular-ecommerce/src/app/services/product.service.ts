@@ -29,6 +29,12 @@ export interface CatalogPage {
   size: number;
 }
 
+/**
+ * The catalog read surface: `searchCatalog()` is the primary path (the faceted `/api/catalog/search`
+ * endpoint backing `ProductQueryService`), while the `*Paginate` methods hit Spring Data REST's
+ * auto-generated `findBy*` search resources directly for a few older, narrower lookups (by category,
+ * on-sale, by keyword) that predate the faceted endpoint and were never migrated over.
+ */
 @Injectable({ providedIn: 'root' })
 export class ProductService {
 

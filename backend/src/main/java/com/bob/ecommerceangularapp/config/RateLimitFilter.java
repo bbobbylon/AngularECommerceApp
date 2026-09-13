@@ -19,9 +19,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Lightweight abuse protection for the public, unauthenticated write endpoints (reviews, coupon
- * validation, newsletter signup): a per-IP fixed-window rate limit plus a request-body size cap.
- * Backed by Caffeine (already on the classpath) so there's no extra dependency and no shared state to
- * manage — swap in Redis/Bucket4j if you need limits shared across instances.
+ * validation, newsletter signup, privacy consent/data requests): a per-IP fixed-window rate limit
+ * plus a request-body size cap. Backed by Caffeine (already on the classpath) so there's no extra
+ * dependency and no shared state to manage — swap in Redis/Bucket4j if you need limits shared across
+ * instances.
  *
  * <p>Runs just after {@link RequestIdFilter} and {@link TenantResolutionFilter} so rejections still
  * carry a correlation id and the rate-limit key can include the current tenant (roadmap #21) — without
@@ -34,7 +35,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     /** Public, mutating, abuse-prone path prefixes to guard. */
     private static final List<String> LIMITED_PREFIXES = List.of(
-            "/api/reviews", "/api/coupons", "/api/newsletter");
+            "/api/reviews", "/api/coupons", "/api/newsletter", "/api/privacy");
 
     private static final int MAX_REQUESTS_PER_MINUTE = 30;
     private static final long MAX_BODY_BYTES = 64 * 1024; // 64 KB — these payloads are tiny

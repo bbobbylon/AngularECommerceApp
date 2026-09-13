@@ -1,6 +1,8 @@
 package com.bob.ecommerceangularapp.config;
 
+import com.bob.ecommerceangularapp.entity.ApiKey;
 import com.bob.ecommerceangularapp.entity.Tenant;
+import com.bob.ecommerceangularapp.service.ApiKeyLookupService;
 import com.bob.ecommerceangularapp.service.TenantResolutionService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -37,6 +39,16 @@ import java.util.Optional;
  * avoids a real lockout: a superadmin's browser could still carry a stale {@code X-Tenant-Id} for a
  * tenant they just deactivated through that very API, which would otherwise 404 here before the request
  * ever reaches the {@code SuperAdmin}-gated route.
+ *
+ * <p>Roadmap #23, Milestone A adds a fourth, <i>higher</i>-precedence resolution step ahead of all of
+ * the above: an {@code X-Api-Key} header resolves tenant identity directly via
+ * {@link ApiKeyLookupService}, bypassing slug resolution entirely for the request — this lets a
+ * headless caller identify itself with only its key, no {@code X-Tenant-Id} needed. An unknown/
+ * revoked/expired key gets the exact same generic 404 as an unknown slug; this filter never touches
+ * {@code SecurityContextHolder} — deriving Spring Security authorities from the same key is
+ * {@code ApiKeyAuthenticationFilter}'s job, registered separately inside {@code SecurityConfig}'s
+ * {@code HttpSecurity} (see its javadoc for why: this filter runs before {@code FilterChainProxy}
+ * even starts, so anything it sets on the security context would be silently discarded).
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 5)
@@ -48,16 +60,22 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
     private static final String MDC_KEY = "tenant";
 
     private final TenantResolutionService tenantResolutionService;
+    private final ApiKeyLookupService apiKeyLookupService;
     private final String headerName;
+    private final String apiKeyHeaderName;
     private final String baseDomain;
     private final String defaultSlug;
 
     public TenantResolutionFilter(TenantResolutionService tenantResolutionService,
+                                  ApiKeyLookupService apiKeyLookupService,
                                   @Value("${app.tenant.header:X-Tenant-Id}") String headerName,
+                                  @Value("${app.api-key.header:X-Api-Key}") String apiKeyHeaderName,
                                   @Value("${app.tenant.base-domain:}") String baseDomain,
                                   @Value("${app.tenant.default-slug:demo}") String defaultSlug) {
         this.tenantResolutionService = tenantResolutionService;
+        this.apiKeyLookupService = apiKeyLookupService;
         this.headerName = headerName;
+        this.apiKeyHeaderName = apiKeyHeaderName;
         this.baseDomain = baseDomain;
         this.defaultSlug = defaultSlug;
     }
@@ -73,12 +91,16 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
             }
         }
 
+        String apiKeyHeader = request.getHeader(apiKeyHeaderName);
+        if (StringUtils.hasText(apiKeyHeader)) {
+            resolveByApiKey(apiKeyHeader.trim(), request, response, filterChain);
+            return;
+        }
+
         String slug = resolveSlug(request);
         Optional<Tenant> tenant = tenantResolutionService.resolveBySlug(slug);
         if (tenant.isEmpty()) {
-            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"error\":\"Unknown store.\"}");
+            writeUnknownStore(response);
             return;
         }
 
@@ -91,6 +113,30 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
             MDC.remove(MDC_KEY);
             TenantContext.clear();
         }
+    }
+
+    private void resolveByApiKey(String rawKey, HttpServletRequest request, HttpServletResponse response,
+                                 FilterChain filterChain) throws ServletException, IOException {
+        Optional<ApiKey> apiKey = apiKeyLookupService.lookup(rawKey).filter(apiKeyLookupService::isUsable);
+        if (apiKey.isEmpty()) {
+            writeUnknownStore(response);
+            return;
+        }
+
+        TenantContext.set(apiKey.get().getTenantId());
+        MDC.put(MDC_KEY, "apikey:" + apiKey.get().getKeyPrefix());
+        try {
+            filterChain.doFilter(request, response);
+        } finally {
+            MDC.remove(MDC_KEY);
+            TenantContext.clear();
+        }
+    }
+
+    private void writeUnknownStore(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"error\":\"Unknown store.\"}");
     }
 
     private String resolveSlug(HttpServletRequest request) {

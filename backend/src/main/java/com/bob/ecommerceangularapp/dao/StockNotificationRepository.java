@@ -16,4 +16,7 @@ public interface StockNotificationRepository extends JpaRepository<StockNotifica
     List<StockNotification> findByProductIdAndVariantSkuIsNullAndNotifiedFalse(Long productId);
 
     List<StockNotification> findByVariantSkuAndNotifiedFalse(String variantSku);
+
+    /** Every back-in-stock watch a subject has placed — roadmap #24 export/erasure. */
+    List<StockNotification> findByEmailIgnoreCaseAndTenantId(String email, Long tenantId);
 }

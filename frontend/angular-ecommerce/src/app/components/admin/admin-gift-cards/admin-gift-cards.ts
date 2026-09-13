@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { AdminGiftCard, AdminGiftCardPayload, AdminService } from '../../../services/admin.service';
@@ -9,10 +9,10 @@ import { ToastService } from '../../../services/toast.service';
 @Component({
   selector: 'app-admin-gift-cards',
   imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-gift-cards.html',
 })
 export class AdminGiftCards implements OnInit {
-
   readonly cards = signal<AdminGiftCard[]>([]);
   readonly loading = signal(true);
   readonly saving = signal(false);
@@ -29,8 +29,14 @@ export class AdminGiftCards implements OnInit {
   load(): void {
     this.loading.set(true);
     this.admin.getGiftCards().subscribe({
-      next: list => { this.cards.set(list); this.loading.set(false); },
-      error: () => { this.loading.set(false); this.toast.error('Could not load gift cards.'); },
+      next: (list) => {
+        this.cards.set(list);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.toast.error('Could not load gift cards.');
+      },
     });
   }
 
@@ -40,20 +46,25 @@ export class AdminGiftCards implements OnInit {
       return;
     }
     this.saving.set(true);
-    this.admin.issueGiftCard({
-      code: this.form.code?.trim() || undefined,
-      initialBalance: Number(this.form.initialBalance),
-      recipientEmail: this.form.recipientEmail?.trim() || null,
-      active: this.form.active,
-    }).subscribe({
-      next: card => {
-        this.toast.success(`Issued ${card.code}`);
-        this.form = this.empty();
-        this.saving.set(false);
-        this.load();
-      },
-      error: () => { this.saving.set(false); this.toast.error('Could not issue the gift card.'); },
-    });
+    this.admin
+      .issueGiftCard({
+        code: this.form.code?.trim() || undefined,
+        initialBalance: Number(this.form.initialBalance),
+        recipientEmail: this.form.recipientEmail?.trim() || null,
+        active: this.form.active,
+      })
+      .subscribe({
+        next: (card) => {
+          this.toast.success(`Issued ${card.code}`);
+          this.form = this.empty();
+          this.saving.set(false);
+          this.load();
+        },
+        error: () => {
+          this.saving.set(false);
+          this.toast.error('Could not issue the gift card.');
+        },
+      });
   }
 
   deactivate(card: AdminGiftCard): void {
@@ -61,7 +72,10 @@ export class AdminGiftCards implements OnInit {
       return;
     }
     this.admin.deactivateGiftCard(card.id).subscribe({
-      next: () => { this.toast.success(`Deactivated ${card.code}`); this.load(); },
+      next: () => {
+        this.toast.success(`Deactivated ${card.code}`);
+        this.load();
+      },
       error: () => this.toast.error('Could not deactivate the gift card.'),
     });
   }

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 import { AdminService } from '../../../services/admin.service';
@@ -14,10 +14,10 @@ import { TenantContextService } from '../../../services/tenant-context.service';
 @Component({
   selector: 'app-admin-layout',
   imports: [RouterLink, RouterLinkActive, RouterOutlet],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-layout.html',
 })
 export class AdminLayout implements OnInit {
-
   readonly roles = signal<string[]>([]);
 
   readonly tenantContext = inject(TenantContextService);
@@ -25,7 +25,7 @@ export class AdminLayout implements OnInit {
 
   ngOnInit(): void {
     this.admin.getCurrentAdmin().subscribe({
-      next: res => this.roles.set(res.roles),
+      next: (res) => this.roles.set(res.roles),
       error: () => this.roles.set([]),
     });
   }

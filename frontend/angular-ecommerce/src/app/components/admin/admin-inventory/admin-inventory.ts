@@ -1,5 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import {
@@ -17,10 +24,10 @@ import { ToastService } from '../../../services/toast.service';
 @Component({
   selector: 'app-admin-inventory',
   imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-inventory.html',
 })
 export class AdminInventory implements OnInit {
-
   readonly items = signal<InventoryItem[]>([]);
   readonly loading = signal(true);
   readonly saving = signal<string | null>(null);
@@ -39,10 +46,12 @@ export class AdminInventory implements OnInit {
     if (!q) {
       return this.items();
     }
-    return this.items().filter(i =>
-      i.sku.toLowerCase().includes(q) ||
-      i.productName.toLowerCase().includes(q) ||
-      (i.variantLabel ?? '').toLowerCase().includes(q));
+    return this.items().filter(
+      (i) =>
+        i.sku.toLowerCase().includes(q) ||
+        i.productName.toLowerCase().includes(q) ||
+        (i.variantLabel ?? '').toLowerCase().includes(q),
+    );
   });
 
   private admin = inject(AdminService);
@@ -56,19 +65,25 @@ export class AdminInventory implements OnInit {
   load(): void {
     this.loading.set(true);
     this.admin.getInventory().subscribe({
-      next: items => {
+      next: (items) => {
         this.items.set(items);
-        this.drafts = Object.fromEntries(items.map(i => [i.sku, i.unitsInStock]));
+        this.drafts = Object.fromEntries(items.map((i) => [i.sku, i.unitsInStock]));
         this.loading.set(false);
       },
-      error: () => { this.loading.set(false); this.toast.error('Could not load inventory.'); },
+      error: () => {
+        this.loading.set(false);
+        this.toast.error('Could not load inventory.');
+      },
     });
   }
 
   loadHistory(): void {
     this.historyLoading.set(true);
     this.admin.getInventoryAdjustments(0, 20).subscribe({
-      next: page => { this.history.set(page.content); this.historyLoading.set(false); },
+      next: (page) => {
+        this.history.set(page.content);
+        this.historyLoading.set(false);
+      },
       error: () => this.historyLoading.set(false),
     });
   }
@@ -84,20 +99,23 @@ export class AdminInventory implements OnInit {
     }
     this.saving.set(item.sku);
     this.admin.adjustInventory(item.sku, qty).subscribe({
-      next: updated => {
-        this.items.update(list => list.map(i => i.sku === item.sku ? updated : i));
+      next: (updated) => {
+        this.items.update((list) => list.map((i) => (i.sku === item.sku ? updated : i)));
         this.drafts[item.sku] = updated.unitsInStock;
         this.saving.set(null);
         this.toast.success(`${item.sku} is now at ${updated.unitsInStock} in stock.`);
         this.loadHistory();
       },
-      error: () => { this.saving.set(null); this.toast.error(`Could not update ${item.sku}.`); },
+      error: () => {
+        this.saving.set(null);
+        this.toast.error(`Could not update ${item.sku}.`);
+      },
     });
   }
 
   exportCsv(): void {
     this.admin.exportInventoryCsv().subscribe({
-      next: blob => {
+      next: (blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -118,17 +136,21 @@ export class AdminInventory implements OnInit {
     this.importing.set(true);
     this.importResult.set(null);
     this.admin.importInventoryCsv(file).subscribe({
-      next: result => {
+      next: (result) => {
         this.importing.set(false);
         this.importResult.set(result);
         input.value = '';
         if (result.updated > 0) {
-          this.toast.success(`Updated ${result.updated} SKU${result.updated === 1 ? '' : 's'} from the CSV.`);
+          this.toast.success(
+            `Updated ${result.updated} SKU${result.updated === 1 ? '' : 's'} from the CSV.`,
+          );
           this.load();
           this.loadHistory();
         }
         if (result.errors.length > 0) {
-          this.toast.error(`${result.errors.length} row${result.errors.length === 1 ? '' : 's'} had errors — see details below.`);
+          this.toast.error(
+            `${result.errors.length} row${result.errors.length === 1 ? '' : 's'} had errors — see details below.`,
+          );
         }
       },
       error: () => {

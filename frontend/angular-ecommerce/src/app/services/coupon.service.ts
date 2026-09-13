@@ -12,6 +12,7 @@ export interface CouponResponse {
   message: string;
 }
 
+/** Wraps `CouponController`'s validate endpoint for checkout's promo-code field. */
 @Injectable({ providedIn: 'root' })
 export class CouponService {
 

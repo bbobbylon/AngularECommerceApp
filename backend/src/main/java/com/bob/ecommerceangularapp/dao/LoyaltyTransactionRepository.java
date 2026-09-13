@@ -13,4 +13,7 @@ public interface LoyaltyTransactionRepository extends JpaRepository<LoyaltyTrans
     // Scoped to tenant (roadmap #21, Milestone D): email isn't unique across tenants, so an unscoped
     // lookup could leak a same-email customer's rewards history across two different storefronts.
     List<LoyaltyTransaction> findTop20ByCustomerEmailIgnoreCaseAndTenantIdOrderByDateCreatedDesc(String email, Long tenantId);
+
+    /** The subject's full points ledger — roadmap #24 export/erasure (the top-20 view is for the UI). */
+    List<LoyaltyTransaction> findByCustomerEmailIgnoreCaseAndTenantId(String customerEmail, Long tenantId);
 }

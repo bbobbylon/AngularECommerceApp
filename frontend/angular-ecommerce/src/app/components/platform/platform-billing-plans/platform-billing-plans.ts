@@ -1,9 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { AdminService } from '../../../services/admin.service';
-import { BillingPlan, BillingPlanPayload, PlatformService } from '../../../services/platform.service';
+import {
+  BillingPlan,
+  BillingPlanPayload,
+  PlatformService,
+} from '../../../services/platform.service';
 import { ToastService } from '../../../services/toast.service';
 
 /**
@@ -15,10 +19,10 @@ import { ToastService } from '../../../services/toast.service';
 @Component({
   selector: 'app-platform-billing-plans',
   imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './platform-billing-plans.html',
 })
 export class PlatformBillingPlans implements OnInit {
-
   readonly plans = signal<BillingPlan[]>([]);
   readonly loading = signal(true);
   readonly saving = signal(false);
@@ -33,7 +37,7 @@ export class PlatformBillingPlans implements OnInit {
 
   ngOnInit(): void {
     this.adminService.getCurrentAdmin().subscribe({
-      next: res => {
+      next: (res) => {
         this.checkingAccess.set(false);
         this.authorized.set(res.roles.includes('SuperAdmin'));
         if (this.authorized()) {
@@ -50,8 +54,14 @@ export class PlatformBillingPlans implements OnInit {
   load(): void {
     this.loading.set(true);
     this.platform.getBillingPlans().subscribe({
-      next: list => { this.plans.set(list); this.loading.set(false); },
-      error: () => { this.loading.set(false); this.toast.error('Could not load billing plans.'); },
+      next: (list) => {
+        this.plans.set(list);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.toast.error('Could not load billing plans.');
+      },
     });
   }
 
@@ -68,7 +78,7 @@ export class PlatformBillingPlans implements OnInit {
         this.saving.set(false);
         this.load();
       },
-      error: err => {
+      error: (err) => {
         this.saving.set(false);
         this.toast.error(err?.error?.message ?? 'Could not save billing plan.');
       },
@@ -92,16 +102,31 @@ export class PlatformBillingPlans implements OnInit {
   }
 
   deactivate(plan: BillingPlan): void {
-    if (!confirm(`Deactivate plan "${plan.name}"? Tenants already on it keep it; it just won't be assignable going forward.`)) {
+    if (
+      !confirm(
+        `Deactivate plan "${plan.name}"? Tenants already on it keep it; it just won't be assignable going forward.`,
+      )
+    ) {
       return;
     }
     this.platform.deactivateBillingPlan(plan.id).subscribe({
-      next: () => { this.toast.success('Deactivated'); this.load(); },
+      next: () => {
+        this.toast.success('Deactivated');
+        this.load();
+      },
       error: () => this.toast.error('Could not deactivate billing plan.'),
     });
   }
 
   private empty(): BillingPlanPayload {
-    return { id: null, name: '', monthlyPrice: 0, currency: 'USD', features: '', sortOrder: 0, active: true };
+    return {
+      id: null,
+      name: '',
+      monthlyPrice: 0,
+      currency: 'USD',
+      features: '',
+      sortOrder: 0,
+      active: true,
+    };
   }
 }

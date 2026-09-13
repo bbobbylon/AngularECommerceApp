@@ -1,4 +1,4 @@
-import { Component, HostListener, isDevMode, signal } from '@angular/core';
+import { Component, HostListener, isDevMode, signal, ChangeDetectionStrategy } from '@angular/core';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -13,6 +13,7 @@ interface BeforeInstallPromptEvent extends Event {
 @Component({
   selector: 'app-install-prompt',
   imports: [],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (visible()) {
       <div class="install-prompt" role="dialog" aria-label="Install Luv2Shop">
@@ -22,7 +23,12 @@ interface BeforeInstallPromptEvent extends Event {
           <span>Add it to your home screen for a faster, app-like experience.</span>
         </div>
         <button type="button" class="btn btn-sm btn-primary" (click)="install()">Install</button>
-        <button type="button" class="install-prompt-dismiss" aria-label="Dismiss" (click)="dismiss()">
+        <button
+          type="button"
+          class="install-prompt-dismiss"
+          aria-label="Dismiss"
+          (click)="dismiss()"
+        >
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
@@ -30,7 +36,6 @@ interface BeforeInstallPromptEvent extends Event {
   `,
 })
 export class InstallPrompt {
-
   private readonly storageKey = 'installPromptDismissedAt';
   private readonly cooldownMs = 14 * 24 * 60 * 60 * 1000;
 
@@ -72,8 +77,10 @@ export class InstallPrompt {
   }
 
   private isStandalone(): boolean {
-    return window.matchMedia?.('(display-mode: standalone)').matches
-      || (window.navigator as { standalone?: boolean }).standalone === true;
+    return (
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      (window.navigator as { standalone?: boolean }).standalone === true
+    );
   }
 
   private cooldownElapsed(): boolean {

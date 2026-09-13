@@ -8,6 +8,7 @@ export interface SubscribeResponse {
   message: string;
 }
 
+/** Wraps `NewsletterController`'s subscribe endpoint (M6) — used by the footer/promo signup forms. */
 @Injectable({ providedIn: 'root' })
 export class NewsletterService {
 

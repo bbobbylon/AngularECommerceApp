@@ -1,18 +1,23 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { AdminFaqEntry, AdminFaqEntryPayload, AdminService, SiteBanner } from '../../../services/admin.service';
+import {
+  AdminFaqEntry,
+  AdminFaqEntryPayload,
+  AdminService,
+  SiteBanner,
+} from '../../../services/admin.service';
 import { ToastService } from '../../../services/toast.service';
 
 /** Admin CMS (roadmap #17): the single site-wide banner, and the FAQ list. */
 @Component({
   selector: 'app-admin-content',
   imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-content.html',
 })
 export class AdminContent implements OnInit {
-
   readonly faq = signal<AdminFaqEntry[]>([]);
   readonly loading = signal(true);
   readonly savingBanner = signal(false);
@@ -31,11 +36,16 @@ export class AdminContent implements OnInit {
   load(): void {
     this.loading.set(true);
     this.admin.getBanner().subscribe({
-      next: banner => this.bannerForm = { ...banner, linkUrl: banner.linkUrl ?? '', linkText: banner.linkText ?? '' },
+      next: (banner) =>
+        (this.bannerForm = {
+          ...banner,
+          linkUrl: banner.linkUrl ?? '',
+          linkText: banner.linkText ?? '',
+        }),
       error: () => this.toast.error('Could not load the banner.'),
     });
     this.admin.getFaqAdmin().subscribe({
-      next: entries => {
+      next: (entries) => {
         this.faq.set(entries);
         this.loading.set(false);
         // Keep the "add entry" default sort order in step with the freshly-loaded list — computing
@@ -60,22 +70,28 @@ export class AdminContent implements OnInit {
       return;
     }
     this.savingBanner.set(true);
-    this.admin.saveBanner({
-      message: this.bannerForm.message.trim(),
-      linkUrl: this.bannerForm.linkUrl?.trim() || null,
-      linkText: this.bannerForm.linkText?.trim() || null,
-      active: this.bannerForm.active,
-    }).subscribe({
-      next: banner => {
-        this.bannerForm = { ...banner, linkUrl: banner.linkUrl ?? '', linkText: banner.linkText ?? '' };
-        this.savingBanner.set(false);
-        this.toast.success('Banner saved');
-      },
-      error: () => {
-        this.savingBanner.set(false);
-        this.toast.error('Could not save the banner.');
-      },
-    });
+    this.admin
+      .saveBanner({
+        message: this.bannerForm.message.trim(),
+        linkUrl: this.bannerForm.linkUrl?.trim() || null,
+        linkText: this.bannerForm.linkText?.trim() || null,
+        active: this.bannerForm.active,
+      })
+      .subscribe({
+        next: (banner) => {
+          this.bannerForm = {
+            ...banner,
+            linkUrl: banner.linkUrl ?? '',
+            linkText: banner.linkText ?? '',
+          };
+          this.savingBanner.set(false);
+          this.toast.success('Banner saved');
+        },
+        error: () => {
+          this.savingBanner.set(false);
+          this.toast.error('Could not save the banner.');
+        },
+      });
   }
 
   // ----- FAQ -----
@@ -86,22 +102,24 @@ export class AdminContent implements OnInit {
       return;
     }
     this.savingFaq.set(true);
-    this.admin.saveFaq({
-      ...this.faqForm,
-      question: this.faqForm.question.trim(),
-      answer: this.faqForm.answer.trim(),
-    }).subscribe({
-      next: () => {
-        this.toast.success('FAQ entry saved');
-        this.faqForm = this.emptyFaq();
-        this.savingFaq.set(false);
-        this.load();
-      },
-      error: () => {
-        this.savingFaq.set(false);
-        this.toast.error('Could not save the FAQ entry.');
-      },
-    });
+    this.admin
+      .saveFaq({
+        ...this.faqForm,
+        question: this.faqForm.question.trim(),
+        answer: this.faqForm.answer.trim(),
+      })
+      .subscribe({
+        next: () => {
+          this.toast.success('FAQ entry saved');
+          this.faqForm = this.emptyFaq();
+          this.savingFaq.set(false);
+          this.load();
+        },
+        error: () => {
+          this.savingFaq.set(false);
+          this.toast.error('Could not save the FAQ entry.');
+        },
+      });
   }
 
   editFaq(entry: AdminFaqEntry): void {
@@ -117,7 +135,10 @@ export class AdminContent implements OnInit {
       return;
     }
     this.admin.deleteFaq(entry.id).subscribe({
-      next: () => { this.toast.success('Deleted'); this.load(); },
+      next: () => {
+        this.toast.success('Deleted');
+        this.load();
+      },
       error: () => this.toast.error('Could not delete.'),
     });
   }

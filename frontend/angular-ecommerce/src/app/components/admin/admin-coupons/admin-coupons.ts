@@ -1,23 +1,29 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { AdminService, Coupon, CouponPayload } from '../../../services/admin.service';
 import { ToastService } from '../../../services/toast.service';
 
+/**
+ * Admin coupon CRUD (checkout's customer-entered discount codes) — create/edit/deactivate, backed by
+ * `AdminService`/`AdminCouponController`. Distinct from `admin-promotions`, which manages the
+ * no-code-needed automatic discounts (roadmap #16).
+ */
 @Component({
   selector: 'app-admin-coupons',
   imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-coupons.html',
 })
 export class AdminCoupons implements OnInit {
-
   readonly coupons = signal<Coupon[]>([]);
   readonly loading = signal(true);
   readonly saving = signal(false);
 
   // create form
-  form: CouponPayload & { discountType: 'percent' | 'amount'; discountValue: number | null } = this.emptyForm();
+  form: CouponPayload & { discountType: 'percent' | 'amount'; discountValue: number | null } =
+    this.emptyForm();
 
   private admin = inject(AdminService);
   private toast = inject(ToastService);
@@ -29,7 +35,7 @@ export class AdminCoupons implements OnInit {
   load(): void {
     this.loading.set(true);
     this.admin.getCoupons().subscribe({
-      next: list => {
+      next: (list) => {
         this.coupons.set(list);
         this.loading.set(false);
       },
