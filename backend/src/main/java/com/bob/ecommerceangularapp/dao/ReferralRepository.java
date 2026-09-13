@@ -15,4 +15,7 @@ public interface ReferralRepository extends JpaRepository<Referral, Long> {
     boolean existsByRefereeEmailIgnoreCaseAndTenantId(String refereeEmail, Long tenantId);
 
     List<Referral> findByReferrerCodeAndTenantId(String referrerCode, Long tenantId);
+
+    /** Referrals where the subject was the referee — roadmap #24 export/erasure. */
+    List<Referral> findByRefereeEmailIgnoreCaseAndTenantId(String refereeEmail, Long tenantId);
 }

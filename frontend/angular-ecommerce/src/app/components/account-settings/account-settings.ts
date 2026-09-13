@@ -9,7 +9,9 @@ import { isOktaConfigured } from '../../auth/dev-auth.guard';
 import { oktaConfig } from '../../auth/okta-config';
 import { AccountPreferences, AccountService, SavedAddress, SavedPaymentMethod } from '../../services/account.service';
 import { ConfigService } from '../../services/config.service';
+import { ConsentService } from '../../services/consent.service';
 import { LoyaltyService, LoyaltySummary } from '../../services/loyalty.service';
+import { PrivacyService } from '../../services/privacy.service';
 import { ReferralService, ReferralSummary } from '../../services/referral.service';
 import { ToastService } from '../../services/toast.service';
 
@@ -68,6 +70,11 @@ export class AccountSettings implements OnInit {
   private referralService = inject(ReferralService);
   private authStateService = inject(OktaAuthStateService);
   private toast = inject(ToastService);
+  private privacyService = inject(PrivacyService);
+  protected readonly consentService = inject(ConsentService);
+
+  readonly submittingDataRequest = signal(false);
+  readonly dataRequestMessage = signal('');
 
   ngOnInit(): void {
     this.authStateService.authState$.subscribe(state => {
@@ -258,6 +265,30 @@ export class AccountSettings implements OnInit {
   cancelAddCard(): void {
     this.cardSetupOpen.set(false);
     this.cardSetupError = '';
+  }
+
+  /** Raises a self-service GDPR export/erasure request (roadmap #24) for the address currently entered. */
+  requestData(requestType: 'EXPORT' | 'ERASURE'): void {
+    const email = this.currentEmail();
+    if (!email || !email.includes('@')) {
+      this.toast.error('Enter a valid email address first.');
+      return;
+    }
+    if (requestType === 'ERASURE' && !confirm('This permanently erases your account data. Continue?')) {
+      return;
+    }
+    this.submittingDataRequest.set(true);
+    this.dataRequestMessage.set('');
+    this.privacyService.submitDataRequest(email, requestType).subscribe({
+      next: result => {
+        this.submittingDataRequest.set(false);
+        this.dataRequestMessage.set(result.message);
+      },
+      error: () => {
+        this.submittingDataRequest.set(false);
+        this.toast.error('Could not submit the request. Please try again.');
+      },
+    });
   }
 
   private emptyAddress(): SavedAddress {

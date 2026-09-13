@@ -200,4 +200,39 @@ public final class EmailTemplates {
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;");
     }
+
+    /**
+     * Confirms a data-subject request (roadmap #24). The link in this mail is the identity check —
+     * anyone can type an email address into the privacy form, so nothing happens until someone who
+     * can actually read this inbox clicks through. The "if this wasn't you" line matters: it is the
+     * only signal a subject gets that someone else asked for their data.
+     */
+    public static String dataRequestVerification(boolean erasure, String confirmUrl, int ttlHours) {
+        String what = erasure
+                ? "erase the personal data we hold for this email address"
+                : "send you a copy of the personal data we hold for this email address";
+        String cta = erasure ? "Confirm erasure request" : "Confirm and download my data";
+        String caveat = erasure
+                ? """
+                  <p style="font-size:14px;line-height:1.6;color:#515a73;margin:0 0 18px;">
+                    We'll show you exactly what will be removed before anything is deleted. Your past orders
+                    are kept as financial records, as tax law requires, but your contact details are erased
+                    from them.
+                  </p>"""
+                : "";
+        String content = """
+                <h1 style="font-size:24px;margin:0 0 12px;">Confirm your privacy request &#128274;</h1>
+                <p style="font-size:16px;line-height:1.6;color:#515a73;margin:0 0 18px;">
+                  Someone asked us to %s. If that was you, confirm below &mdash; the link works once and
+                  expires in %d hours.
+                </p>
+                %s
+                <p style="margin:0 0 22px;">%s</p>
+                <p style="font-size:14px;line-height:1.6;color:#8b93ab;margin:0;">
+                  <strong>If this wasn't you</strong>, simply ignore this email. Nothing changes unless the
+                  link above is used, and we won't email you about it again.
+                </p>
+                """.formatted(what, ttlHours, caveat, button(confirmUrl, cta));
+        return layout("Confirm your Luv2Shop privacy request.", content, null);
+    }
 }

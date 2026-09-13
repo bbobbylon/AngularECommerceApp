@@ -143,6 +143,8 @@
         <a routerLink="/privacy" class="link-light text-decoration-none">Privacy</a>
         <span class="text-secondary">&middot;</span>
         <a routerLink="/terms" class="link-light text-decoration-none">Terms</a>
+        <span class="text-secondary">&middot;</span>
+        <button type="button" class="btn btn-link link-light text-decoration-none p-0 small align-baseline" (click)="consentService.openPreferences('BANNER')">Cookie preferences</button>
       </span>
       <span class="d-flex align-items-center gap-3">
         <span>Built with</span>
@@ -157,3 +159,4 @@
 <app-toast></app-toast>
 <app-back-to-top></app-back-to-top>
 <app-install-prompt></app-install-prompt>
+<app-cookie-consent></app-cookie-consent>

@@ -233,12 +233,33 @@
 
     <div class="card">
       <div class="card-body">
-        <h6 class="fw-bold"><i class="fa-solid fa-circle-info me-2 text-primary"></i>About your data</h6>
+        <h6 class="fw-bold"><i class="fa-solid fa-shield-halved me-2 text-primary"></i>Privacy &amp; your data</h6>
         <p class="small text-muted mb-2">
-          We only email what you opt into. Turn off weekly deals anytime here, or use the unsubscribe
-          link at the bottom of any marketing email.
+          We only email what you opt into. Turn off weekly deals anytime above, or use the unsubscribe
+          link at the bottom of any marketing email. Order confirmations are always sent so you can
+          track purchases.
         </p>
-        <p class="small text-muted mb-0">Order confirmations are always sent so you can track purchases.</p>
+        <button type="button" class="btn btn-link p-0 small mb-3" (click)="consentService.openPreferences('ACCOUNT', email)">
+          <i class="fa-solid fa-cookie-bite me-1"></i> Cookie preferences
+        </button>
+
+        <hr class="my-3" />
+
+        <p class="small text-muted mb-2">
+          You can download a copy of everything we hold on you, or ask us to erase it. Either request
+          sends a confirmation link to your email — click it to verify it's really you before we act.
+        </p>
+        <div class="d-flex gap-2 flex-wrap">
+          <button type="button" class="btn btn-outline-primary btn-sm" [disabled]="submittingDataRequest()" (click)="requestData('EXPORT')">
+            <i class="fa-solid fa-download me-1"></i> Download my data
+          </button>
+          <button type="button" class="btn btn-outline-danger btn-sm" [disabled]="submittingDataRequest()" (click)="requestData('ERASURE')">
+            <i class="fa-solid fa-trash-can me-1"></i> Delete my data
+          </button>
+        </div>
+        @if (dataRequestMessage()) {
+          <div class="alert alert-info small mt-3 mb-0">{{ dataRequestMessage() }}</div>
+        }
       </div>
     </div>
   </div>

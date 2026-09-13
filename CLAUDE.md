@@ -870,6 +870,82 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   which masked this very failure as a pass earlier in the session — always capture Maven's own exit
   code, never read a build's success through a pipe.**
 
+- ✅ **GDPR + cookie consent (roadmap #24)** — the 24th and final feature of the sellable-feature
+  roadmap: a real consent ledger plus self-service data-subject rights, not just a cosmetic banner.
+  `ConsentRecord` (append-only — every Accept/Reject/Customize writes a **new** row rather than
+  updating one, so there's a demonstrable history satisfying GDPR Art. 7(1)'s "able to demonstrate
+  that the data subject has consented" requirement, not just a current-state flag) and `DataRequest`
+  (Art. 15/20 export, Art. 17 erasure — a single-use, time-limited token model: **email proves
+  identity** rather than requiring the customer to be signed in, matching the `ReturnService`/
+  `FulfillmentService` precedent of email-as-identity-proof for customer-facing self-service actions
+  that predate any login system in this app). `V24` migration creates both tables (MySQL-IT-validated).
+  `PrivacyConsentService` records/reads consent by `visitorId` (a client-generated UUID, not tied to
+  any account) and exposes the active `policyVersion` so the frontend can re-prompt only when the
+  policy changes, not on every visit. `DataRequestService` issues the token, emails a confirm link
+  (falls back to a log line when `EmailService` is unconfigured, matching every other gated-email
+  feature's degradation pattern), and on confirm executes the actual **export** (JSON dump of the
+  customer's orders/addresses/reviews/loyalty/wishlist/etc.) or **erasure** (deletes convenience data
+  outright, anonymizes retained financial records — orders must survive for accounting/tax reasons, so
+  erasure scrubs PII fields on them rather than deleting the rows). Both confirm/export/erase links are
+  **single-use**: the token is marked consumed on first use and returns HTTP 410 on any replay —
+  verified live, not just asserted by a unit test (see below). `PrivacyController` exposes
+  `GET /api/privacy/config`, `GET/POST /api/privacy/consent`, `POST /api/privacy/data-requests`, and
+  the safe `GET /api/privacy/confirm` vs. destructive/data-returning `POST /api/privacy/erase` /
+  `GET /api/privacy/export`; the public write endpoints route through the existing `RateLimitFilter`
+  (#security-hardening's 30/min-per-IP + body-cap gate), matching the `/reviews|coupons|newsletter`
+  precedent. Frontend: `ConsentService` (`providedIn: 'root'`) holds consent as a signal, generates
+  and persists a `visitorId`, and shows the banner whenever there's no record or the stored
+  `policyVersion` is stale; `PrivacyService` wraps the HTTP calls with the same
+  `catchError(() => of(null))` graceful-degradation idiom `ContentService` established for #17.
+  `CookieConsent` component renders a slim banner (Accept all / Reject all / Customize) plus a modal
+  preferences panel with the 4 categories — `necessary` (always on, never gated), `functional`
+  (recently-viewed), `analytics` (unused today but modeled for a future addition), `marketing`
+  (referral capture) — mounted once in the app shell (`app.html`) alongside a persistent footer
+  "Cookie preferences" link that reopens the panel after a decision was already made. The two
+  existing services that write to localStorage without asking are now genuinely gated, not just
+  documented as gated: `RecentlyViewedService.record()` no-ops entirely unless `functional` is
+  allowed, and `ReferralService` solves a real ordering problem — it must capture a `?ref=CODE` URL
+  param **synchronously** on first load (the param is gone after that first navigation), but consent
+  state resolves **asynchronously** via HTTP — by splitting `captureFromUrl()` into a synchronous
+  `readFromUrl()` that holds the code in memory (`pendingCode`, never touching storage) and a
+  constructor `effect()` that calls a new `persist(code)` only once `consentService.isAllowed('marketing')`
+  flips true, so a marketing-consenting visitor's referral still lands correctly even though consent
+  resolved after the code was read. `account-settings` gained a "Privacy & your data" card
+  (cookie-preferences link, "Download my data"/"Delete my data" self-service buttons wired to
+  `PrivacyService.submitDataRequest`, erasure requires an in-page confirm) and `info-page`'s `/privacy`
+  route gained a "Cookies & storage" section, replacing the old "contact us" erasure language with the
+  actual self-service flow. New `e2e/cookie-consent.spec.ts` (5 tests: banner shows + Accept all
+  dismisses, Reject all dismisses, Customize panel + Save preferences posts the exact chosen
+  categories — asserted via `page.waitForRequest`/`postDataJSON()`, footer link reopens the panel
+  post-consent, and a new axe-core WCAG 2.1 AA scan of the **open** banner/panel) plus new
+  `mock-backend.ts` stubs for `/api/privacy/{config,consent,data-requests}` defaulting to
+  "already consented" so none of the other 32 pre-existing specs see the banner. Two real
+  infrastructure bugs (not the feature's own code) were found and fixed while getting the E2E suite
+  green: (1) a **stale Docker container** (`ecommerceangularapp-frontend-1`, left running 4 hours from
+  an earlier session) was squatting on port 4250, and Playwright's `reuseExistingServer:
+  !process.env.CI` silently reused it instead of starting a fresh `ng serve` — the first E2E run
+  "tested" old code and failed 8 specs in confusing, unrelated-looking ways before `docker compose stop
+  frontend` freed the port; (2) `angular.json`'s `serve.options.port` was `4251`, contradicting both
+  `CLAUDE.md`'s documented `npm start → :4250` and `playwright.config.ts`'s hardcoded `:4250`
+  `baseURL`/`webServer.url` — traced via `git log`/`git diff` to an earlier merge commit
+  (`4f03c4bd`, unrelated to this feature), fixed by restoring `"port": 4250`. **Lesson: a long-lived
+  Docker Compose stack (this project's `compose.yaml`) can silently squat on the exact port Playwright's
+  `reuseExistingServer` will happily reuse — always check `docker compose ps`/`Get-NetTCPConnection`
+  before trusting an E2E "pass," especially after a long or multi-session gap.** 267 backend tests +
+  17 frontend unit tests + 37 E2E tests (32 pre-existing + 5 new, incl. the WCAG scan) green, plus full
+  `npx ng build` production. **Runtime-verified** via `docker compose up --build`: Flyway migrated a
+  real, populated MySQL DB cleanly from V23 to V24; the banner/panel and the account-settings privacy
+  card rendered and functioned correctly in a live browser; the full export lifecycle (submit → logged
+  confirm link → confirm page → JSON download with correct structure → second use of the same link
+  correctly returns 410) and the full erasure lifecycle (submit → confirm → erase → correct result
+  summary → second use returns 410) were both verified end to end against the real database via a
+  combination of browser interaction and direct `curl`/MySQL queries; test artifacts (`data_request`/
+  `consent_record` rows) were cleaned up afterward. Deliberately **not** exercised live: the full
+  customer/order anonymization branch of erasure against a real seeded customer row — the exhaustive
+  `DataRequestServiceTest` unit coverage of that branch was judged sufficient, and mutating real seeded
+  data for marginal extra confidence wasn't worth the one-way trip. This closes the 24-feature roadmap;
+  see `sellable-feature-roadmap.md`.
+
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
 

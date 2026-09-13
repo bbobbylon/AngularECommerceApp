@@ -6,6 +6,7 @@ import { filter, map, startWith } from 'rxjs';
 
 import { BackToTop } from './components/back-to-top/back-to-top';
 import { CartStatus } from './components/cart-status/cart-status';
+import { CookieConsent } from './components/cookie-consent/cookie-consent';
 import { InstallPrompt } from './components/install-prompt/install-prompt';
 import { LoginStatus } from './components/login-status/login-status';
 import { NewsletterSignup } from './components/newsletter-signup/newsletter-signup';
@@ -14,6 +15,7 @@ import { Search } from './components/search/search';
 import { Toast } from './components/toast/toast';
 import { TranslatePipe } from './common/translate.pipe';
 import { ContentService, SiteBanner } from './services/content.service';
+import { ConsentService } from './services/consent.service';
 import { CurrencyService } from './services/currency.service';
 import { FavoritesService } from './services/favorites.service';
 import { I18nService } from './services/i18n.service';
@@ -23,7 +25,7 @@ import { ThemeService } from './services/theme.service';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Search, ProductCategoryMenu, CartStatus, LoginStatus, Toast, BackToTop, InstallPrompt, NewsletterSignup, TranslatePipe],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Search, ProductCategoryMenu, CartStatus, LoginStatus, Toast, BackToTop, InstallPrompt, CookieConsent, NewsletterSignup, TranslatePipe],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
@@ -38,6 +40,7 @@ export class App {
   private readonly seo = inject(SeoService);
   private readonly document = inject(DOCUMENT);
   private readonly contentService = inject(ContentService);
+  protected readonly consentService = inject(ConsentService);
   title = 'angular-ecommerce';
 
   /** CMS-managed announcement banner (roadmap #17). Null hides the bar entirely. */
