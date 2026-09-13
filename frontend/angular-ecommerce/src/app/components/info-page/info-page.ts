@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 
 import { SeoService } from '../../services/seo.service';
@@ -21,10 +21,10 @@ interface InfoContent {
  */
 @Component({
   selector: 'app-info-page',
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './info-page.html',
 })
 export class InfoPage implements OnInit {
-
   content!: InfoContent;
   private route = inject(ActivatedRoute);
   private seo = inject(SeoService);
@@ -35,10 +35,22 @@ export class InfoPage implements OnInit {
       title: 'Shipping & Returns',
       intro: 'Fast, tracked delivery and a no-stress 30-day return window.',
       sections: [
-        { heading: 'Shipping options', body: 'Standard shipping (3–5 business days) is free on orders over $50, otherwise a flat rate is shown at checkout. Expedited delivery is available where offered.' },
-        { heading: 'Order tracking', body: 'Every order gets a confirmation email with a tracking number. You can also view orders under My account → My orders.' },
-        { heading: 'Returns', body: 'Return any item within 30 days of delivery in its original condition for a full refund to your original payment method. Start a return by contacting support with your order number.' },
-        { heading: 'Refunds', body: 'Once we receive your return, refunds are issued within 5–7 business days. Original shipping is non-refundable unless the item arrived damaged or incorrect.' },
+        {
+          heading: 'Shipping options',
+          body: 'Standard shipping (3–5 business days) is free on orders over $50, otherwise a flat rate is shown at checkout. Expedited delivery is available where offered.',
+        },
+        {
+          heading: 'Order tracking',
+          body: 'Every order gets a confirmation email with a tracking number. You can also view orders under My account → My orders.',
+        },
+        {
+          heading: 'Returns',
+          body: 'Return any item within 30 days of delivery in its original condition for a full refund to your original payment method. Start a return by contacting support with your order number.',
+        },
+        {
+          heading: 'Refunds',
+          body: 'Once we receive your return, refunds are issued within 5–7 business days. Original shipping is non-refundable unless the item arrived damaged or incorrect.',
+        },
       ],
     },
     privacy: {
@@ -46,12 +58,30 @@ export class InfoPage implements OnInit {
       title: 'Privacy Policy',
       intro: 'A plain-language summary of what we collect and why.',
       sections: [
-        { heading: 'What we collect', body: 'Account and order details (name, email, shipping/billing address) and email preferences. Payment card data is collected directly by Stripe and never stored on our servers.' },
-        { heading: 'How we use it', body: 'To process orders, provide support, and — only if you opt in — send marketing email. You can change email preferences or unsubscribe at any time.' },
-        { heading: 'Sharing', body: 'We share data only with the processors needed to run the store (e.g. Stripe for payments, our email provider for delivery). We do not sell personal data.' },
-        { heading: 'Cookies & storage', body: 'We use necessary cookies/local storage to run the cart, checkout, and sign-in, and — only with your permission — functional storage (remembering recently viewed items) and marketing storage (crediting a referral link). Manage these anytime via "Cookie preferences" in the footer or your account settings.' },
-        { heading: 'Your choices', body: 'Manage email preferences and cookie choices in Account settings. You can also download a copy of your data or request its erasure right from Account settings — we email a confirmation link to verify it’s you before either takes effect.' },
-        { heading: 'Note', body: 'This is a demo store; the policy is illustrative. Replace it with a lawyer-reviewed policy before processing real customer data.' },
+        {
+          heading: 'What we collect',
+          body: 'Account and order details (name, email, shipping/billing address) and email preferences. Payment card data is collected directly by Stripe and never stored on our servers.',
+        },
+        {
+          heading: 'How we use it',
+          body: 'To process orders, provide support, and — only if you opt in — send marketing email. You can change email preferences or unsubscribe at any time.',
+        },
+        {
+          heading: 'Sharing',
+          body: 'We share data only with the processors needed to run the store (e.g. Stripe for payments, our email provider for delivery). We do not sell personal data.',
+        },
+        {
+          heading: 'Cookies & storage',
+          body: 'We use necessary cookies/local storage to run the cart, checkout, and sign-in, and — only with your permission — functional storage (remembering recently viewed items) and marketing storage (crediting a referral link). Manage these anytime via "Cookie preferences" in the footer or your account settings.',
+        },
+        {
+          heading: 'Your choices',
+          body: 'Manage email preferences and cookie choices in Account settings. You can also download a copy of your data or request its erasure right from Account settings — we email a confirmation link to verify it’s you before either takes effect.',
+        },
+        {
+          heading: 'Note',
+          body: 'This is a demo store; the policy is illustrative. Replace it with a lawyer-reviewed policy before processing real customer data.',
+        },
       ],
     },
     terms: {
@@ -59,11 +89,26 @@ export class InfoPage implements OnInit {
       title: 'Terms of Service',
       intro: 'The basics of using Luv2Shop.',
       sections: [
-        { heading: 'Using the store', body: 'By placing an order you confirm the information you provide is accurate and that you are authorized to use the payment method.' },
-        { heading: 'Pricing & availability', body: 'Prices and stock can change without notice. We may cancel and refund an order if an item is mispriced or unavailable.' },
-        { heading: 'Orders & payment', body: 'Orders are confirmed once payment is authorized. Sale prices apply while the promotion lasts and cannot be combined unless stated.' },
-        { heading: 'Limitation of liability', body: 'The store is provided “as is”. To the extent permitted by law, we are not liable for indirect or incidental damages arising from its use.' },
-        { heading: 'Note', body: 'This is a demo store; these terms are illustrative. Replace them with reviewed terms before going live.' },
+        {
+          heading: 'Using the store',
+          body: 'By placing an order you confirm the information you provide is accurate and that you are authorized to use the payment method.',
+        },
+        {
+          heading: 'Pricing & availability',
+          body: 'Prices and stock can change without notice. We may cancel and refund an order if an item is mispriced or unavailable.',
+        },
+        {
+          heading: 'Orders & payment',
+          body: 'Orders are confirmed once payment is authorized. Sale prices apply while the promotion lasts and cannot be combined unless stated.',
+        },
+        {
+          heading: 'Limitation of liability',
+          body: 'The store is provided “as is”. To the extent permitted by law, we are not liable for indirect or incidental damages arising from its use.',
+        },
+        {
+          heading: 'Note',
+          body: 'This is a demo store; these terms are illustrative. Replace them with reviewed terms before going live.',
+        },
       ],
     },
   };

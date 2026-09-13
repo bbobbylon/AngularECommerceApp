@@ -1,8 +1,20 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { AdminService, Warehouse, WarehousePayload, WarehouseStockRow } from '../../../services/admin.service';
+import {
+  AdminService,
+  Warehouse,
+  WarehousePayload,
+  WarehouseStockRow,
+} from '../../../services/admin.service';
 import { ToastService } from '../../../services/toast.service';
 
 /**
@@ -13,10 +25,10 @@ import { ToastService } from '../../../services/toast.service';
 @Component({
   selector: 'app-admin-warehouses',
   imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-warehouses.html',
 })
 export class AdminWarehouses implements OnInit {
-
   readonly warehouses = signal<Warehouse[]>([]);
   readonly loading = signal(true);
   readonly saving = signal(false);
@@ -36,10 +48,12 @@ export class AdminWarehouses implements OnInit {
     if (!q) {
       return this.stockRows();
     }
-    return this.stockRows().filter(r =>
-      r.sku.toLowerCase().includes(q) ||
-      r.productName.toLowerCase().includes(q) ||
-      (r.variantLabel ?? '').toLowerCase().includes(q));
+    return this.stockRows().filter(
+      (r) =>
+        r.sku.toLowerCase().includes(q) ||
+        r.productName.toLowerCase().includes(q) ||
+        (r.variantLabel ?? '').toLowerCase().includes(q),
+    );
   });
 
   private admin = inject(AdminService);
@@ -52,8 +66,14 @@ export class AdminWarehouses implements OnInit {
   load(): void {
     this.loading.set(true);
     this.admin.getWarehouses().subscribe({
-      next: list => { this.warehouses.set(list); this.loading.set(false); },
-      error: () => { this.loading.set(false); this.toast.error('Could not load warehouses.'); },
+      next: (list) => {
+        this.warehouses.set(list);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.toast.error('Could not load warehouses.');
+      },
     });
   }
 
@@ -63,22 +83,24 @@ export class AdminWarehouses implements OnInit {
       return;
     }
     this.saving.set(true);
-    this.admin.saveWarehouse({
-      ...this.form,
-      code: this.form.code.trim().toUpperCase(),
-      name: this.form.name.trim(),
-    }).subscribe({
-      next: () => {
-        this.toast.success('Warehouse saved');
-        this.form = this.empty();
-        this.saving.set(false);
-        this.load();
-      },
-      error: () => {
-        this.saving.set(false);
-        this.toast.error('Could not save warehouse.');
-      },
-    });
+    this.admin
+      .saveWarehouse({
+        ...this.form,
+        code: this.form.code.trim().toUpperCase(),
+        name: this.form.name.trim(),
+      })
+      .subscribe({
+        next: () => {
+          this.toast.success('Warehouse saved');
+          this.form = this.empty();
+          this.saving.set(false);
+          this.load();
+        },
+        error: () => {
+          this.saving.set(false);
+          this.toast.error('Could not save warehouse.');
+        },
+      });
   }
 
   edit(warehouse: Warehouse): void {
@@ -90,7 +112,11 @@ export class AdminWarehouses implements OnInit {
   }
 
   delete(warehouse: Warehouse): void {
-    if (!confirm(`Delete warehouse ${warehouse.name}? This only works if it has never shipped anything.`)) {
+    if (
+      !confirm(
+        `Delete warehouse ${warehouse.name}? This only works if it has never shipped anything.`,
+      )
+    ) {
       return;
     }
     this.admin.deleteWarehouse(warehouse.id).subscribe({
@@ -101,7 +127,8 @@ export class AdminWarehouses implements OnInit {
         }
         this.load();
       },
-      error: err => this.toast.error(err?.error?.message ?? 'Could not delete — deactivate it instead.'),
+      error: (err) =>
+        this.toast.error(err?.error?.message ?? 'Could not delete — deactivate it instead.'),
     });
   }
 
@@ -110,12 +137,15 @@ export class AdminWarehouses implements OnInit {
     this.stockSearch.set('');
     this.stockLoading.set(true);
     this.admin.getWarehouseStock(warehouse.id).subscribe({
-      next: rows => {
+      next: (rows) => {
         this.stockRows.set(rows);
-        this.stockDrafts = Object.fromEntries(rows.map(r => [r.sku, r.quantity]));
+        this.stockDrafts = Object.fromEntries(rows.map((r) => [r.sku, r.quantity]));
         this.stockLoading.set(false);
       },
-      error: () => { this.stockLoading.set(false); this.toast.error('Could not load stock for this warehouse.'); },
+      error: () => {
+        this.stockLoading.set(false);
+        this.toast.error('Could not load stock for this warehouse.');
+      },
     });
   }
 
@@ -134,17 +164,29 @@ export class AdminWarehouses implements OnInit {
     }
     this.stockSaving.set(row.sku);
     this.admin.updateWarehouseStock(warehouse.id, [{ sku: row.sku, quantity: qty }]).subscribe({
-      next: rows => {
+      next: (rows) => {
         this.stockRows.set(rows);
-        this.stockDrafts = Object.fromEntries(rows.map(r => [r.sku, r.quantity]));
+        this.stockDrafts = Object.fromEntries(rows.map((r) => [r.sku, r.quantity]));
         this.stockSaving.set(null);
         this.toast.success(`${row.sku} is now at ${qty} at ${warehouse.code}.`);
       },
-      error: () => { this.stockSaving.set(null); this.toast.error(`Could not update ${row.sku}.`); },
+      error: () => {
+        this.stockSaving.set(null);
+        this.toast.error(`Could not update ${row.sku}.`);
+      },
     });
   }
 
   private empty(): WarehousePayload {
-    return { id: null, code: '', name: '', city: '', state: '', country: 'United States', priority: 0, active: true };
+    return {
+      id: null,
+      code: '',
+      name: '',
+      city: '',
+      state: '',
+      country: 'United States',
+      priority: 0,
+      active: true,
+    };
   }
 }

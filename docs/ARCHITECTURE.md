@@ -1,6 +1,6 @@
 # Luv2Shop — Architecture
 
-A full-stack e-commerce reference app: an **Angular 21** single-page storefront talking to a
+A full-stack e-commerce reference app: an **Angular 22** single-page storefront talking to a
 **Spring Boot 4.1** REST API backed by **MySQL 8**, with **Okta** (auth) and **Stripe** (payments)
 as optional, gracefully-degrading integrations.
 
@@ -27,7 +27,7 @@ flowchart LR
   user([🛍️  Shopper]):::user
 
   subgraph Browser["🖥️  Browser · localhost:4251"]
-    spa["Angular 21 SPA<br/>standalone components"]:::fe
+    spa["Angular 22 SPA<br/>standalone components"]:::fe
   end
 
   subgraph Cloud["☁️  Server · localhost:8586"]
@@ -293,7 +293,7 @@ sequenceDiagram
 
 | Layer | Technology |
 |---|---|
-| Frontend | Angular 21 (standalone), TypeScript, Bootstrap 5, ng-bootstrap, Font Awesome, Stripe.js, Okta Angular |
+| Frontend | Angular 22 (standalone), TypeScript, Bootstrap 5, ng-bootstrap, Font Awesome, Stripe.js, Okta Angular |
 | Backend | Spring Boot 4.1, Spring Data JPA + REST, Spring Security (OAuth2 resource server), Spring MVC, Lombok, stripe-java |
 | Data | MySQL 8 (prod/dev), H2 (tests) |
 | Build / tooling | Maven (wrapper), Angular CLI, Vitest, JUnit 5, Docker Compose |

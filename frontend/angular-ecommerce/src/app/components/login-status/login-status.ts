@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { OKTA_AUTH, OktaAuthStateService } from '@okta/okta-angular';
 import { Observable, map } from 'rxjs';
@@ -12,10 +12,10 @@ import { Observable, map } from 'rxjs';
 @Component({
   selector: 'app-login-status',
   imports: [CommonModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './login-status.html',
 })
 export class LoginStatus implements OnInit {
-
   isAuthenticated$!: Observable<boolean>;
   userFullName$!: Observable<string>;
 
@@ -24,10 +24,10 @@ export class LoginStatus implements OnInit {
 
   ngOnInit(): void {
     this.isAuthenticated$ = this.authStateService.authState$.pipe(
-      map(state => !!state.isAuthenticated),
+      map((state) => !!state.isAuthenticated),
     );
     this.userFullName$ = this.authStateService.authState$.pipe(
-      map(state => (state.idToken?.claims?.name as string) ?? ''),
+      map((state) => (state.idToken?.claims?.name as string) ?? ''),
     );
   }
 

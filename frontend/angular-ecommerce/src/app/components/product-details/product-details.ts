@@ -1,11 +1,25 @@
 import { CommonModule, DOCUMENT } from '@angular/common';
 import { MoneyPipe } from '../../common/money.pipe';
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import {
+  Component,
+  OnDestroy,
+  OnInit,
+  inject,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { CartItem } from '../../common/cart-item';
-import { Product, LOW_STOCK_THRESHOLD, discountPercent, galleryImages, isLowStock, isOnSale } from '../../common/product';
+import {
+  Product,
+  LOW_STOCK_THRESHOLD,
+  discountPercent,
+  galleryImages,
+  isLowStock,
+  isOnSale,
+} from '../../common/product';
 import { ProductVariant } from '../../common/product-variant';
 import { CartService } from '../../services/cart.service';
 import { FavoritesService } from '../../services/favorites.service';
@@ -26,10 +40,10 @@ import { StarRating } from '../star-rating/star-rating';
 @Component({
   selector: 'app-product-details',
   imports: [CommonModule, MoneyPipe, FormsModule, RouterLink, StarRating, RecentlyViewed],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './product-details.html',
 })
 export class ProductDetails implements OnInit, OnDestroy {
-
   product?: Product;
   quantity = 1;
   relatedProducts: Product[] = [];
@@ -119,7 +133,7 @@ export class ProductDetails implements OnInit, OnDestroy {
       return;
     }
     this.notifying.set(true);
-    const variantSku = this.hasVariants() ? this.selectedVariant()?.sku ?? null : null;
+    const variantSku = this.hasVariants() ? (this.selectedVariant()?.sku ?? null) : null;
     this.productService.notifyWhenInStock(this.product.id, email, variantSku).subscribe({
       next: () => {
         this.notifyRequested.set(true);
@@ -186,7 +200,7 @@ export class ProductDetails implements OnInit, OnDestroy {
     this.notifyRequested.set(false);
     this.notifyEmail = '';
     this.recentlyViewed.record(productId);
-    this.productService.getProduct(productId).subscribe(data => {
+    this.productService.getProduct(productId).subscribe((data) => {
       this.product = data;
       if (!this.selectedVariant()?.imageUrl) {
         this.selectedImage.set(data.imageUrl);
@@ -194,9 +208,9 @@ export class ProductDetails implements OnInit, OnDestroy {
       this.updateSeo(data);
     });
 
-    this.productService.getVariants(productId).subscribe(variants => {
+    this.productService.getVariants(productId).subscribe((variants) => {
       this.variants.set(variants);
-      const firstInStock = variants.find(v => v.inStock) ?? null;
+      const firstInStock = variants.find((v) => v.inStock) ?? null;
       this.selectedVariant.set(firstInStock);
       if (firstInStock?.imageUrl) {
         this.selectedImage.set(firstInStock.imageUrl);
@@ -205,23 +219,24 @@ export class ProductDetails implements OnInit, OnDestroy {
 
     this.relatedProducts = [];
     this.productService.getRelatedProducts(productId).subscribe({
-      next: data => (this.relatedProducts = data),
+      next: (data) => (this.relatedProducts = data),
       error: () => (this.relatedProducts = []),
     });
 
     this.reviewForm = { authorName: '', rating: 0, comment: '' };
     this.loadReviews(productId);
     this.reviewService.summary(productId).subscribe({
-      next: summary => this.reviewSummary.set(summary),
+      next: (summary) => this.reviewSummary.set(summary),
       error: () => this.reviewSummary.set(null),
     });
   }
 
   /** Title/meta/OG + Product JSON-LD for this page (roadmap #11 — SEO). */
   private updateSeo(product: Product): void {
-    const description = product.description?.length > 160
-      ? `${product.description.slice(0, 157)}...`
-      : product.description;
+    const description =
+      product.description?.length > 160
+        ? `${product.description.slice(0, 157)}...`
+        : product.description;
     this.seo.update({
       title: product.name,
       description: description || `${product.name} — shop it at Luv2Shop.`,
@@ -239,24 +254,25 @@ export class ProductDetails implements OnInit, OnDestroy {
         '@type': 'Offer',
         priceCurrency: 'USD',
         price: product.unitPrice,
-        availability: product.unitsInStock > 0
-          ? 'https://schema.org/InStock'
-          : 'https://schema.org/OutOfStock',
+        availability:
+          product.unitsInStock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
         url: this.document.location.href,
       },
-      ...(product.reviewCount ? {
-        aggregateRating: {
-          '@type': 'AggregateRating',
-          ratingValue: product.averageRating,
-          reviewCount: product.reviewCount,
-        },
-      } : {}),
+      ...(product.reviewCount
+        ? {
+            aggregateRating: {
+              '@type': 'AggregateRating',
+              ratingValue: product.averageRating,
+              reviewCount: product.reviewCount,
+            },
+          }
+        : {}),
     });
   }
 
   private loadReviews(productId: number): void {
     this.reviewService.list(productId, 0, this.reviewPageSize).subscribe({
-      next: res => {
+      next: (res) => {
         this.reviews.set(res.content);
         this.reviewTotal = res.totalElements;
       },
@@ -291,8 +307,8 @@ export class ProductDetails implements OnInit, OnDestroy {
           this.submittingReview.set(false);
           // refresh list, summary, and the product's denormalized aggregate
           this.loadReviews(this.product!.id);
-          this.reviewService.summary(this.product!.id).subscribe(s => this.reviewSummary.set(s));
-          this.productService.getProduct(this.product!.id).subscribe(p => (this.product = p));
+          this.reviewService.summary(this.product!.id).subscribe((s) => this.reviewSummary.set(s));
+          this.productService.getProduct(this.product!.id).subscribe((p) => (this.product = p));
         },
         error: () => {
           this.submittingReview.set(false);

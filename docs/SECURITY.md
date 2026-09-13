@@ -232,7 +232,9 @@ Three layers keep dependencies patched and known-vulnerable versions out:
    GitHub Advisory DB (no NVD API key required).
 3. **`npm audit` gate** (CI) — `npm audit --omit=dev --audit-level=high` on every push/PR. It scans
    **shipped (production) dependencies**; dev-tooling advisories are left to Dependabot since they
-   never reach users. Today the production tree is clean of high+ advisories, so this gate is green.
+   never reach users. Today the production tree is clean of high+ advisories, so this gate is green — the
+   Angular 21→22 upgrade (2026-09-13) cleared the last two high advisories the 21.x line could not patch
+   (`GHSA-jj27-h5hq-8x99`, `GHSA-hh8m-fm6v-7cvg`).
 4. **SBOM** — the backend build generates a CycloneDX Software Bill of Materials
    (`cyclonedx-maven-plugin` → `target/bom.json`, also embedded in the jar under `META-INF/sbom`).
    Feed it to a scanner (Grype/Trivy) or Dependency-Track for continuous supply-chain monitoring.

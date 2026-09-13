@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { MoneyPipe } from '../../common/money.pipe';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
@@ -20,10 +20,10 @@ import { WishlistService } from '../../services/wishlist.service';
 @Component({
   selector: 'app-favorites',
   imports: [CommonModule, MoneyPipe, FormsModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './favorites.html',
 })
 export class Favorites implements OnInit {
-
   products: Product[] = [];
   isLoading = true;
 
@@ -43,7 +43,7 @@ export class Favorites implements OnInit {
   private reloadProducts(): void {
     this.isLoading = true;
     this.productService.getProductsByIds(this.favorites.ids()).subscribe({
-      next: data => {
+      next: (data) => {
         this.products = data;
         this.isLoading = false;
       },
@@ -62,7 +62,7 @@ export class Favorites implements OnInit {
     }
     this.syncing.set(true);
     this.wishlist.sync(email, this.favorites.ids()).subscribe({
-      next: ids => {
+      next: (ids) => {
         this.favorites.setAll(ids);
         this.toast.success('Wishlist synced to your account.');
         this.syncing.set(false);
@@ -77,7 +77,7 @@ export class Favorites implements OnInit {
 
   removeFavorite(product: Product): void {
     this.favorites.remove(product.id);
-    this.products = this.products.filter(p => p.id !== product.id);
+    this.products = this.products.filter((p) => p.id !== product.id);
     this.toast.info(`${product.name} removed from favorites`);
   }
 

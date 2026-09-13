@@ -54,8 +54,15 @@ before moving on. Use a branch.
   Spring Boot release notes / migration guide for the target version.
 - **Java:** the pom pins `<java.version>21</java.version>` (an LTS). Move to the next LTS (25, etc.)
   deliberately; update the Dockerfile base image (`eclipse-temurin`) to match.
-- **Frontend:** `cd frontend/angular-ecommerce && npx ng update` lists safe upgrades; run
-  `npx ng update @angular/core @angular/cli` (one major at a time). Re-run `npm audit fix` after.
+- **Frontend:** `cd frontend/angular-ecommerce && npx ng update` lists safe upgrades. For an Angular
+  **major**, move everything that pins the framework in **one** `ng update` call — the `@angular/*`
+  packages, the CLI/build, `@ng-bootstrap/ng-bootstrap` and `typescript` (each Angular major pins a
+  narrow TS range; v22 is `>=6.0 <6.1`) — e.g. the 21→22 move was
+  `npx ng update @angular/core@22 @angular/cli@22 @ng-bootstrap/ng-bootstrap@21 typescript@6.0`.
+  A Dependabot PR that bumps a single `@angular/*` package will not build; leave those open and do the
+  coordinated update instead. Check the new CLI's Node floor first (`npm view @angular/cli engines` —
+  v22 hard-exits below Node 24.15 / 22.22.3), and re-run `npm audit` after. `ng update` also runs
+  Angular's migration schematics and formats the files it touches with the project `.prettierrc`.
 - **ng-bootstrap / Bootstrap / Font Awesome:** check peer-dependency ranges against the Angular version.
 - **MySQL:** stay on a supported series (currently 8.4 LTS). Test against a copy before upgrading prod.
 

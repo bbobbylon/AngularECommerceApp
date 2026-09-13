@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { NgbPaginationModule } from '@ng-bootstrap/ng-bootstrap';
 
@@ -14,10 +14,10 @@ import { ToastService } from '../../../services/toast.service';
 @Component({
   selector: 'app-admin-products',
   imports: [CommonModule, RouterLink, NgbPaginationModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-products.html',
 })
 export class AdminProducts implements OnInit {
-
   readonly products = signal<AdminProduct[]>([]);
   readonly loading = signal(true);
 
@@ -37,7 +37,7 @@ export class AdminProducts implements OnInit {
   load(): void {
     this.loading.set(true);
     this.admin.getProducts(this.pageNumber - 1, this.pageSize).subscribe({
-      next: res => {
+      next: (res) => {
         this.products.set(res.content);
         this.totalElements = res.totalElements;
         this.loading.set(false);

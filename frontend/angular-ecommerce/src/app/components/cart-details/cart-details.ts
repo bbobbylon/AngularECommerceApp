@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { MoneyPipe } from '../../common/money.pipe';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { CartItem } from '../../common/cart-item';
@@ -14,10 +14,10 @@ import { CartService } from '../../services/cart.service';
 @Component({
   selector: 'app-cart-details',
   imports: [CommonModule, MoneyPipe, RouterLink],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './cart-details.html',
 })
 export class CartDetails implements OnInit {
-
   cartItems: CartItem[] = [];
   totalPrice = 0;
   totalQuantity = 0;
@@ -30,8 +30,8 @@ export class CartDetails implements OnInit {
 
   private listCartDetails(): void {
     this.cartItems = this.cartService.cartItems;
-    this.cartService.totalPrice.subscribe(data => (this.totalPrice = data));
-    this.cartService.totalQuantity.subscribe(data => (this.totalQuantity = data));
+    this.cartService.totalPrice.subscribe((data) => (this.totalPrice = data));
+    this.cartService.totalQuantity.subscribe((data) => (this.totalQuantity = data));
     this.cartService.computeCartTotals();
   }
 

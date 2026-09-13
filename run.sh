@@ -8,7 +8,7 @@
 #   App (open this):  http://localhost:4251
 #   API:              http://localhost:8586/api
 #
-# Requirements: JDK 21+, Node 20+, and Docker running (the backend auto-starts MySQL on :3308).
+# Requirements: JDK 21+, Node 24 (>= 24.15) or 22 (>= 22.22.3), and Docker running (the backend auto-starts MySQL on :3308).
 #
 set -euo pipefail
 

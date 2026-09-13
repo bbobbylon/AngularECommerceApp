@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { ContentService, FaqEntry } from '../../services/content.service';
@@ -11,6 +11,7 @@ import { SeoService } from '../../services/seo.service';
 @Component({
   selector: 'app-faq',
   imports: [RouterLink],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './faq.html',
 })
 export class Faq implements OnInit {
@@ -24,6 +25,6 @@ export class Faq implements OnInit {
       title: 'Frequently Asked Questions',
       description: 'Shipping, returns, payments, and account answers for Luv2Shop.',
     });
-    this.content.getFaq().subscribe(entries => this.faqs.set(entries));
+    this.content.getFaq().subscribe((entries) => this.faqs.set(entries));
   }
 }

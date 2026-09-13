@@ -1,6 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { AfterViewInit, Component, OnInit, inject } from '@angular/core';
-import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AfterViewInit, Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
+import {
+  FormBuilder,
+  FormGroup,
+  FormsModule,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { Router } from '@angular/router';
 import { Stripe, StripeCardElement, loadStripe } from '@stripe/stripe-js';
 
@@ -33,10 +39,10 @@ import { Luv2ShopValidators } from '../../validators/luv2shop-validators';
 @Component({
   selector: 'app-checkout',
   imports: [CommonModule, ReactiveFormsModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './checkout.html',
 })
 export class Checkout implements OnInit, AfterViewInit {
-
   checkoutFormGroup!: FormGroup;
 
   totalPrice = 0;
@@ -144,18 +150,30 @@ export class Checkout implements OnInit, AfterViewInit {
 
     this.checkoutFormGroup = this.formBuilder.group({
       customer: this.formBuilder.group({
-        firstName: ['', [Validators.required, Validators.minLength(2), Luv2ShopValidators.notOnlyWhitespace]],
-        lastName: ['', [Validators.required, Validators.minLength(2), Luv2ShopValidators.notOnlyWhitespace]],
-        email: ['', [Validators.required, Validators.pattern('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,4}$')]],
+        firstName: [
+          '',
+          [Validators.required, Validators.minLength(2), Luv2ShopValidators.notOnlyWhitespace],
+        ],
+        lastName: [
+          '',
+          [Validators.required, Validators.minLength(2), Luv2ShopValidators.notOnlyWhitespace],
+        ],
+        email: [
+          '',
+          [
+            Validators.required,
+            Validators.pattern('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,4}$'),
+          ],
+        ],
       }),
       shippingAddress: this.buildAddressGroup(),
       billingAddress: this.buildAddressGroup(),
       subscribeToNewsletter: [true],
     });
 
-    this.formService.getCountries().subscribe(data => (this.countries = data));
+    this.formService.getCountries().subscribe((data) => (this.countries = data));
 
-    this.checkoutService.getShippingMethods().subscribe(methods => {
+    this.checkoutService.getShippingMethods().subscribe((methods) => {
       this.shippingMethods = methods;
       if (methods.length && !this.selectedShippingCode) {
         this.selectedShippingCode = methods[0].code;
@@ -176,23 +194,27 @@ export class Checkout implements OnInit, AfterViewInit {
     }
     const country = (this.shippingCountry?.value as Country)?.name;
     const state = (this.shippingState?.value as State)?.name;
-    this.checkoutService.quote({
-      subtotal: this.totalPrice,
-      country,
-      state,
-      couponCode: this.appliedCode || undefined,
-      shippingMethodCode: this.selectedShippingCode || undefined,
-    }).subscribe({
-      next: q => {
-        this.discount = q.discount;
-        this.shippingAmount = q.shippingAmount;
-        this.taxAmount = q.taxAmount;
-        this.quoteTotal = q.total;
-        this.promotionName = q.promotionName ?? null;
-        this.promotionDiscount = q.promotionDiscount ?? 0;
-      },
-      error: () => { /* keep the last-known totals on a transient failure */ },
-    });
+    this.checkoutService
+      .quote({
+        subtotal: this.totalPrice,
+        country,
+        state,
+        couponCode: this.appliedCode || undefined,
+        shippingMethodCode: this.selectedShippingCode || undefined,
+      })
+      .subscribe({
+        next: (q) => {
+          this.discount = q.discount;
+          this.shippingAmount = q.shippingAmount;
+          this.taxAmount = q.taxAmount;
+          this.quoteTotal = q.total;
+          this.promotionName = q.promotionName ?? null;
+          this.promotionDiscount = q.promotionDiscount ?? 0;
+        },
+        error: () => {
+          /* keep the last-known totals on a transient failure */
+        },
+      });
   }
 
   selectShipping(code: string): void {
@@ -206,7 +228,7 @@ export class Checkout implements OnInit, AfterViewInit {
     const email = (this.email?.value ?? '').trim();
     if (email.includes('@')) {
       this.accountService.getAddresses(email).subscribe({
-        next: list => (this.savedAddresses = list),
+        next: (list) => (this.savedAddresses = list),
         error: () => (this.savedAddresses = []),
       });
     }
@@ -216,12 +238,12 @@ export class Checkout implements OnInit, AfterViewInit {
   applySavedAddress(addr: SavedAddress): void {
     const group = this.checkoutFormGroup.get('shippingAddress');
     group?.patchValue({ street: addr.street, city: addr.city, zipCode: addr.zipCode });
-    const country = this.countries.find(c => c.name === addr.country);
+    const country = this.countries.find((c) => c.name === addr.country);
     if (country) {
       group?.get('country')?.setValue(country);
-      this.formService.getStates(country.code).subscribe(states => {
+      this.formService.getStates(country.code).subscribe((states) => {
         this.shippingAddressStates = states;
-        group?.get('state')?.setValue(states.find(s => s.name === addr.state) ?? '');
+        group?.get('state')?.setValue(states.find((s) => s.name === addr.state) ?? '');
         this.recomputeQuote();
       });
     }
@@ -234,10 +256,24 @@ export class Checkout implements OnInit, AfterViewInit {
       return;
     }
     const summary = this.cartService.cartItems
-      .map(i => `${i.quantity}× ${i.name}`).join(', ').slice(0, 900);
-    this.checkoutService.captureAbandonedCart({
-      email, itemCount: this.totalQuantity, total: this.totalPrice, summary,
-    }).subscribe({ next: () => { /* best-effort */ }, error: () => { /* best-effort */ } });
+      .map((i) => `${i.quantity}× ${i.name}`)
+      .join(', ')
+      .slice(0, 900);
+    this.checkoutService
+      .captureAbandonedCart({
+        email,
+        itemCount: this.totalQuantity,
+        total: this.totalPrice,
+        summary,
+      })
+      .subscribe({
+        next: () => {
+          /* best-effort */
+        },
+        error: () => {
+          /* best-effort */
+        },
+      });
   }
 
   async ngAfterViewInit(): Promise<void> {
@@ -251,43 +287,78 @@ export class Checkout implements OnInit, AfterViewInit {
     const elements = this.stripe.elements();
     this.cardElement = elements.create('card', { hidePostalCode: true });
     this.cardElement.mount('#card-element');
-    this.cardElement.on('change', event => {
+    this.cardElement.on('change', (event) => {
       this.cardError = event.error ? event.error.message : '';
     });
   }
 
   private buildAddressGroup(): FormGroup {
     return this.formBuilder.group({
-      street: ['', [Validators.required, Validators.minLength(2), Luv2ShopValidators.notOnlyWhitespace]],
-      city: ['', [Validators.required, Validators.minLength(2), Luv2ShopValidators.notOnlyWhitespace]],
+      street: [
+        '',
+        [Validators.required, Validators.minLength(2), Luv2ShopValidators.notOnlyWhitespace],
+      ],
+      city: [
+        '',
+        [Validators.required, Validators.minLength(2), Luv2ShopValidators.notOnlyWhitespace],
+      ],
       state: ['', Validators.required],
       country: ['', Validators.required],
-      zipCode: ['', [Validators.required, Validators.minLength(2), Luv2ShopValidators.notOnlyWhitespace]],
+      zipCode: [
+        '',
+        [Validators.required, Validators.minLength(2), Luv2ShopValidators.notOnlyWhitespace],
+      ],
     });
   }
 
   private reviewCartDetails(): void {
-    this.cartService.totalQuantity.subscribe(data => (this.totalQuantity = data));
-    this.cartService.totalPrice.subscribe(data => (this.totalPrice = data));
+    this.cartService.totalQuantity.subscribe((data) => (this.totalQuantity = data));
+    this.cartService.totalPrice.subscribe((data) => (this.totalPrice = data));
     this.cartService.computeCartTotals();
   }
 
   // ----- convenience getters for template validation -----
-  get firstName() { return this.checkoutFormGroup.get('customer.firstName'); }
-  get lastName() { return this.checkoutFormGroup.get('customer.lastName'); }
-  get email() { return this.checkoutFormGroup.get('customer.email'); }
+  get firstName() {
+    return this.checkoutFormGroup.get('customer.firstName');
+  }
+  get lastName() {
+    return this.checkoutFormGroup.get('customer.lastName');
+  }
+  get email() {
+    return this.checkoutFormGroup.get('customer.email');
+  }
 
-  get shippingStreet() { return this.checkoutFormGroup.get('shippingAddress.street'); }
-  get shippingCity() { return this.checkoutFormGroup.get('shippingAddress.city'); }
-  get shippingState() { return this.checkoutFormGroup.get('shippingAddress.state'); }
-  get shippingCountry() { return this.checkoutFormGroup.get('shippingAddress.country'); }
-  get shippingZipCode() { return this.checkoutFormGroup.get('shippingAddress.zipCode'); }
+  get shippingStreet() {
+    return this.checkoutFormGroup.get('shippingAddress.street');
+  }
+  get shippingCity() {
+    return this.checkoutFormGroup.get('shippingAddress.city');
+  }
+  get shippingState() {
+    return this.checkoutFormGroup.get('shippingAddress.state');
+  }
+  get shippingCountry() {
+    return this.checkoutFormGroup.get('shippingAddress.country');
+  }
+  get shippingZipCode() {
+    return this.checkoutFormGroup.get('shippingAddress.zipCode');
+  }
 
-  get billingStreet() { return this.checkoutFormGroup.get('billingAddress.street'); }
-  get billingCity() { return this.checkoutFormGroup.get('billingAddress.city'); }
-  get billingState() { return this.checkoutFormGroup.get('billingAddress.state'); }
-  get billingCountry() { return this.checkoutFormGroup.get('billingAddress.country'); }
-  get billingZipCode() { return this.checkoutFormGroup.get('billingAddress.zipCode'); }
+  get billingStreet() {
+    return this.checkoutFormGroup.get('billingAddress.street');
+  }
+  get billingCity() {
+    return this.checkoutFormGroup.get('billingAddress.city');
+  }
+  get billingState() {
+    return this.checkoutFormGroup.get('billingAddress.state');
+  }
+  get billingCountry() {
+    return this.checkoutFormGroup.get('billingAddress.country');
+  }
+  get billingZipCode() {
+    return this.checkoutFormGroup.get('billingAddress.zipCode');
+  }
 
   applyCoupon(): void {
     const code = this.couponCode.trim();
@@ -297,7 +368,7 @@ export class Checkout implements OnInit, AfterViewInit {
     this.applyingCoupon = true;
     this.couponError = '';
     this.couponService.validate(code, this.totalPrice).subscribe({
-      next: res => {
+      next: (res) => {
         if (res.valid) {
           this.appliedCode = res.code;
           this.couponError = '';
@@ -332,7 +403,7 @@ export class Checkout implements OnInit, AfterViewInit {
     this.applyingGift = true;
     this.giftCardError = '';
     this.checkoutService.checkGiftCard(code).subscribe({
-      next: res => {
+      next: (res) => {
         if (res.valid) {
           this.appliedGiftCode = res.code;
           this.giftCardBalance = res.balance;
@@ -368,7 +439,7 @@ export class Checkout implements OnInit, AfterViewInit {
     this.loadingLoyalty = true;
     this.loyaltyError = '';
     this.loyalty.summary(email).subscribe({
-      next: s => {
+      next: (s) => {
         this.loyaltyBalance = s.balance;
         this.loyaltyTier = s.tier;
         if (s.balance > 0) {
@@ -393,8 +464,9 @@ export class Checkout implements OnInit, AfterViewInit {
   copyShippingToBilling(event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
     if (checked) {
-      this.checkoutFormGroup.controls['billingAddress']
-        .setValue(this.checkoutFormGroup.controls['shippingAddress'].value);
+      this.checkoutFormGroup.controls['billingAddress'].setValue(
+        this.checkoutFormGroup.controls['shippingAddress'].value,
+      );
       this.billingAddressStates = this.shippingAddressStates;
     } else {
       this.checkoutFormGroup.controls['billingAddress'].reset();
@@ -406,7 +478,7 @@ export class Checkout implements OnInit, AfterViewInit {
     const formGroup = this.checkoutFormGroup.get(addressType);
     const countryCode = formGroup?.value.country.code;
 
-    this.formService.getStates(countryCode).subscribe(data => {
+    this.formService.getStates(countryCode).subscribe((data) => {
       if (addressType === 'shippingAddress') {
         this.shippingAddressStates = data;
       } else {
@@ -449,7 +521,7 @@ export class Checkout implements OnInit, AfterViewInit {
     this.paymentInfo.receiptEmail = this.email?.value;
 
     this.checkoutService.createPaymentIntent(this.paymentInfo).subscribe({
-      next: response => {
+      next: (response) => {
         this.paymentIntentId = response.id;
         this.stripe!.confirmCardPayment(
           response.client_secret,
@@ -470,16 +542,17 @@ export class Checkout implements OnInit, AfterViewInit {
             },
           },
           { handleActions: false },
-        ).then(result => {
+        ).then((result) => {
           if (result.error) {
             this.isSubmitting = false;
-            this.errorMessage = result.error.message ?? 'Payment failed. Please check your card details.';
+            this.errorMessage =
+              result.error.message ?? 'Payment failed. Please check your card details.';
           } else {
             this.placeOrder();
           }
         });
       },
-      error: err => {
+      error: (err) => {
         this.isSubmitting = false;
         this.errorMessage = `There was an error creating the payment: ${err.message}`;
       },
@@ -491,7 +564,7 @@ export class Checkout implements OnInit, AfterViewInit {
     order.shippingAmount = this.shippingAmount;
     order.taxAmount = this.taxAmount;
     order.shippingMethod = this.selectedShippingCode;
-    const orderItems: OrderItem[] = this.cartService.cartItems.map(item => new OrderItem(item));
+    const orderItems: OrderItem[] = this.cartService.cartItems.map((item) => new OrderItem(item));
 
     const purchase = new Purchase();
     purchase.customer = this.checkoutFormGroup.controls['customer'].value;
@@ -518,8 +591,8 @@ export class Checkout implements OnInit, AfterViewInit {
     }
 
     this.checkoutService.placeOrder(purchase).subscribe({
-      next: response => this.completeOrder(response.orderTrackingNumber),
-      error: err => {
+      next: (response) => this.completeOrder(response.orderTrackingNumber),
+      error: (err) => {
         this.isSubmitting = false;
         this.errorMessage = `There was an error placing the order: ${err.message}`;
       },
@@ -533,7 +606,7 @@ export class Checkout implements OnInit, AfterViewInit {
       shippingAmount: this.shippingAmount,
       taxAmount: this.taxAmount,
       discount: this.discount,
-      items: this.cartService.cartItems.map(item => ({
+      items: this.cartService.cartItems.map((item) => ({
         name: item.name,
         imageUrl: item.imageUrl,
         quantity: item.quantity,
