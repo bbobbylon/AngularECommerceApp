@@ -5,6 +5,11 @@ import { RouterLink } from '@angular/router';
 
 import { CartService } from '../../services/cart.service';
 
+/**
+ * Header cart-icon widget (price/quantity badge) reading `CartService`'s totals. The "bump" animation
+ * fires only when quantity grows after the initial load, so restoring a saved cart on page refresh
+ * doesn't falsely animate.
+ */
 @Component({
   selector: 'app-cart-status',
   imports: [CommonModule, MoneyPipe, RouterLink],

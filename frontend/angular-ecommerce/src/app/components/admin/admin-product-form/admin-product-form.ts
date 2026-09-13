@@ -7,6 +7,11 @@ import { ProductCategory } from '../../../common/product-category';
 import { AdminProductPayload, AdminService, AdminVariant } from '../../../services/admin.service';
 import { ToastService } from '../../../services/toast.service';
 
+/**
+ * Shared create/edit form for `admin-products` — the route decides which mode by whether an `:id`
+ * param is present. Includes the variant editor (`FormArray`, roadmap #1) and the "Gallery images"
+ * textarea (one URL per line, backing `Product.additionalImages`).
+ */
 @Component({
   selector: 'app-admin-product-form',
   imports: [ReactiveFormsModule, RouterLink],

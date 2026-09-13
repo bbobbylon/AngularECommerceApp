@@ -17,6 +17,12 @@ import { ToastService } from '../../services/toast.service';
 import { RecentlyViewed } from '../recently-viewed/recently-viewed';
 import { StarRating } from '../star-rating/star-rating';
 
+/**
+ * The single-product page — the storefront's most feature-accreted component. Owns variant selection
+ * (price/stock/image reflect the chosen `ProductVariant`), the image gallery, reviews (list + write
+ * form via `ReviewService`), back-in-stock notify-me, "you might also like" related products, and logs
+ * the visit to `RecentlyViewedService` (gated behind `functional` cookie consent since #24).
+ */
 @Component({
   selector: 'app-product-details',
   imports: [CommonModule, MoneyPipe, FormsModule, RouterLink, StarRating, RecentlyViewed],

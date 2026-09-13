@@ -12,6 +12,11 @@ import { ProductService } from '../../services/product.service';
 import { ToastService } from '../../services/toast.service';
 import { WishlistService } from '../../services/wishlist.service';
 
+/**
+ * The `/favorites` page — renders whatever `FavoritesService`'s localStorage-held id list resolves to
+ * via `ProductService.getProductsByIds()`, plus a "sync across devices" form that round-trips the list
+ * through `WishlistService`'s email-keyed backend store.
+ */
 @Component({
   selector: 'app-favorites',
   imports: [CommonModule, MoneyPipe, FormsModule, RouterLink],

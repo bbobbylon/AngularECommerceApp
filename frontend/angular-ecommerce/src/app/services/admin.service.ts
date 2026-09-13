@@ -82,6 +82,14 @@ export interface AdminProductPayload {
   categoryId: number;
 }
 
+/**
+ * The back-office kitchen sink: wraps nearly every `Admin*Controller` under `/api/admin/**`
+ * (dashboard stats, products/categories, orders, reviews, inventory, warehouses/shipments, audit
+ * log, analytics, billing (#22), API keys + webhooks (#23)) in one file rather than one service per
+ * controller, since every admin page already imports this one and RBAC is enforced server-side
+ * anyway. Grown incrementally feature-by-feature — see `docs/FILE_MAP.md`'s `controller/` section
+ * for which backend controller a given method/interface here actually calls.
+ */
 @Injectable({ providedIn: 'root' })
 export class AdminService {
 

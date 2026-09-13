@@ -7,6 +7,11 @@ import { Review } from '../../../services/review.service';
 import { ToastService } from '../../../services/toast.service';
 import { StarRating } from '../../star-rating/star-rating';
 
+/**
+ * Review moderation queue (part of the reviews & ratings feature set) — approve/delete customer
+ * reviews via `AdminService`; deleting one also re-syncs the product's denormalized
+ * `averageRating`/`reviewCount` server-side (`ReviewService`), not here.
+ */
 @Component({
   selector: 'app-admin-reviews',
   imports: [CommonModule, NgbPaginationModule, StarRating],

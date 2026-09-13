@@ -5,6 +5,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { ProductCategory } from '../../common/product-category';
 import { ProductService } from '../../services/product.service';
 
+/** Sidebar category nav — reads the live category list from `ProductService`; icons are a static map. */
 @Component({
   selector: 'app-product-category-menu',
   imports: [CommonModule, RouterLink, RouterLinkActive],

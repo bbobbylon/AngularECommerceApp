@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 
 import { ToastService, ToastType } from '../../services/toast.service';
 
+/** Renders `ToastService`'s active notification queue. Mounted once in `App`'s global chrome. */
 @Component({
   selector: 'app-toast',
   imports: [],

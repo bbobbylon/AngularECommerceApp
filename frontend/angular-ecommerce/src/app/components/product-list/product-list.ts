@@ -17,6 +17,12 @@ import { NewsletterSignup } from '../newsletter-signup/newsletter-signup';
 import { RecentlyViewed } from '../recently-viewed/recently-viewed';
 import { StarRating } from '../star-rating/star-rating';
 
+/**
+ * The one grid component behind the home page, a category page, `/search/:keyword`, and `/sale` —
+ * `isHome`/`searchMode`/`saleMode` distinguish which scope is active. Unified onto
+ * `ProductService`'s faceted `/api/catalog/search` (category/keyword/price/in-stock/on-sale/rating/
+ * sort + pagination) rather than one endpoint per scope.
+ */
 @Component({
   selector: 'app-product-list',
   imports: [CommonModule, MoneyPipe, FormsModule, RouterLink, NgbPaginationModule, NewsletterSignup, RecentlyViewed, StarRating],

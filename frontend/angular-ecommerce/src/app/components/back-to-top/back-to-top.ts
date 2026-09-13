@@ -1,5 +1,9 @@
 import { Component, HostListener, signal } from '@angular/core';
 
+/**
+ * Floating scroll-to-top button, mounted once in `App`'s global chrome. Purely presentational —
+ * shows itself past a 400px scroll offset, no service dependency.
+ */
 @Component({
   selector: 'app-back-to-top',
   imports: [],

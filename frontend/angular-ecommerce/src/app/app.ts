@@ -23,6 +23,13 @@ import { ReferralService } from './services/referral.service';
 import { SeoService } from './services/seo.service';
 import { ThemeService } from './services/theme.service';
 
+/**
+ * The root shell: header (search, category menu, cart, login status), footer, and every
+ * globally-mounted overlay (`Toast`, `BackToTop`, `InstallPrompt`, `CookieConsent`). Fetches the
+ * CMS banner (#17) once on load and injects the site-wide Organization/WebSite JSON-LD (#11).
+ * `ReferralService` and `SeoService` are injected here purely for their side effects (capturing a
+ * `?ref=` param and setting per-route meta tags respectively) — neither is read from the template.
+ */
 @Component({
   selector: 'app-root',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, Search, ProductCategoryMenu, CartStatus, LoginStatus, Toast, BackToTop, InstallPrompt, CookieConsent, NewsletterSignup, TranslatePipe],

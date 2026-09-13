@@ -6,6 +6,11 @@ import { RouterLink } from '@angular/router';
 import { CartItem } from '../../common/cart-item';
 import { CartService } from '../../services/cart.service';
 
+/**
+ * The full `/cart-details` page — line-item list with quantity +/- and remove, backed entirely by
+ * `CartService`'s sessionStorage-held state. `cart-status.ts` is this same data shown as a small
+ * header widget rather than a full page.
+ */
 @Component({
   selector: 'app-cart-details',
   imports: [CommonModule, MoneyPipe, RouterLink],

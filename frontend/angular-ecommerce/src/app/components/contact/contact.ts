@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 
 import { SeoService } from '../../services/seo.service';
 
+/** Static contact page — copy lives in `contact.html`; this class only wires up SEO tags. */
 @Component({
   selector: 'app-contact',
   imports: [RouterLink],

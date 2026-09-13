@@ -4,6 +4,11 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
 
+/**
+ * Wraps `WishlistController` (email-keyed favorites). `favorites.service.ts` owns the local/signal
+ * state the favorites page reads; this service is only the HTTP layer it calls to sync/merge with
+ * the account once an email is known.
+ */
 @Injectable({ providedIn: 'root' })
 export class WishlistService {
 

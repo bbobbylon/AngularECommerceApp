@@ -21,6 +21,15 @@ import { ReferralService } from '../../services/referral.service';
 import { Luv2ShopFormService } from '../../services/luv2shop-form.service';
 import { Luv2ShopValidators } from '../../validators/luv2shop-validators';
 
+/**
+ * The checkout page — the frontend side of `CheckoutServiceImpl`'s pipeline
+ * (subtotal → coupon → promotion → shipping → tax → gift card → rewards → amount due). Composes
+ * `CouponService`, `LoyaltyService`, `ReferralService`, `AccountService` (saved addresses),
+ * `CheckoutService` (the live quote + shipping methods + Stripe payment intent + purchase) and
+ * `CurrencyService` (checkout always settles in USD regardless of the browsing display currency).
+ * Every discount mechanism added since M2 has its own block of fields/getters here, mirroring the
+ * order they're applied server-side.
+ */
 @Component({
   selector: 'app-checkout',
   imports: [CommonModule, ReactiveFormsModule, FormsModule],

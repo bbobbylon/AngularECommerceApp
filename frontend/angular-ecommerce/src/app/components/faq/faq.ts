@@ -4,6 +4,10 @@ import { RouterLink } from '@angular/router';
 import { ContentService, FaqEntry } from '../../services/content.service';
 import { SeoService } from '../../services/seo.service';
 
+/**
+ * The `/faq` page — entries are CMS-backed (`ContentService.getFaq()`, roadmap #17), not a hardcoded
+ * array; an admin edits them via `admin-content.ts`.
+ */
 @Component({
   selector: 'app-faq',
   imports: [RouterLink],

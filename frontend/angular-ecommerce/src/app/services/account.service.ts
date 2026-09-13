@@ -18,6 +18,12 @@ export interface AccountUpdate {
   newsletterSubscribed?: boolean;
 }
 
+/**
+ * The signed-in customer's account page, backed by `AccountController` (profile/newsletter
+ * preferences), `AccountAddressController` (address book, #9) and `AccountPaymentMethodController`
+ * (saved Stripe cards via SetupIntent, #9) — all three grouped here since they share one
+ * email-identified customer rather than splitting into three services.
+ */
 @Injectable({ providedIn: 'root' })
 export class AccountService {
 

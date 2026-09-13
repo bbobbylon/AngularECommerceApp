@@ -7,6 +7,10 @@ import { isOnSale } from '../../../common/product';
 import { AdminProduct, AdminService } from '../../../services/admin.service';
 import { ToastService } from '../../../services/toast.service';
 
+/**
+ * Admin product list — paginated table with edit/delete links into `admin-product-form`. Reuses the
+ * storefront's `isOnSale()` helper so the admin view's sale badge matches what customers see.
+ */
 @Component({
   selector: 'app-admin-products',
   imports: [CommonModule, RouterLink, NgbPaginationModule],

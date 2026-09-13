@@ -12,6 +12,13 @@ import { ConfigService } from './services/config.service';
 
 const oktaAuth = new OktaAuth(oktaConfig);
 
+/**
+ * App-wide DI providers. The service worker is gated on `isDevMode()` rather than
+ * `environment.production` — this project's `environment.ts` has no `fileReplacements` wired in
+ * `angular.json`, so that flag is always `false` and would never actually enable the worker
+ * (roadmap #12). `provideAppInitializer` blocks first render on `ConfigService.load()` so a
+ * runtime-supplied Stripe key (from `/config.json`) is available before any component reads it.
+ */
 export const appConfig: ApplicationConfig = {
   providers: [
     // load /config.json (runtime Stripe key etc.) before the app starts

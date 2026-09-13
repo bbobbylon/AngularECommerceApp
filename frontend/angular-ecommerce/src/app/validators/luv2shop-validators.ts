@@ -1,5 +1,6 @@
 import { AbstractControl, ValidationErrors } from '@angular/forms';
 
+/** Shared reactive-forms validators, used across the checkout and account-settings forms. */
 export class Luv2ShopValidators {
 
   /** Fails validation when a field contains only whitespace. */

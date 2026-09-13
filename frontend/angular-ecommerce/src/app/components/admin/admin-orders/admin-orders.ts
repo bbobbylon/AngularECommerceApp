@@ -12,6 +12,14 @@ import {
 } from '../../../services/admin.service';
 import { ToastService } from '../../../services/toast.service';
 
+/**
+ * Admin order list + status changes, plus this codebase's first expand-in-place table row: a
+ * per-order "Fulfillment" toggle (roadmap #20) revealing existing shipments and a
+ * fulfill-from-a-warehouse form, defaulting to `AdminService.getFulfillmentOptions()`'s
+ * best-coverage suggestion. Only one order's fulfillment panel is open at a time
+ * (`expandedOrderId`). The status `<select>` is bound via `[ngModel]`/`(ngModelChange)`, never a
+ * plain `[value]` — see roadmap #20's native-`<select>` lesson if that ever looks simplifiable.
+ */
 @Component({
   selector: 'app-admin-orders',
   imports: [CommonModule, FormsModule, NgbPaginationModule],

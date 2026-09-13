@@ -5,6 +5,11 @@ import { Observable, map } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { OrderHistory } from '../common/order-history';
 
+/**
+ * Reads past orders from the Spring Data REST `Order` resource directly (`GET /api/orders/**`, no
+ * custom controller) via its `findByCustomerEmailOrderByDateCreatedDesc` search projection. `getAllOrders()`
+ * is a demo-mode fallback for when no one is signed in, so the order-history page still renders something.
+ */
 @Injectable({ providedIn: 'root' })
 export class OrderHistoryService {
 

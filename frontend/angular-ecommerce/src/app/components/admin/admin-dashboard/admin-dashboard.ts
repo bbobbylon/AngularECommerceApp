@@ -4,6 +4,11 @@ import { RouterLink } from '@angular/router';
 
 import { AdminService, AdminStats, SystemHealth } from '../../../services/admin.service';
 
+/**
+ * The admin back-office landing page: top-line `AdminStats` (products/orders/revenue) plus a
+ * "System health" card wrapping `SystemHealthService`'s actuator-derived `SystemHealth` reading.
+ * Links out to every other admin page rather than duplicating their detail.
+ */
 @Component({
   selector: 'app-admin-dashboard',
   imports: [CurrencyPipe, DecimalPipe, RouterLink],

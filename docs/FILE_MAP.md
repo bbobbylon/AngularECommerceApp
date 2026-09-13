@@ -58,11 +58,22 @@ infrastructure that doesn't belong to any one feature.
   `findById` with no query-building step to intercept, so this filter does a cheap
   `existsByIdAndTenantId` pre-check and 404s a cross-tenant id before the request reaches SDR.
 - **`RateLimitFilter.java`** — Caffeine-backed per-IP-and-tenant rate limiting (30/min) + a 64 KB body
-  cap on the public write endpoints (`/api/reviews|coupons|newsletter`), returning 429/413.
+  cap on the public write endpoints (`/api/reviews|coupons|newsletter`), returning 429/413. `/api/privacy/**`
+  (#24) is rate-limited the same way, for the same reason as the newsletter endpoints — it can send mail.
+- **`ApiKeyAuthenticationFilter.java`** (#23) — the *other* half of `X-Api-Key` handling: registered
+  inside `SecurityConfig`'s `HttpSecurity` via `addFilterBefore(..., BearerTokenAuthenticationFilter.class)`
+  (not a `@Component`, which would double-register it outside the chain) — it must be separate from
+  `TenantResolutionFilter` because that filter runs before `FilterChainProxy` even starts, too early for
+  anything it sets on `SecurityContextHolder` to survive.
+- **`WebhookClientConfig.java`** (#23) — declares an explicit `ObjectMapper` bean alongside the outbound
+  `RestClient` used for delivery; this app's `spring-boot-starter-webmvc` doesn't transitively pull
+  `jackson-databind` the way the old `spring-boot-starter-web` did, so Boot's Jackson auto-config never
+  registers one on its own — see `CLAUDE.md`'s #23 lesson if this surprises you elsewhere.
 - **`RequestIdFilter.java`** — stamps an `X-Request-Id` (incoming or generated) into MDC so every log
   line for a request can be correlated; echoes it back on the response.
 - **`CacheConfig.java`** — the Caffeine `CacheManager` backing `catalogSearch` (faceted search results,
-  evicted on admin product writes) and `tenantLookup` (slug→`Tenant`, resolved on every request).
+  evicted on admin product writes), `tenantLookup` (slug→`Tenant`, resolved on every request), and
+  `apiKeyLookup` (#23 — hashed key→tenant+authorities, evicted immediately on revocation).
 - **`MyDataRestConfig.java`** — locks Spring Data REST's auto-exposed catalog resources
   (`Product`/`ProductCategory`/`Country`/`State`/`Order`) to read-only and exposes their ids in JSON
   responses (off by default in SDR).
@@ -136,6 +147,24 @@ Multi-tenancy section below rather than repeating that on every line here.
 - **`Tenant.java`** (#21 Milestone A) — the tenant row itself (slug/displayName/contactEmail/active/
   plan). Every other tenant-scoped entity's `tenant_id` FKs here. Not itself tenant-scoped (there's
   only ever one row per tenant, by definition).
+- **`BillingPlan.java`** (#22) — **platform-level, no `tenant_id`**: a plan is offered to every tenant,
+  not owned by one. **`TenantBillingAccount.java`** — the per-tenant subscription state (plan/status/
+  `currentPeriodEnd`/card-on-file), unique on `tenant_id`, created lazily on first plan assignment.
+  **`BillingInvoice.java`** — an append-only per-charge-attempt ledger (same idiom as `AuditLogEntry`),
+  snapshotting the plan name/amount at charge time so a later price change never rewrites history.
+- **`ApiKey.java`** (#23 Milestone A) — a tenant's headless-API bearer credential; persisted only as a
+  SHA-256 hash (the raw key is shown once, at issue time). **`WebhookSubscription.java`** (Milestone B)
+  — a registered callback URL + event-type list; its HMAC signing secret follows the same once-only
+  disclosure shape. **`WebhookEvent.java`** (Milestone C) — the transactional-outbox row written inside
+  the same transaction as the mutation it describes (order created, shipment shipped, etc.), so a
+  rolled-back mutation never emits an event. **`WebhookDeliveryAttempt.java`** (Milestone D) — one row
+  per delivery try (success/failure/network-error), the ledger `WebhookDeliveryScheduler` walks to
+  decide what's still due.
+- **`ConsentRecord.java`** (#24) — an **append-only** cookie/storage-consent ledger (same idiom as
+  `AuditLogEntry`/`BillingInvoice`) — every Accept/Reject/Customize writes a new row so consent history
+  is demonstrable (GDPR Art. 7(1)), never overwriting the prior decision. **`DataRequest.java`** — a
+  data-subject export/erasure request; the emailed confirm token is the identity check (no login
+  required), single-use and time-limited.
 
 ### `dao/` — Spring Data JPA repositories
 
@@ -209,6 +238,28 @@ query methods take a `tenantId` parameter. `ProductRepository` is additionally a
   logic used by `TenantResolutionFilter` (kept as a separate `@Cacheable` service so the filter itself
   stays thin).
 - **`NewsletterService.java`** (M6) — subscribe/unsubscribe + `WeeklyAdScheduler`'s cron-driven send.
+- **`BillingService.java`** (#22, paired with **`MonthlyBillingScheduler.java`**) — daily-cron sweep
+  charging tenants past `currentPeriodEnd`; deliberately no Stripe Customer/Subscription object, just a
+  bare `PaymentMethod` id (same pattern `PaymentMethodService` established) — every branch (no plan, no
+  Stripe, no card, decline, success) writes a `BillingInvoice` row and returns normally, so one
+  tenant's failure never blocks another's. **`BillingPlanService.java`** — the platform-level plan
+  catalog CRUD (`SuperAdmin`-only).
+- **`ApiKeyService.java`** (#23 Milestone A, paired with **`ApiKeyLookupService.java`**) — issues/revokes
+  keys (SHA-256 hashed at rest, shown once), and the `@Cacheable` lookup `ApiKeyAuthenticationFilter`
+  and `TenantResolutionFilter` both consult; revocation evicts the cache so a revoked key dies
+  immediately, not at TTL. **`WebhookSubscriptionService.java`** (Milestone B) — subscription CRUD, HMAC
+  secret shown once. **`WebhookEventPublisher.java`** (Milestone C) — `publish()` is `@Transactional`
+  and joins the caller's transaction (not `REQUIRES_NEW`), writing one outbox row per matching active
+  subscription. **`WebhookDeliveryService.java`** (Milestone D, paired with
+  **`WebhookDeliveryScheduler.java`**) — the 30s-cron delivery sweep: signs each request
+  (`X-Webhook-Signature`, HMAC-SHA256 over the raw body), retries on a `1m→5m→15m→60m→360m` backoff
+  ladder then marks `ABANDONED`, and writes a `WebhookDeliveryAttempt` row on every branch (2xx,
+  non-2xx, network error) so one dead subscriber endpoint never blocks another's delivery.
+- **`PrivacyConsentService.java`** (#24) — records/reads cookie-consent decisions by `visitorId` (not
+  tied to any account) and exposes the active `policyVersion` so the frontend re-prompts only when it
+  changes. **`DataRequestService.java`** — issues/emails the export/erasure confirm token and executes
+  the actual export (JSON dump) or erasure (deletes convenience data, anonymizes retained financial
+  records — orders survive for tax/accounting reasons) once confirmed.
 
 ### `controller/` — thin `@RestController`s
 
@@ -221,7 +272,10 @@ touch a repository directly (confirmed by grep during Milestone C). Grouped by a
   (check), `WishlistController`, `StockNotificationController`, `AbandonedCartController`,
   `ReferralController`, `LoyaltyController`, `ContentController` (banner/FAQ reads),
   `NewsletterController`, `ReturnController` (customer-side create), `ShipmentController`
-  (customer-side track), `SitemapController` (`sitemap.xml`, outside `/api`).
+  (customer-side track), `SitemapController` (`sitemap.xml`, outside `/api`), `PrivacyController`
+  (#24 — `/api/privacy/**`, deliberately unauthenticated: consent is given before sign-in, and the
+  data-request flow must work for someone with no account; confirm/erase/export routes return
+  branded HTML since they're opened straight from an inbox link, not the SPA).
 - **Account (Okta-gated)**: `AccountController` (profile/preferences), `AccountAddressController`,
   `AccountPaymentMethodController`.
 - **Admin (`/api/admin/**`, RBAC-gated per `SecurityConfig`)**: `AdminController` (dashboard
@@ -229,9 +283,14 @@ touch a repository directly (confirmed by grep during Milestone C). Grouped by a
   `AdminCouponController`, `AdminPromotionController`, `AdminGiftCardController`,
   `AdminTaxShippingController`, `AdminContentController`, `AdminInventoryController`,
   `AdminAuditLogController`, `AdminAnalyticsController`, `AdminFulfillmentController`
-  (warehouses), `AdminShipmentController`, `AdminReturnController`, `AdminSystemController`.
+  (warehouses), `AdminShipmentController`, `AdminReturnController`, `AdminSystemController`,
+  `AdminBillingController` (#22 — read-only status/invoice-history + self-service card management for
+  the signed-in tenant), `AdminApiKeyController` / `AdminWebhookController` (#23 — issue/revoke keys,
+  subscription CRUD + the paginated delivery-attempt ledger).
 - **Platform (`/api/platform/**`, `SuperAdmin`-only, tenant-resolution-exempt)**:
-  `PlatformTenantController`.
+  `PlatformTenantController`, `PlatformBillingPlanController` (#22 — the plan catalog CRUD; plan
+  *assignment* to a tenant lives on `PlatformTenantController` instead, alongside the rest of that
+  tenant's admin actions).
 - **Cross-cutting**: `GlobalExceptionHandler` (`@RestControllerAdvice` for this codebase's own
   controllers — SDR keeps its own error handling for the auto-exposed catalog endpoints).
 
@@ -269,10 +328,23 @@ admin CRUD requests/views (one pair per admin-managed entity — `AdminProductRe
   cards/tax/shipping/banner/FAQ), D scoped the final 14 customer/ops entities. See `CLAUDE.md`'s
   per-milestone bullets for the full history and the bugs each pass caught.
 - **Security filter chain order** (`SecurityConfig` + the `config/` filters above): request-id →
-  tenant resolution → tenant resource guard → rate limiting → Spring Security (JWT parsing, if a
-  secured chain is active) → RBAC matchers → controller. A filter that needs to run before JWT
-  parsing (tenant resolution) can never read a JWT claim — this is *why* `X-Tenant-Id` is a header,
-  not a token claim.
+  tenant resolution (`X-Api-Key` is checked first, ahead of `X-Tenant-Id`/subdomain/default — #23) →
+  tenant resource guard → rate limiting → Spring Security (`ApiKeyAuthenticationFilter` before
+  `BearerTokenAuthenticationFilter`, then JWT parsing if a secured chain is active) → RBAC matchers →
+  controller. A filter that needs to run before JWT parsing (tenant resolution) can never read a JWT
+  claim — this is *why* `X-Tenant-Id` is a header, not a token claim, and why API-key tenant
+  resolution and API-key authentication had to be two separate filters instead of one.
+- **Headless API + webhooks (roadmap #23)**: an `X-Api-Key` header does double duty (tenant identity
+  *and* Spring Security authority) via the two filters above; `WebhookEventPublisher.publish()` is a
+  transactional outbox that joins the caller's transaction, so a rolled-back mutation never emits an
+  event; `WebhookDeliveryScheduler` (30s cron) drives the retry ladder independently per subscription.
+- **Tenant billing (roadmap #22)**: `MonthlyBillingScheduler` (daily cron) is the only thing that
+  drives plan renewal/charging — there's no Stripe webhook, `BillingService` recomputes status itself
+  each sweep and never reads it back from Stripe.
+- **GDPR / cookie consent (roadmap #24)**: `ConsentRecord` is append-only (never updated in place, so
+  consent history is demonstrable); `RecentlyViewedService`/`ReferralService` on the frontend gate
+  their localStorage writes on `ConsentService.isAllowed('functional'|'marketing')` — see that
+  section below for the referral ordering fix.
 - **Flyway migrations** (`src/main/resources/db/migration/V{n}__*.sql`): the sole schema-change
   mechanism, one file per entity change, never edited after being applied. `ddl-auto=validate`
   fails the app fast on any entity/schema mismatch. Tests run on H2 with Flyway disabled instead
@@ -340,30 +412,49 @@ Each mirrors its backend counterpart closely enough that the names line up:
 `referral.service.ts`↔`ReferralController`, `return.service.ts`↔`ReturnController`,
 `review.service.ts`↔`ReviewController`, `shipment.service.ts`↔`ShipmentController`,
 `order-history.service.ts`↔`GET /api/orders`, `favorites.service.ts`/`wishlist.service.ts`↔
-`WishlistController`. Frontend-only services with no backend counterpart: `cart.service.ts`
-(sessionStorage-backed cart, cart-item keyed by `id+variantSku`), `config.service.ts` (loads optional
-runtime `/config.json`, e.g. the Stripe publishable key, before bootstrap — lets you set it without a
-rebuild), `currency.service.ts` / `i18n.service.ts` (display-only currency conversion / en-es-fr
-translation, persisted signals — checkout/admin stay USD-only, settlement is always USD),
-`recently-viewed.service.ts` (localStorage), `seo.service.ts` (Angular Title/Meta + JSON-LD injection,
-roadmap #11), `tenant-context.service.ts` (the superadmin "viewing as" tenant signal, read by
-`auth.interceptor.ts`), `theme.service.ts` (light/dark, persisted + OS-preference fallback),
+`WishlistController`, `privacy.service.ts`↔`PrivacyController` (#24 — consent + data-request calls,
+wrapped in the same `catchError(() => of(null))` graceful-degradation idiom `ContentService`
+established for #17). `admin.service.ts` is a deliberate kitchen sink — it's grown to cover every
+`Admin*Controller` including the newer `AdminBillingController`/`AdminApiKeyController`/
+`AdminWebhookController` (#22/#23) rather than splitting into one file per controller.
+`platform.service.ts`↔`PlatformTenantController` **and** `PlatformBillingPlanController` (#22 — plan
+catalog CRUD lives here since both are `SuperAdmin`-only platform-tier calls). Frontend-only services
+with no backend counterpart: `cart.service.ts` (sessionStorage-backed cart, cart-item keyed by
+`id+variantSku`), `config.service.ts` (loads optional runtime `/config.json`, e.g. the Stripe
+publishable key, before bootstrap — lets you set it without a rebuild), `currency.service.ts` /
+`i18n.service.ts` (display-only currency conversion / en-es-fr translation, persisted signals —
+checkout/admin stay USD-only, settlement is always USD), `recently-viewed.service.ts` (localStorage,
+gated behind `functional` consent since #24), `seo.service.ts` (Angular Title/Meta + JSON-LD
+injection, roadmap #11), `tenant-context.service.ts` (the superadmin "viewing as" tenant signal, read
+by `auth.interceptor.ts`), `theme.service.ts` (light/dark, persisted + OS-preference fallback),
 `toast.service.ts` (the app's one notification hub), `luv2shop-form.service.ts` (country/state
-dropdown data).
+dropdown data), `consent.service.ts` (#24 — the cookie-consent signal state: visitor id, category
+choices, banner/panel visibility; `referral.service.ts` reads it via a constructor `effect()` to solve
+a real ordering problem — a `?ref=CODE` URL param must be captured synchronously on first load, but
+consent resolves asynchronously over HTTP, so the code is held in memory until `marketing` consent is
+actually granted before it's ever written to storage).
 
-### `components/` — one directory per UI surface (42 components)
+### `components/` — one directory per UI surface (47 components)
 
 **Storefront**: `product-list`, `product-details`, `product-category-menu`, `search` (header
 typeahead, roadmap #14), `cart-status`, `cart-details`, `checkout`, `order-confirmation`,
 `order-history`, `order-timeline`, `favorites`, `recently-viewed`, `star-rating`, `login-status`,
 `newsletter-signup`, `install-prompt` (PWA banner, roadmap #12), `back-to-top`, `toast`,
-`not-found`. **Static/info pages**: `about`, `contact`, `faq`, `info-page` (shared shell for
-privacy/terms/shipping-returns). **Account**: `account-settings`.
+`not-found`, `cookie-consent` (#24 — the consent banner + preferences panel, mounted once in `App`;
+reachable from every route via `ConsentService`, also reopenable from the account page). **Static/info
+pages**: `about`, `contact`, `faq`, `info-page` (shared shell for privacy/terms/shipping-returns — the
+`/privacy` route's `sections` array gained a "Cookies & storage" entry in #24). **Account**:
+`account-settings` (its "Privacy & your data" card is #24's self-service export/erasure entry point).
 **Admin** (`components/admin/`, one directory per back-office page, all behind `admin-layout`):
 `admin-dashboard`, `admin-products`, `admin-product-form`, `admin-orders`, `admin-reviews`,
 `admin-coupons`, `admin-promotions`, `admin-gift-cards`, `admin-tax-shipping`, `admin-content`,
-`admin-inventory`, `admin-warehouses`, `admin-returns`, `admin-audit-log`, `admin-analytics`.
-**Platform** (`components/platform/`, `SuperAdmin`-only): `platform-layout`, `platform-tenants`.
+`admin-inventory`, `admin-warehouses`, `admin-returns`, `admin-audit-log`, `admin-analytics`,
+`admin-billing` (#22 — tenant-facing plan/status/invoice view + card management),
+`admin-api-keys` / `admin-webhooks` (#23 — the latter has this codebase's expand-in-place
+**Deliveries** row per subscription, reusing #20's pattern rather than a modal).
+**Platform** (`components/platform/`, `SuperAdmin`-only): `platform-layout`, `platform-tenants`
+(gained a `[ngModel]`-bound plan-assignment `<select>` in #22), `platform-billing-plans` (#22 — the
+plan catalog CRUD, mirrors `platform-tenants`'s layout/access-check pattern).
 
 Each admin CRUD page follows the same shape (list + inline/form edit, save-per-row where applicable)
 established by the earliest ones (`admin-coupons`, `admin-tax-shipping`) — a new admin page for a

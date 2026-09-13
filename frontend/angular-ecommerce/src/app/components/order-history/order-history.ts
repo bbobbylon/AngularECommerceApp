@@ -11,6 +11,13 @@ import { ShipmentService, ShipmentView } from '../../services/shipment.service';
 import { ToastService } from '../../services/toast.service';
 import { OrderTimeline } from '../order-timeline/order-timeline';
 
+/**
+ * The `/order-history` page — has grown a section per later feature layered onto the base order list:
+ * `ReturnService` (#3, "Request a return" inline form + status badge) and `ShipmentService` (#20,
+ * read-only tracking block) both only populate once a real Okta email is known; without Okta
+ * configured (or signed out) the page falls back to `demoMode` and lists every order with no
+ * per-customer scoping, matching this codebase's established Okta-optional degradation pattern.
+ */
 @Component({
   selector: 'app-order-history',
   imports: [CommonModule, FormsModule, RouterLink, OrderTimeline],

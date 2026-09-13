@@ -17,6 +17,11 @@ interface OrderSummary {
   items: OrderSummaryItem[];
 }
 
+/**
+ * Post-checkout landing page (`/order-confirmation/:trackingNumber`). The order summary is read from
+ * router navigation state set by `checkout.ts` on submit — present on the flow that placed the order,
+ * `undefined` on a direct visit/refresh, which the template must handle gracefully.
+ */
 @Component({
   selector: 'app-order-confirmation',
   imports: [CommonModule, RouterLink, OrderTimeline],

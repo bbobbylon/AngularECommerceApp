@@ -3,8 +3,13 @@ import { OktaCallbackComponent } from '@okta/okta-angular';
 
 import { devOrAuthGuard } from './auth/dev-auth.guard';
 
-// Local components are lazy-loaded so each route ships as its own chunk, keeping the
-// initial bundle lean (checkout's Stripe/forms and the catalog's pagination split out).
+/**
+ * The full route table. Every route is `loadComponent`-lazy so each page ships as its own chunk,
+ * keeping the initial bundle lean (checkout's Stripe/forms and the catalog's pagination split out).
+ * `devOrAuthGuard` gates every Okta-only route (`members/orders`, `account`, `admin/**`,
+ * `platform/**`) — it falls open when Okta isn't configured, so the app stays fully clickable in
+ * local/demo dev, and only delegates to Okta's real guard once real issuer config is present.
+ */
 export const routes: Routes = [
   { path: 'login/callback', component: OktaCallbackComponent },
   {

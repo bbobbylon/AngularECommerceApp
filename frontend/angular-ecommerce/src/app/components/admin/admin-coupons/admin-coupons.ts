@@ -5,6 +5,11 @@ import { FormsModule } from '@angular/forms';
 import { AdminService, Coupon, CouponPayload } from '../../../services/admin.service';
 import { ToastService } from '../../../services/toast.service';
 
+/**
+ * Admin coupon CRUD (checkout's customer-entered discount codes) — create/edit/deactivate, backed by
+ * `AdminService`/`AdminCouponController`. Distinct from `admin-promotions`, which manages the
+ * no-code-needed automatic discounts (roadmap #16).
+ */
 @Component({
   selector: 'app-admin-coupons',
   imports: [CommonModule, FormsModule],
