@@ -206,6 +206,32 @@ flowchart LR
   classDef ext fill:#eef2fb,stroke:#9aa3b8,color:#1e2435;
 ```
 
+### Render (planned, free-tier)
+
+**Not yet built** — recorded here so the decision doesn't get re-researched. GCP/AWS/Azure above all
+need a real cloud account and, for the DB, a paid or trial-limited managed MySQL. Render's free web
+service tier needs neither, but Render itself has **no free managed MySQL** — so a Render deploy still
+needs an external free database. Two options were evaluated (2026-09-16):
+
+- **Aiven** — free tier is real (no card, no time limit) but capped at **one free service per service
+  type, per account**. This project would need its own free MySQL slot, and a different project on this
+  same Aiven account already used it up. A second Aiven *organisation* does not grant a second free
+  slot — the cap is tracked at the account level, not the org level.
+- **TiDB Cloud Starter** (the pick) — no card required, MySQL wire-protocol compatible (the existing
+  `mysql-connector-j` + `schema.sql` need zero changes, only the connection string), 5 GiB storage, and
+  up to 5 free instances per *organization* — since this would be a brand-new TiDB Cloud org, the Aiven
+  cap doesn't carry over. **Gotcha:** TiDB drops idle connections after ~30 minutes, so
+  `spring.datasource.hikari.max-lifetime` needs to be set below that (e.g. `1500000`, 25 min) or a
+  pooled connection can go stale and throw on first use after Render's own free tier wakes from sleep.
+  (PlanetScale was also considered and ruled out — it removed its free tier in April 2024 and has not
+  brought one back.)
+
+**Still needed to actually build this:** a `render.yaml` Blueprint (Docker web service for the backend,
+static/Docker for the Angular frontend), `APP_CORS_ALLOWED_ORIGINS` pointed at the Render frontend URL
+(the config-driven CORS bean already supports this — no backend code change), and — from the account
+owner — a TiDB Cloud Starter cluster's connection details as Render secrets. See the sibling `Resume`
+repo's `docs/BACKLOG.md` for the fuller research writeup (this app is what that entry calls "Luv2Shop").
+
 ---
 
 ## Walkthrough: GCP Cloud Run, end to end
