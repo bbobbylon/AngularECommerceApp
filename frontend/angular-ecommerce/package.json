@@ -28,7 +28,7 @@
     "@ng-bootstrap/ng-bootstrap": "^21.0.0",
     "@okta/okta-angular": "^8.0.0",
     "@okta/okta-auth-js": "^8.0.1",
-    "@stripe/stripe-js": "^9.15.0",
+    "@stripe/stripe-js": "^9.16.0",
     "bootstrap": "^5.3.8",
     "bootswatch": "^5.3.8",
     "rxjs": "~7.8.0",
@@ -46,6 +46,6 @@
     "puppeteer-core": "^25.10.0",
     "typescript": "~6.0.3",
     "vitest": "^5.0.0",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.1"
   }
 }
