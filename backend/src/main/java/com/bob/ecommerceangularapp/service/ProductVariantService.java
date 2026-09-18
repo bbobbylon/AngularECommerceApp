@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
 import com.bob.ecommerceangularapp.dao.ProductVariantRepository;
 import com.bob.ecommerceangularapp.dto.AdminVariantRequest;
@@ -42,7 +43,8 @@ public class ProductVariantService {
     /** Active variants for a product, resolved (price/image filled in) for direct rendering. */
     @Transactional(readOnly = true)
     public List<ProductVariantView> viewsForProduct(Long productId) {
-        Product product = productRepository.findById(productId).orElse(null);
+        Product product = productRepository.findByIdAndTenantId(productId, TenantContext.currentTenantId())
+                .orElse(null);
         if (product == null) {
             return List.of();
         }
@@ -65,6 +67,8 @@ public class ProductVariantService {
     /** Full variant list for a product (admin editor), including inactive ones, in display order. */
     @Transactional(readOnly = true)
     public List<AdminVariantRequest> adminListForProduct(Long productId) {
+        productRepository.findByIdAndTenantId(productId, TenantContext.currentTenantId())
+                .orElseThrow(() -> new IllegalArgumentException("Product not found: " + productId));
         return variantRepository.findByProductIdOrderBySortOrderAscIdAsc(productId).stream()
                 .map(ProductVariantService::toRequest)
                 .toList();
@@ -82,7 +86,7 @@ public class ProductVariantService {
      */
     @Transactional
     public List<AdminVariantRequest> replaceVariants(Long productId, List<AdminVariantRequest> requests) {
-        Product product = productRepository.findById(productId)
+        Product product = productRepository.findByIdAndTenantId(productId, TenantContext.currentTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Product not found: " + productId));
 
         List<ProductVariant> existing = variantRepository.findByProductIdOrderBySortOrderAscIdAsc(productId);

@@ -46,7 +46,7 @@ public class ReviewService {
 
     @Transactional
     public ReviewView create(ReviewRequest request) {
-        Product product = productRepository.findById(request.productId())
+        Product product = productRepository.findByIdAndTenantId(request.productId(), TenantContext.currentTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Product not found: " + request.productId()));
 
         Review review = new Review();

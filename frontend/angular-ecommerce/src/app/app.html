@@ -39,16 +39,16 @@
         }
       </a>
       <select class="form-select form-select-sm bg-dark text-light border-secondary w-auto"
-              [value]="currencyService.current().code"
-              (change)="currencyService.setCurrency($any($event.target).value)"
+              [ngModel]="currencyService.current().code"
+              (ngModelChange)="currencyService.setCurrency($event)"
               [attr.aria-label]="'common.currency' | t" [attr.title]="'common.currency' | t">
         @for (c of currencyService.currencies; track c.code) {
           <option [value]="c.code">{{ c.code }}</option>
         }
       </select>
       <select class="form-select form-select-sm bg-dark text-light border-secondary w-auto"
-              [value]="i18n.lang()"
-              (change)="i18n.setLang($any($event.target).value)"
+              [ngModel]="i18n.lang()"
+              (ngModelChange)="i18n.setLang($event)"
               [attr.aria-label]="'common.language' | t" [attr.title]="'common.language' | t">
         @for (l of i18n.languages; track l.code) {
           <option [value]="l.code">{{ l.name }}</option>

@@ -96,7 +96,7 @@
     <div class="d-flex align-items-center gap-2">
       <label for="sortBy" class="text-muted small mb-0">Sort</label>
       <select id="sortBy" class="form-select form-select-sm" style="width:auto"
-              [value]="sortBy" (change)="updateSort($any($event.target).value)">
+              [ngModel]="sortBy" (ngModelChange)="updateSort($event)">
         @for (opt of sortOptions; track opt.value) {
           <option [value]="opt.value">{{ opt.label }}</option>
         }
@@ -105,7 +105,7 @@
     <div class="d-flex align-items-center gap-2">
       <label for="pageSize" class="text-muted small mb-0">Page size</label>
       <select id="pageSize" class="form-select form-select-sm" style="width:auto"
-              [value]="pageSize" (change)="updatePageSize($any($event.target).value)">
+              [ngModel]="pageSize" (ngModelChange)="updatePageSize($event)">
         @for (size of pageSizeOptions; track size) {
           <option [value]="size">{{ size }}</option>
         }

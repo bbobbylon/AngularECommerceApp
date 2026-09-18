@@ -968,6 +968,60 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   --id OpenJS.NodeJS.LTS`, or `fnm use 24`). Verified green: `npx ng build` (prod), 17/17 unit tests,
   37/37 Playwright E2E (incl. 24 axe-core WCAG checks), `npm audit` 0 findings, and the frontend Docker
   image build (`docker compose build frontend`).
+- ✅ **Maintenance + tenant-scoping sweep (2026-09-18)** — a "find something to improve" audit turned up
+  one broken build, one live UX bug, and one real security gap; all three fixed and verified, not just
+  found. **1. CI was quietly broken.** Dependabot PR #11 (bump `vitest` 4.1.11→5.0.0) was merged despite
+  `@angular/build@22.1.8`'s peer dependency pinning `vitest ^4.0.8` — exactly what the Angular 22 upgrade
+  entry above had flagged should stay open — and `npm ci`/`npm install` had been failing with an ERESOLVE
+  conflict on this branch since that merge, silently breaking all three frontend CI jobs (unit tests,
+  Playwright E2E, `npm audit`). Reverted `vitest` to `^4.1.9` (its pre-regression pin) and regenerated
+  `package-lock.json`; `npm ci` installs clean with **0 vulnerabilities**, `npx ng build` and 17/17 unit
+  tests pass again. **2. The documented `[value]`-vs-`[(ngModel)]` select-desync lesson (roadmap #20)
+  hadn't been swept site-wide.** Four more native `<select [value]="X" (change)="...">` bindings — the
+  header currency/language pickers (`app.html`) and the product-list sort/page-size pickers
+  (`product-list.html`) — had the identical bug: on first paint the browser can't select an `<option>`
+  the `@for` block hasn't rendered yet, and nothing re-applies it afterward. **Browser-verified live**
+  (a real Chromium session against `ng serve`, not just read): with the bug, the page-size selector
+  showed "6" while the actual page size was 12 on *every* page load (`pageSizeOptions[0]` ≠ the real
+  default), and a returning visitor's saved EUR/French currency/language silently reverted to
+  USD/English in the dropdowns (though the correct values were still applied everywhere else) on every
+  reload. Switched all four to `[ngModel]`/`(ngModelChange)` (`app.ts` gained a `FormsModule` import;
+  `product-list.ts` already had one) — this isn't just convention-matching, Angular 22's
+  `SelectControlValueAccessor`/`NgSelectOption` only self-corrects a late-rendered `<option>` via
+  `afterNextRender` when the `<select>` is under `ngModel`, never for a plain `[value]` binding — and
+  reran the same live-browser check to confirm both cases now resolve correctly. **3. A real,
+  previously-unaudited tenant-isolation gap in the Spring Data REST layer.** Milestones A–D (roadmap
+  #21) rewrote every **Java** call site to the tenant-scoped `findByIdAndTenantId(id,
+  TenantContext.currentTenantId())` pattern, but never revisited the three repositories still exported
+  via Spring Data REST (`Product`, `ProductCategory`, `Order`) — SDR auto-generates an HTTP search
+  resource for every un-annotated derived-query method and binds *every* parameter, `tenantId` included,
+  straight from the caller's query string. `ProductVariantService.replaceVariants`/`adminListForProduct`/
+  `viewsForProduct` and `ReviewService.create` also had a plainer version of the same gap — a bare
+  `productRepository.findById(...)` with no tenant check at all, reachable by any authenticated admin
+  (variants) or any storefront visitor (reviews) to read or mutate another tenant's product data, or
+  pollute another tenant's denormalized rating. Full writeup + the caller-controlled-`tenantId` mechanism
+  in `docs/SECURITY.md` ("Spring Data REST search resources must never take a caller-supplied
+  `tenantId`"); short version: every `*TenantId`-taking method on those three repos is now
+  `@RestResource(exported = false)` (all are Java-only call sites — zero behavior change), the three
+  `ProductRepository` methods superseded by the faceted `/api/catalog/search` are unexported too (after
+  moving their one remaining live caller — "You might also like" — onto `searchCatalog()`), and
+  `Order`'s raw, unscoped email search + collection listing (the worst of it: the customer-facing "My
+  Orders" page and its logged-out demo fallback, reachable with **zero authentication** whenever Okta
+  isn't configured) are replaced by two small tenant-scoped endpoints (`GET /api/account/orders?email=`,
+  new public `GET /api/order-history/recent`) and the collection `GET` is disabled outright in
+  `MyDataRestConfig` (the item resource, `GET /api/orders/{id}`, stays on — already tenant-guarded by
+  `TenantResourceGuardFilter`). New regression coverage: `OrderRepositoryTest` (JPA-level, proves the
+  tenant-scoped query never crosses tenants), `OrderTenantExposureIntegrationTest` (full-context,
+  real-HTTP — proves the old paths are gone and the new ones work), `ReviewServiceTest` (didn't exist
+  before; the cross-tenant-product-id case), and a fix to the one test the `ProductVariantService`
+  change broke. 276 backend tests (271 + 5 new) + 17 frontend tests + both production builds green;
+  **not** runtime-verified against real MySQL (Docker unavailable this session — the 5 Testcontainers IT
+  cases auto-skipped, as documented). Also found and left alone as lower-priority, separately-scoped
+  follow-ups: `SitemapService`/`ProductRepository.findByActiveTrue()` mixes every tenant's active
+  products into one global `sitemap.xml` (now at least unexported from SDR, but the sitemap itself isn't
+  tenant-scoped), and `OrderRepository.sumTotalRevenue`'s `@Query`-based `tenantId` param wasn't audited
+  for SDR reachability (scalar-returning `@Query` methods aren't typically SDR-exposed, but this wasn't
+  independently confirmed).
 
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
