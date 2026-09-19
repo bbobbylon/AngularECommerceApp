@@ -28,7 +28,7 @@
     "@ng-bootstrap/ng-bootstrap": "^21.0.0",
     "@okta/okta-angular": "^8.0.0",
     "@okta/okta-auth-js": "^8.0.1",
-    "@stripe/stripe-js": "^9.15.0",
+    "@stripe/stripe-js": "^9.16.0",
     "bootstrap": "^5.3.8",
     "bootswatch": "^5.3.8",
     "rxjs": "~7.8.0",
@@ -41,11 +41,11 @@
     "@angular/compiler-cli": "^22.1.6",
     "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.63.0",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.1",
     "prettier": "^3.9.6",
     "puppeteer-core": "^25.10.0",
-    "typescript": "~6.0.3",
-    "vitest": "^4.1.9",
-    "yaml": "^2.9.0"
+    "typescript": "~7.0.2",
+    "vitest": "^5.0.0",
+    "yaml": "^2.9.1"
   }
 }
