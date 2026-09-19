@@ -1022,6 +1022,34 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   tenant-scoped), and `OrderRepository.sumTotalRevenue`'s `@Query`-based `tenantId` param wasn't audited
   for SDR reachability (scalar-returning `@Query` methods aren't typically SDR-exposed, but this wasn't
   independently confirmed).
+- ✅ **CI fix — `.text-primary` failed WCAG contrast on normal-size text (2026-09-19)** — PR #22's
+  CI went red on `e2e/a11y.spec.ts`'s product-details `[light]`/`[dark]` checks (`color-contrast` on
+  `.fs-6`), deterministic on both themes and the automatic retry. Root cause: `styles.css` had its own
+  explicit `.text-primary { color: var(--accent) !important; }` override (separate from the
+  `--bs-primary: var(--accent)` Bootstrap bridge) — `--accent` (#7c5cff) is tuned as an icon/button
+  color and clears only ~4.3:1 light / ~3.9:1 dark, enough for large/bold text (≥3:1, e.g. every other
+  `.text-primary` usage on this site — `.fs-5`/`.display-6` prices, icons) but short of the 4.5:1
+  normal text needs. The flagged node was product-details' "You might also like" price
+  (`.fs-6 fw-bold`, 16px — *not* large text per WCAG's 14pt-bold/18.66px threshold), which only started
+  rendering there today: the tenant-scoping pass above moved `getRelatedProducts()` onto
+  `searchCatalog()`, and the E2E mock's `/api/catalog/search` stub doesn't filter by category, so
+  product 101 (previously related-product-less under the mock) now gets a related product back,
+  surfacing a color-token bug that predates this session and was simply never exercised by axe before.
+  Fixed the underlying token, not the one instance (roadmap #13's pattern): `.text-primary` now uses
+  `--accent-text`, the same theme-aware text-safe variant already used for links/`.btn-primary`'s
+  background/`.subnav-sale` — this fixes every `.text-primary` text usage site-wide (product-list/
+  favorites/cart-details prices, account-settings, etc.), not just product-details. That swap broke a
+  *second*, narrower case it hadn't been tested against: the navbar brand's "Shop" span sits on the
+  navbar, which — like the footer (see its own `--muted` override below) — is always dark (`bg-dark` /
+  `--nav`) regardless of site theme, so `accent-text`'s light-theme value (`accent-600`, darkened *for
+  light surfaces*) only clears ~2.6:1 there. Fixed the same way the footer's `--muted` is scoped:
+  `.navbar { --accent-text: #9a86ff; }` pins it to the value already used for dark surfaces (clears
+  ≥5.5:1 against both themes' `--nav`). Verified: the specific failing spec now green in both themes,
+  all 24 a11y checks green, full `npm run e2e` (37/37) green, `CI=true npx ng test` (17/17) green,
+  `npx ng build --configuration production` clean. This session's sandbox had no network access to
+  Playwright's browser CDN (org policy) and Node 22.22.2 (short of the CLI's 22.22.3 floor) — worked
+  around locally with `nvm install 22.22.3` and a symlinked/relinked local Chromium cache; neither is
+  a repo change.
 
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still

@@ -115,7 +115,11 @@ h1, h2, h3, h4, h5, .h1, .h2, .h3 {
 h1, .h1 { font-weight: 900; letter-spacing: -0.03em; }
 a { color: var(--accent-text); text-decoration: none; transition: color 0.15s var(--ease); }
 a:hover { color: var(--accent); }
-.text-primary { color: var(--accent) !important; }
+/* accent (#7c5cff) only clears ~4.3:1 light / ~3.9:1 dark — enough for large/bold text (>=3:1)
+   but not normal-size text (needs 4.5:1), e.g. product-details' "You might also like" price
+   (.fs-6 fw-bold, 16px). accent-text is the same text-safe variant already used for links/
+   .btn-primary's background/.subnav-sale (see below) — reuse it here too. */
+.text-primary { color: var(--accent-text) !important; }
 .text-muted, .text-secondary { color: var(--muted) !important; }
 .fw-bold { font-weight: 700 !important; }
 
@@ -235,6 +239,11 @@ a:hover { color: var(--accent); }
 .bg-dark { background-color: var(--nav) !important; }
 .navbar.bg-dark { background: var(--nav) !important; border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
 .navbar-brand { font-family: var(--font-display); font-weight: 900; font-size: 1.45rem; letter-spacing: -0.02em; color: #fff; }
+/* the navbar is always dark (bg-dark) regardless of site theme, like the footer below —
+   accent-text's light-theme value (accent-600, darkened for *light* surfaces) only clears
+   ~2.6:1 against it, so this pins accent-text back to its dark-surface value (already used
+   in dark mode) for the navbar brand's "Shop" span. */
+.navbar { --accent-text: #9a86ff; }
 .theme-toggle {
   width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
   background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.18); color: #fff;
