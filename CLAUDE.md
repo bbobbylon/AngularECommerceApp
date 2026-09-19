@@ -968,6 +968,88 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   --id OpenJS.NodeJS.LTS`, or `fnm use 24`). Verified green: `npx ng build` (prod), 17/17 unit tests,
   37/37 Playwright E2E (incl. 24 axe-core WCAG checks), `npm audit` 0 findings, and the frontend Docker
   image build (`docker compose build frontend`).
+- ✅ **Maintenance + tenant-scoping sweep (2026-09-18)** — a "find something to improve" audit turned up
+  one broken build, one live UX bug, and one real security gap; all three fixed and verified, not just
+  found. **1. CI was quietly broken.** Dependabot PR #11 (bump `vitest` 4.1.11→5.0.0) was merged despite
+  `@angular/build@22.1.8`'s peer dependency pinning `vitest ^4.0.8` — exactly what the Angular 22 upgrade
+  entry above had flagged should stay open — and `npm ci`/`npm install` had been failing with an ERESOLVE
+  conflict on this branch since that merge, silently breaking all three frontend CI jobs (unit tests,
+  Playwright E2E, `npm audit`). Reverted `vitest` to `^4.1.9` (its pre-regression pin) and regenerated
+  `package-lock.json`; `npm ci` installs clean with **0 vulnerabilities**, `npx ng build` and 17/17 unit
+  tests pass again. **2. The documented `[value]`-vs-`[(ngModel)]` select-desync lesson (roadmap #20)
+  hadn't been swept site-wide.** Four more native `<select [value]="X" (change)="...">` bindings — the
+  header currency/language pickers (`app.html`) and the product-list sort/page-size pickers
+  (`product-list.html`) — had the identical bug: on first paint the browser can't select an `<option>`
+  the `@for` block hasn't rendered yet, and nothing re-applies it afterward. **Browser-verified live**
+  (a real Chromium session against `ng serve`, not just read): with the bug, the page-size selector
+  showed "6" while the actual page size was 12 on *every* page load (`pageSizeOptions[0]` ≠ the real
+  default), and a returning visitor's saved EUR/French currency/language silently reverted to
+  USD/English in the dropdowns (though the correct values were still applied everywhere else) on every
+  reload. Switched all four to `[ngModel]`/`(ngModelChange)` (`app.ts` gained a `FormsModule` import;
+  `product-list.ts` already had one) — this isn't just convention-matching, Angular 22's
+  `SelectControlValueAccessor`/`NgSelectOption` only self-corrects a late-rendered `<option>` via
+  `afterNextRender` when the `<select>` is under `ngModel`, never for a plain `[value]` binding — and
+  reran the same live-browser check to confirm both cases now resolve correctly. **3. A real,
+  previously-unaudited tenant-isolation gap in the Spring Data REST layer.** Milestones A–D (roadmap
+  #21) rewrote every **Java** call site to the tenant-scoped `findByIdAndTenantId(id,
+  TenantContext.currentTenantId())` pattern, but never revisited the three repositories still exported
+  via Spring Data REST (`Product`, `ProductCategory`, `Order`) — SDR auto-generates an HTTP search
+  resource for every un-annotated derived-query method and binds *every* parameter, `tenantId` included,
+  straight from the caller's query string. `ProductVariantService.replaceVariants`/`adminListForProduct`/
+  `viewsForProduct` and `ReviewService.create` also had a plainer version of the same gap — a bare
+  `productRepository.findById(...)` with no tenant check at all, reachable by any authenticated admin
+  (variants) or any storefront visitor (reviews) to read or mutate another tenant's product data, or
+  pollute another tenant's denormalized rating. Full writeup + the caller-controlled-`tenantId` mechanism
+  in `docs/SECURITY.md` ("Spring Data REST search resources must never take a caller-supplied
+  `tenantId`"); short version: every `*TenantId`-taking method on those three repos is now
+  `@RestResource(exported = false)` (all are Java-only call sites — zero behavior change), the three
+  `ProductRepository` methods superseded by the faceted `/api/catalog/search` are unexported too (after
+  moving their one remaining live caller — "You might also like" — onto `searchCatalog()`), and
+  `Order`'s raw, unscoped email search + collection listing (the worst of it: the customer-facing "My
+  Orders" page and its logged-out demo fallback, reachable with **zero authentication** whenever Okta
+  isn't configured) are replaced by two small tenant-scoped endpoints (`GET /api/account/orders?email=`,
+  new public `GET /api/order-history/recent`) and the collection `GET` is disabled outright in
+  `MyDataRestConfig` (the item resource, `GET /api/orders/{id}`, stays on — already tenant-guarded by
+  `TenantResourceGuardFilter`). New regression coverage: `OrderRepositoryTest` (JPA-level, proves the
+  tenant-scoped query never crosses tenants), `OrderTenantExposureIntegrationTest` (full-context,
+  real-HTTP — proves the old paths are gone and the new ones work), `ReviewServiceTest` (didn't exist
+  before; the cross-tenant-product-id case), and a fix to the one test the `ProductVariantService`
+  change broke. 276 backend tests (271 + 5 new) + 17 frontend tests + both production builds green;
+  **not** runtime-verified against real MySQL (Docker unavailable this session — the 5 Testcontainers IT
+  cases auto-skipped, as documented). Also found and left alone as lower-priority, separately-scoped
+  follow-ups: `SitemapService`/`ProductRepository.findByActiveTrue()` mixes every tenant's active
+  products into one global `sitemap.xml` (now at least unexported from SDR, but the sitemap itself isn't
+  tenant-scoped), and `OrderRepository.sumTotalRevenue`'s `@Query`-based `tenantId` param wasn't audited
+  for SDR reachability (scalar-returning `@Query` methods aren't typically SDR-exposed, but this wasn't
+  independently confirmed).
+- ✅ **CI fix — `.text-primary` failed WCAG contrast on normal-size text (2026-09-19)** — PR #22's
+  CI went red on `e2e/a11y.spec.ts`'s product-details `[light]`/`[dark]` checks (`color-contrast` on
+  `.fs-6`), deterministic on both themes and the automatic retry. Root cause: `styles.css` had its own
+  explicit `.text-primary { color: var(--accent) !important; }` override (separate from the
+  `--bs-primary: var(--accent)` Bootstrap bridge) — `--accent` (#7c5cff) is tuned as an icon/button
+  color and clears only ~4.3:1 light / ~3.9:1 dark, enough for large/bold text (≥3:1, e.g. every other
+  `.text-primary` usage on this site — `.fs-5`/`.display-6` prices, icons) but short of the 4.5:1
+  normal text needs. The flagged node was product-details' "You might also like" price
+  (`.fs-6 fw-bold`, 16px — *not* large text per WCAG's 14pt-bold/18.66px threshold), which only started
+  rendering there today: the tenant-scoping pass above moved `getRelatedProducts()` onto
+  `searchCatalog()`, and the E2E mock's `/api/catalog/search` stub doesn't filter by category, so
+  product 101 (previously related-product-less under the mock) now gets a related product back,
+  surfacing a color-token bug that predates this session and was simply never exercised by axe before.
+  Fixed the underlying token, not the one instance (roadmap #13's pattern): `.text-primary` now uses
+  `--accent-text`, the same theme-aware text-safe variant already used for links/`.btn-primary`'s
+  background/`.subnav-sale` — this fixes every `.text-primary` text usage site-wide (product-list/
+  favorites/cart-details prices, account-settings, etc.), not just product-details. That swap broke a
+  *second*, narrower case it hadn't been tested against: the navbar brand's "Shop" span sits on the
+  navbar, which — like the footer (see its own `--muted` override below) — is always dark (`bg-dark` /
+  `--nav`) regardless of site theme, so `accent-text`'s light-theme value (`accent-600`, darkened *for
+  light surfaces*) only clears ~2.6:1 there. Fixed the same way the footer's `--muted` is scoped:
+  `.navbar { --accent-text: #9a86ff; }` pins it to the value already used for dark surfaces (clears
+  ≥5.5:1 against both themes' `--nav`). Verified: the specific failing spec now green in both themes,
+  all 24 a11y checks green, full `npm run e2e` (37/37) green, `CI=true npx ng test` (17/17) green,
+  `npx ng build --configuration production` clean. This session's sandbox had no network access to
+  Playwright's browser CDN (org policy) and Node 22.22.2 (short of the CLI's 22.22.3 floor) — worked
+  around locally with `nvm install 22.22.3` and a symlinked/relinked local Chromium cache; neither is
+  a repo change.
 
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still

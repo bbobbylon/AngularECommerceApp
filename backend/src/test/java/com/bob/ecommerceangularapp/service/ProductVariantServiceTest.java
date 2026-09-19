@@ -1,11 +1,14 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
 import com.bob.ecommerceangularapp.dao.ProductVariantRepository;
 import com.bob.ecommerceangularapp.dto.ProductVariantView;
 import com.bob.ecommerceangularapp.entity.OrderItem;
 import com.bob.ecommerceangularapp.entity.Product;
 import com.bob.ecommerceangularapp.entity.ProductVariant;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -23,11 +26,23 @@ import static org.mockito.Mockito.when;
 /** Pure unit tests (no Spring/DB) for variant price resolution and the checkout stock decrement. */
 class ProductVariantServiceTest {
 
+    private static final Long TENANT_ID = 7L;
+
     private final ProductVariantRepository variantRepository = mock(ProductVariantRepository.class);
     private final ProductRepository productRepository = mock(ProductRepository.class);
     private final StockNotificationService stockNotificationService = mock(StockNotificationService.class);
     private final ProductVariantService service =
             new ProductVariantService(variantRepository, productRepository, stockNotificationService);
+
+    @BeforeEach
+    void setTenantContext() {
+        TenantContext.set(TENANT_ID);
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContext.clear();
+    }
 
     @Test
     void viewsForProduct_resolvesPriceAndStockFlag() {
@@ -36,7 +51,7 @@ class ProductVariantServiceTest {
         ProductVariant inherits = variant(10L, "SKU-A", null, 5);     // inherits product price
         ProductVariant overrides = variant(11L, "SKU-B", new BigDecimal("24.00"), 0); // own price, OOS
 
-        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(productRepository.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(product));
         when(variantRepository.findByProductIdOrderBySortOrderAscIdAsc(1L))
                 .thenReturn(List.of(inherits, overrides));
 

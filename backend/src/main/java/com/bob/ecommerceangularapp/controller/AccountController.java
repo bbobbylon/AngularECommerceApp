@@ -3,12 +3,16 @@ package com.bob.ecommerceangularapp.controller;
 import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.CustomerRepository;
 import com.bob.ecommerceangularapp.dao.NewsletterSubscriberRepository;
+import com.bob.ecommerceangularapp.dao.OrderRepository;
 import com.bob.ecommerceangularapp.dto.AccountPreferences;
 import com.bob.ecommerceangularapp.dto.AccountUpdateRequest;
+import com.bob.ecommerceangularapp.dto.OrderHistoryView;
+import com.bob.ecommerceangularapp.dto.PageResponse;
 import com.bob.ecommerceangularapp.email.EmailService;
 import com.bob.ecommerceangularapp.entity.Customer;
 import com.bob.ecommerceangularapp.entity.NewsletterSubscriber;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,14 +33,34 @@ public class AccountController {
 
     private final CustomerRepository customerRepository;
     private final NewsletterSubscriberRepository subscriberRepository;
+    private final OrderRepository orderRepository;
     private final EmailService emailService;
 
     public AccountController(CustomerRepository customerRepository,
                             NewsletterSubscriberRepository subscriberRepository,
+                            OrderRepository orderRepository,
                             EmailService emailService) {
         this.customerRepository = customerRepository;
         this.subscriberRepository = subscriberRepository;
+        this.orderRepository = orderRepository;
         this.emailService = emailService;
+    }
+
+    /**
+     * This tenant's order history for an email (My Orders page). Replaces the old raw Spring Data
+     * REST search {@code /api/orders/search/findByCustomerEmailOrderByDateCreatedDesc}, which took no
+     * tenant predicate at all — any authenticated caller (or anyone, when Okta isn't configured) could
+     * read any tenant's customer's full order history for a known/guessed email (roadmap #21 gap).
+     */
+    @GetMapping("/orders")
+    public PageResponse<OrderHistoryView> orders(@RequestParam String email,
+                                                 @RequestParam(defaultValue = "0") int page,
+                                                 @RequestParam(defaultValue = "50") int size) {
+        String normalized = normalize(email);
+        return PageResponse.of(orderRepository
+                .findByCustomerEmailAndTenantIdOrderByDateCreatedDesc(
+                        normalized, TenantContext.currentTenantId(), PageRequest.of(page, size))
+                .map(OrderHistoryView::of));
     }
 
     @GetMapping

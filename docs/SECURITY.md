@@ -99,7 +99,7 @@ The secured chain (active once an issuer is set) authorizes by path, most-specif
 | `GET /api/orders/**`, `/api/account/**` | `authenticated()` |
 | `POST /api/newsletter/send-now` | `authenticated()` |
 | `/api/admin/**` | `hasAuthority(adminRole)` |
-| everything else (catalog, cart, checkout, reviews, public newsletter) | public |
+| everything else (catalog, cart, checkout, reviews, public newsletter, `/api/order-history/recent`) | public |
 
 Both chains are `STATELESS` (no session/cookie — see [Sessions, tokens & cookies](#sessions-tokens--cookies)).
 The matching frontend `authInterceptor` sends the Bearer token only to `/api/orders`, `/api/account`,
@@ -118,6 +118,47 @@ come from a configurable JWT array claim (Okta's default is `groups`) via a `Jwt
 
 Set these only if your IdP names its claim/group differently. While no issuer is configured the **open
 chain** applies and `/api/admin/**` is reachable for development, exactly as before.
+
+### Spring Data REST search resources must never take a caller-supplied `tenantId` (roadmap #21 gap)
+
+A tenant-scoping audit (2026-09-18) found that the multi-tenancy migration (roadmap #21, Milestones
+A–D) consistently stamped `tenant_id` on entities and rewrote **Java** call sites to
+`findByIdAndTenantId(id, TenantContext.currentTenantId())`, but never revisited the three repositories
+still exported via Spring Data REST (`Product`, `ProductCategory`, `Order` — see `Order.java`'s own
+javadoc: "one of only 5 Spring Data REST-exported repos"). Spring Data REST auto-generates an HTTP
+search resource for every public derived-query method unless it's marked
+`@RestResource(exported = false)`, and it binds **every** method parameter — `tenantId` included —
+straight from the request's query string. The result was two distinct, real, live gaps:
+
+1. **Caller-controlled `tenantId`.** Methods like `findByIdAndTenantId`/`countByTenantId`/
+   `existsByIdAndTenantId` were reachable as e.g. `GET /api/products/search/findByIdAndTenantId?id=1&tenantId=2`
+   — anyone could pass *any* tenant id directly, completely bypassing `TenantContext`/
+   `TenantResolutionFilter`/`TenantResourceGuardFilter`. These methods are called only from Java
+   service code (which always supplies `TenantContext.currentTenantId()`), so marking them
+   `@RestResource(exported = false)` closes the hole with zero behavior change.
+2. **No tenant predicate at all.** `OrderRepository.findByCustomerEmailOrderByDateCreatedDesc` (backing
+   the customer-facing "My Orders" page) and the plain `Order` collection resource
+   (`GET /api/orders?sort=...`, used as an anonymous demo-mode fallback) took no tenant predicate
+   whatsoever — reachable by anyone (unauthenticated, when Okta isn't configured; by any authenticated
+   user otherwise), returning **any** tenant's customer's full order history for a known/guessed email,
+   or the 50 most recent orders across **every** tenant. Three now-dead legacy `ProductRepository`
+   search methods (`findByCategoryId`, `findByNameContaining`, `findByOriginalPriceNotNull` — superseded
+   by the faceted, tenant-scoped `/api/catalog/search`) had the same shape.
+
+Fixed by: unexporting every `*TenantId`-taking method across `ProductRepository`/
+`ProductCategoryRepository`/`OrderRepository`; unexporting the three superseded `ProductRepository`
+search methods (after confirming their one remaining live caller, "You might also like" on
+product-details, could move to `searchCatalog()` instead — see `ProductService.getRelatedProducts`);
+replacing `Order`'s raw email search and collection listing with two small, tenant-scoped, custom
+endpoints (`GET /api/account/orders?email=` under the existing `authenticated()`-when-Okta-configured
+`/api/account/**` gate, and the new public `GET /api/order-history/recent` for the anonymous fallback);
+and disabling `Order`'s SDR collection `GET` outright in `MyDataRestConfig` (its item resource,
+`GET /api/orders/{id}`, stays on — still tenant-guarded by `TenantResourceGuardFilter`). See
+`OrderRepositoryTest` (JPA-level tenant isolation) and `OrderTenantExposureIntegrationTest`
+(full-context, real-HTTP proof the old paths are gone and the new ones work) for the regression
+coverage. **Lesson for future work here: any repository that stays Spring Data REST-exported needs
+every derived-query method individually reviewed for exposure — a method being tenant-scoped in name
+is not the same as it being tenant-scoped when a client controls every one of its parameters.**
 
 ### Platform-superadmin tier (roadmap #21, Milestone B)
 

@@ -75,8 +75,11 @@ infrastructure that doesn't belong to any one feature.
   evicted on admin product writes), `tenantLookup` (slug→`Tenant`, resolved on every request), and
   `apiKeyLookup` (#23 — hashed key→tenant+authorities, evicted immediately on revocation).
 - **`MyDataRestConfig.java`** — locks Spring Data REST's auto-exposed catalog resources
-  (`Product`/`ProductCategory`/`Country`/`State`/`Order`) to read-only and exposes their ids in JSON
-  responses (off by default in SDR).
+  (`Product`/`ProductCategory`/`Country`/`State`/`Order`) to read-only, exposes their ids in JSON
+  responses (off by default in SDR), and disables `Order`'s plain collection `GET` outright (roadmap
+  #21 gap — that listing had no tenant predicate; `Order`'s item resource, `GET /api/orders/{id}`,
+  stays on, tenant-guarded by `TenantResourceGuardFilter`). See `docs/SECURITY.md`'s "Spring Data REST
+  search resources must never take a caller-supplied `tenantId`".
 - **`OpenApiConfig.java`** — Swagger/OpenAPI metadata (title/description/contact) + registers the
   Bearer-JWT security scheme so Swagger UI's Authorize button works against the secured endpoints.
 
@@ -275,8 +278,13 @@ touch a repository directly (confirmed by grep during Milestone C). Grouped by a
   (customer-side track), `SitemapController` (`sitemap.xml`, outside `/api`), `PrivacyController`
   (#24 — `/api/privacy/**`, deliberately unauthenticated: consent is given before sign-in, and the
   data-request flow must work for someone with no account; confirm/erase/export routes return
-  branded HTML since they're opened straight from an inbox link, not the SPA).
-- **Account (Okta-gated)**: `AccountController` (profile/preferences), `AccountAddressController`,
+  branded HTML since they're opened straight from an inbox link, not the SPA), `OrderHistoryController`
+  (`GET /api/order-history/recent` — public, tenant-scoped "recent orders" demo fallback for
+  order-history.html when no one is signed in; replaced a raw, unscoped SDR `Order` collection GET —
+  roadmap #21 gap, see `docs/SECURITY.md`).
+- **Account (Okta-gated)**: `AccountController` (profile/preferences, plus `GET /api/account/orders?email=`
+  — tenant + email scoped order history for the signed-in customer; replaced a raw, unscoped SDR
+  `Order` search resource — same roadmap #21 gap), `AccountAddressController`,
   `AccountPaymentMethodController`.
 - **Admin (`/api/admin/**`, RBAC-gated per `SecurityConfig`)**: `AdminController` (dashboard
   stats/categories/review moderation), `AdminProductController`, `AdminOrderController`,
@@ -411,7 +419,10 @@ Each mirrors its backend counterpart closely enough that the names line up:
 `product.service.ts`↔`ProductFilterController` (+ the SDR catalog endpoints),
 `referral.service.ts`↔`ReferralController`, `return.service.ts`↔`ReturnController`,
 `review.service.ts`↔`ReviewController`, `shipment.service.ts`↔`ShipmentController`,
-`order-history.service.ts`↔`GET /api/orders`, `favorites.service.ts`/`wishlist.service.ts`↔
+`order-history.service.ts`↔`GET /api/account/orders` (signed-in) + `GET /api/order-history/recent`
+(anonymous demo fallback) — previously hit the raw Spring Data REST `Order` resource directly, which
+had no tenant predicate at all (roadmap #21 gap, fixed 2026-09-18, see `docs/SECURITY.md`),
+`favorites.service.ts`/`wishlist.service.ts`↔
 `WishlistController`, `privacy.service.ts`↔`PrivacyController` (#24 — consent + data-request calls,
 wrapped in the same `catchError(() => of(null))` graceful-degradation idiom `ContentService`
 established for #17). `admin.service.ts` is a deliberate kitchen sink — it's grown to cover every

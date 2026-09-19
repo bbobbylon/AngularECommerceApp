@@ -30,10 +30,12 @@ export interface CatalogPage {
 }
 
 /**
- * The catalog read surface: `searchCatalog()` is the primary path (the faceted `/api/catalog/search`
- * endpoint backing `ProductQueryService`), while the `*Paginate` methods hit Spring Data REST's
- * auto-generated `findBy*` search resources directly for a few older, narrower lookups (by category,
- * on-sale, by keyword) that predate the faceted endpoint and were never migrated over.
+ * The catalog read surface: `searchCatalog()` (the faceted, tenant-scoped `/api/catalog/search`
+ * endpoint backing `ProductQueryService`) is the one path for browsing/filtering products. It replaced
+ * three older `*Paginate` methods that hit Spring Data REST's auto-generated `findBy*` search
+ * resources directly (by category, on-sale, by keyword) — those took no tenant predicate at all, so
+ * removing the last live caller and closing the endpoints server-side fixed a real cross-tenant catalog
+ * leak (roadmap #21 gap; see `ProductRepository`).
  */
 @Injectable({ providedIn: 'root' })
 export class ProductService {
@@ -61,30 +63,6 @@ export class ProductService {
     set('page', filters.page ?? 0);
     set('size', filters.size ?? 12);
     return this.httpClient.get<CatalogPage>(`${this.baseUrl}/catalog/search`, { params });
-  }
-
-  getProductListPaginate(page: number, pageSize: number, categoryId: number, sort = ''): Observable<GetResponseProducts> {
-    const sortParam = sort ? `&sort=${sort}` : '';
-    const url =
-      `${this.baseUrl}/products/search/findByCategoryId` +
-      `?id=${categoryId}&page=${page}&size=${pageSize}${sortParam}`;
-    return this.httpClient.get<GetResponseProducts>(url);
-  }
-
-  getProductsOnSalePaginate(page: number, pageSize: number, sort = ''): Observable<GetResponseProducts> {
-    const sortParam = sort ? `&sort=${sort}` : '';
-    const url =
-      `${this.baseUrl}/products/search/findByOriginalPriceNotNull` +
-      `?page=${page}&size=${pageSize}${sortParam}`;
-    return this.httpClient.get<GetResponseProducts>(url);
-  }
-
-  searchProductsPaginate(page: number, pageSize: number, keyword: string, sort = ''): Observable<GetResponseProducts> {
-    const sortParam = sort ? `&sort=${sort}` : '';
-    const url =
-      `${this.baseUrl}/products/search/findByNameContaining` +
-      `?name=${encodeURIComponent(keyword)}&page=${page}&size=${pageSize}${sortParam}`;
-    return this.httpClient.get<GetResponseProducts>(url);
   }
 
   getProduct(productId: number): Observable<Product> {
@@ -117,16 +95,18 @@ export class ProductService {
 
   /**
    * "You might also like" — other products in the same category as the given product.
-   * Resolves the product's category via its Spring Data REST association link, then pulls
-   * a page of that category and drops the product itself.
+   * Resolves the product's category via its Spring Data REST association link, then pulls a page of
+   * that category through the tenant-scoped faceted search (previously used the raw, unscoped
+   * `/api/products/search/findByCategoryId` directly — the last live caller of that legacy path;
+   * closed as part of roadmap #21's tenant-scoping audit, see `ProductRepository`).
    */
   getRelatedProducts(productId: number, limit = 4): Observable<Product[]> {
     return this.httpClient
       .get<ProductCategory>(`${this.baseUrl}/products/${productId}/category`)
       .pipe(
         switchMap(category =>
-          this.getProductListPaginate(0, limit + 1, category.id).pipe(
-            map(response => response._embedded.products
+          this.searchCatalog({ categoryId: category.id, size: limit + 1 }).pipe(
+            map(response => response.content
               .filter(product => product.id !== productId)
               .slice(0, limit)),
           ),
@@ -139,19 +119,6 @@ export class ProductService {
       .get<GetResponseProductCategory>(`${this.baseUrl}/product-category`)
       .pipe(map(response => response._embedded.productCategory));
   }
-}
-
-/** Spring Data REST paginated response for products. */
-export interface GetResponseProducts {
-  _embedded: {
-    products: Product[];
-  };
-  page: {
-    size: number;
-    totalElements: number;
-    totalPages: number;
-    number: number;
-  };
 }
 
 interface GetResponseProductCategory {

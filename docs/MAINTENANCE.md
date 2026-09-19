@@ -21,7 +21,7 @@ upgrade safely, and how to handle the database.
 | Component | Typical small-scale | Notes |
 |---|---|---|
 | App compute (backend+frontend) | $0–25 | Free/hobby tiers exist (Render, Railway, Fly.io, Azure App Service B1). |
-| Managed MySQL | $0–30 | Free tiers (PlanetScale, Aiven trials) → ~$15–30 for an entry instance (RDS/Cloud SQL). |
+| Managed MySQL | $0–30 | Free, no card (TiDB Cloud Starter, MySQL-wire-compatible; Aiven's free MySQL slot is one-per-account, so it's already spoken for if another project uses it) → ~$15–30 for an entry instance (RDS/Cloud SQL). PlanetScale has had no free tier since April 2024. |
 | Object/static hosting (Angular) | $0–5 | Static hosting/CDN is often free (Netlify, Cloudflare Pages, S3+CloudFront). |
 | Transactional email | $0–20 | SendGrid/Resend free tiers (~3k/mo) → paid as volume grows. |
 | Domain + TLS | ~$1–2/mo | Domain ~$12/yr; TLS free via Let's Encrypt/provider. |

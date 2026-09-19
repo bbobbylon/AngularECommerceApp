@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.dao;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.entity.Product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,14 +21,26 @@ import java.util.Optional;
 @RepositoryRestResource(collectionResourceRel = "products", path = "products")
 public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product> {
 
+    // These three predate the faceted-search unification (roadmap "Feature set") and are superseded
+    // by ProductQueryService's tenant-scoped /api/catalog/search — no frontend code calls them anymore.
+    // Left exported, each was a live, unauthenticated, cross-tenant catalog leak (no tenant predicate
+    // at all), so all three are unexported rather than deleted outright, in case something still needs
+    // reviving as a tenant-scoped equivalent.
+    @RestResource(exported = false)
     Page<Product> findByCategoryId(@Param("id") Long id, Pageable pageable);
 
+    @RestResource(exported = false)
     Page<Product> findByNameContaining(@Param("name") String name, Pageable pageable);
 
-    /** On-sale products — anything with a pre-sale ("was") price set. Powers the /sale page. */
+    /** On-sale products — anything with a pre-sale ("was") price set. Called only from Java
+     * ({@code NewsletterService}'s weekly-ad picks, {@code DataLoader}'s seed check) — the public
+     * /sale page goes through the tenant-scoped {@code ProductQueryService} instead. */
+    @RestResource(exported = false)
     Page<Product> findByOriginalPriceNotNull(Pageable pageable);
 
-    /** All active products, unpaged — powers sitemap.xml generation. */
+    /** All active products, unpaged — powers sitemap.xml generation (Java-only call site;
+     * unexported so it can't be hit directly as an unscoped, cross-tenant catalog dump). */
+    @RestResource(exported = false)
     List<Product> findByActiveTrue();
 
     // ----- admin dashboard metrics -----
@@ -37,7 +50,13 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     long countByOriginalPriceNotNull();
 
-    /** Backs {@code TenantResourceGuardFilter} — closes the SDR {@code findById} gap (roadmap #21). */
+    /**
+     * Backs {@code TenantResourceGuardFilter} — closes the SDR {@code findById} gap (roadmap #21).
+     * Unexported: a caller-supplied {@code tenantId} would otherwise let anyone probe another
+     * tenant's product ids directly via {@code /api/products/search/existsByIdAndTenantId}, bypassing
+     * the ambient {@link TenantContext} this whole mechanism exists to enforce.
+     */
+    @RestResource(exported = false)
     boolean existsByIdAndTenantId(Long id, Long tenantId);
 
     // ----- admin back office, tenant-scoped (roadmap #21, Milestone B) -----
@@ -53,15 +72,27 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     @RestResource(exported = false)
     List<Product> findAllByTenantId(Long tenantId);
 
+    // Every *AndTenantId method below is called only from Java service code (AdminService,
+    // ProductVariantService, ReviewService, ...), which always supplies TenantContext.currentTenantId()
+    // — never a caller-controlled value. Left exported, a caller could pass any tenantId directly as a
+    // search-resource query param (e.g. /api/products/search/findByIdAndTenantId?id=1&tenantId=2) and
+    // read another tenant's catalog straight through, bypassing TenantContext/TenantResolutionFilter
+    // entirely. @RestResource(exported = false) closes that off with zero change to the Java call sites.
+    @RestResource(exported = false)
     Optional<Product> findBySkuAndTenantId(String sku, Long tenantId);
 
+    @RestResource(exported = false)
     Optional<Product> findByIdAndTenantId(Long id, Long tenantId);
 
+    @RestResource(exported = false)
     long countByTenantId(Long tenantId);
 
+    @RestResource(exported = false)
     long countByTenantIdAndActiveTrue(Long tenantId);
 
+    @RestResource(exported = false)
     long countByTenantIdAndUnitsInStockLessThan(Long tenantId, int threshold);
 
+    @RestResource(exported = false)
     long countByTenantIdAndOriginalPriceNotNull(Long tenantId);
 }

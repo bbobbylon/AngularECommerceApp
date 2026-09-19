@@ -32,6 +32,17 @@ public class MyDataRestConfig implements RepositoryRestConfigurer {
         disableHttpMethods(State.class, config, unsupportedActions);
         disableHttpMethods(Order.class, config, unsupportedActions);
 
+        // Order's plain collection listing (GET /api/orders?sort=...) has no tenant predicate — Spring
+        // Data REST's default findAll-backed collection resource can't take one — so it returned every
+        // tenant's orders mixed together (full names/addresses/items/totals) to anyone who could reach
+        // /api/orders/** (unauthenticated when Okta isn't configured). Nothing legitimate reads it: the
+        // item resource (GET /api/orders/{id}, tenant-guarded by TenantResourceGuardFilter) stays on,
+        // and customer-facing order history now goes through the tenant-scoped AccountController /
+        // OrderHistoryController instead (roadmap #21 gap closed).
+        config.getExposureConfiguration()
+                .forDomainType(Order.class)
+                .withCollectionExposure((metadata, httpMethods) -> httpMethods.disable(HttpMethod.GET));
+
         // expose entity ids in the JSON responses (off by default in Spring Data REST)
         config.exposeIdsFor(Product.class, ProductCategory.class, Country.class, State.class, Order.class);
 
