@@ -14,13 +14,9 @@ Base URL: **`http://localhost:8585/api`** · Most catalog endpoints are auto-gen
 
 | Group | Method | Path | Auth |
 |---|---|---|---|
-| [Catalog](#catalog) | GET | `/products` | public |
-| | GET | `/products/{id}` | public |
-| | GET | `/products/search/findByCategoryId` | public |
-| | GET | `/products/search/findByNameContaining` | public |
-| | GET | `/products/search/findByOriginalPriceNotNull` | public |
-| | GET | `/product-category` | public |
+| [Catalog](#catalog) | GET | `/products/{id}` | public |
 | [Catalog search](#catalog-search) | GET | `/catalog/search` (faceted filters) | public |
+| | GET | `/catalog/categories` | public |
 | [Reviews](#reviews) | GET | `/reviews?productId=` · `/reviews/summary?productId=` | public |
 | | POST | `/reviews` | public |
 | [Coupons](#coupons) | POST | `/coupons/validate` | public |
@@ -34,7 +30,8 @@ Base URL: **`http://localhost:8585/api`** · Most catalog endpoints are auto-gen
 | | POST | `/newsletter/send-now` | 🔑 admin token |
 | [Account](#account) | GET | `/account?email=` | public* |
 | | PUT | `/account` | public* |
-| [Orders](#orders-secured) | GET | `/orders/search/findByCustomerEmailOrderByDateCreatedDesc` | 🔒 JWT |
+| [Orders](#orders-secured) | GET | `/account/orders?email=` | 🔒 JWT once Okta is configured |
+| | GET | `/order-history/recent` | public (anonymous demo fallback) |
 | [Admin](#admin-secured) | GET | `/admin/stats` | 🔒 JWT |
 | | GET | `/admin/system` (system health view) | 🔒 JWT |
 | | GET/POST/PUT/DELETE | `/admin/products/**` | 🔒 JWT |
@@ -69,31 +66,32 @@ services unwrap:
 
 ## Catalog
 
-### List products (paginated)
+> Updated 2026-09-22: the `/products/search/*` derived-query resources and the raw
+> `/products`/`/product-category` **collection** listings below were all unexported/disabled during
+> the roadmap #21 tenant-scoping audits (they took no tenant predicate, so they mixed every tenant's
+> catalog together — see `docs/SECURITY.md`). The faceted, tenant-scoped `/api/catalog/**` endpoints
+> are the real catalog read surface today; only the SDR **item** lookup (`GET /api/products/{id}`)
+> survives from the original list above.
+
+### A single product
 ```bash
-curl "http://localhost:8586/api/products?page=0&size=12"
+curl "http://localhost:8585/api/products/1"
 ```
 
-### Products in a category
+### Faceted search (category, keyword, price range, in-stock, on-sale, rating, sort — all optional)
 ```bash
-curl "http://localhost:8586/api/products/search/findByCategoryId?id=1&page=0&size=12"
+curl "http://localhost:8585/api/catalog/search?categoryId=1&page=0&size=12"
+curl "http://localhost:8585/api/catalog/search?keyword=Action"
+# on-sale products (powers /sale) carry "originalPrice" (the pre-sale "was" price) > "unitPrice":
+curl "http://localhost:8585/api/catalog/search?onSale=true&page=0&size=12"
 ```
+Returns the stable `PageResponse` envelope (`{ content, totalElements, totalPages, number, size }`),
+not the Spring Data REST HAL shape below — `content` is a flat array of `ProductCardView` objects.
 
-### Keyword search
+### Categories (powers the sidebar + product-list filter dropdown)
 ```bash
-curl "http://localhost:8586/api/products/search/findByNameContaining?name=Action"
-```
-
-### On-sale products (powers `/sale`)
-```bash
-curl "http://localhost:8585/api/products/search/findByOriginalPriceNotNull?page=0&size=12"
-# products on sale carry "originalPrice" (the pre-sale "was" price) > "unitPrice"
-```
-
-### Categories
-```bash
-curl "http://localhost:8586/api/product-category"
-# -> _embedded.productCategory: [{ id, categoryName }]
+curl "http://localhost:8585/api/catalog/categories"
+# -> [{ id, categoryName }, ...] — a plain array, also not the HAL shape
 ```
 
 > Each product also carries `additionalImages` (a list of extra gallery image URLs, shown as
@@ -246,9 +244,20 @@ Read-only and protected by JWT **once an Okta issuer is configured**
 (`spring.security.oauth2.resourceserver.jwt.issuer-uri`). The Angular `authInterceptor` attaches the
 bearer token automatically.
 
+> Updated 2026-09-22: the raw Spring Data REST search resource this section used to document
+> (`/orders/search/findByCustomerEmailOrderByDateCreatedDesc`) was removed during the roadmap #21
+> tenant-scoping audit (2026-09-18) — it took no tenant predicate, so any caller who knew a customer's
+> email could read their order history regardless of tenant. `AccountController`'s tenant-scoped
+> replacement below has been live since that fix; this doc just hadn't caught up.
+
 ```bash
-curl "http://localhost:8586/api/orders/search/findByCustomerEmailOrderByDateCreatedDesc?email=ada@example.com" \
+curl "http://localhost:8585/api/account/orders?email=ada@example.com" \
   -H "Authorization: Bearer <token>"
+```
+
+The anonymous demo-mode fallback (used when no one is signed in) is public and tenant-scoped the same way:
+```bash
+curl "http://localhost:8585/api/order-history/recent"
 ```
 
 ---

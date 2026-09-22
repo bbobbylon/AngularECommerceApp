@@ -27,10 +27,16 @@ import java.util.regex.Pattern;
  * like an id that doesn't exist) any single-item request whose id isn't owned by the current request's
  * tenant.
  *
- * <p>Only the three Milestone-A single-item resources need this: {@code /api/products/{id}},
- * {@code /api/product-category/{id}}, {@code /api/orders/{id}}. Collection endpoints, search, and every
- * other resource are untouched here — collections already go through a service/specification that adds
- * an explicit tenant predicate (e.g. {@code /api/catalog/search} — see {@code ProductQueryService}).
+ * <p>Covers the three Milestone-A single-item resources (@code /api/products/{id}},
+ * {@code /api/product-category/{id}}, {@code /api/orders/{id}}) plus, since a 2026-09-22 audit,
+ * {@code /api/products/{id}/category} — Spring Data REST's auto-generated "related resource" link that
+ * follows a product's {@code @ManyToOne category} association. It's driven by the same {@code findById}
+ * with no query-building step to hook, so a product id from another tenant would otherwise return that
+ * tenant's category object even though the product item resource itself 404s it (it's the one live
+ * caller, {@code ProductService.getRelatedProducts} on the frontend). Collection endpoints (now disabled
+ * outright for Product/ProductCategory — see {@code MyDataRestConfig}) and search are untouched here —
+ * search already goes through a service/specification that adds an explicit tenant predicate (e.g.
+ * {@code /api/catalog/search} — see {@code ProductQueryService}).
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 6)
@@ -52,6 +58,10 @@ public class TenantResourceGuardFilter extends OncePerRequestFilter {
         this.orderRepository = orderRepository;
         this.guards = new Guard[] {
                 new Guard(Pattern.compile("^/api/products/(\\d+)/?$"),
+                        id -> tenantId -> productRepository.existsByIdAndTenantId(id, tenantId)),
+                // The related-resource link (GET /api/products/{id}/category) must be gated on the
+                // PRODUCT id, exactly like the product item resource itself — see the class javadoc.
+                new Guard(Pattern.compile("^/api/products/(\\d+)/category/?$"),
                         id -> tenantId -> productRepository.existsByIdAndTenantId(id, tenantId)),
                 new Guard(Pattern.compile("^/api/product-category/(\\d+)/?$"),
                         id -> tenantId -> productCategoryRepository.existsByIdAndTenantId(id, tenantId)),

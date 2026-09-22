@@ -114,15 +114,13 @@ export class ProductService {
       );
   }
 
+  /**
+   * The tenant-scoped category list (sidebar + product-list filter dropdown). Previously hit the raw
+   * Spring Data REST collection resource (`/api/product-category`) directly — that endpoint had no
+   * tenant predicate at all and mixed every tenant's categories together (roadmap #21 gap, fixed
+   * 2026-09-22, see `docs/SECURITY.md`); `/api/catalog/categories` is its tenant-scoped replacement.
+   */
   getProductCategories(): Observable<ProductCategory[]> {
-    return this.httpClient
-      .get<GetResponseProductCategory>(`${this.baseUrl}/product-category`)
-      .pipe(map(response => response._embedded.productCategory));
+    return this.httpClient.get<ProductCategory[]>(`${this.baseUrl}/catalog/categories`);
   }
-}
-
-interface GetResponseProductCategory {
-  _embedded: {
-    productCategory: ProductCategory[];
-  };
 }

@@ -2,7 +2,9 @@ package com.bob.ecommerceangularapp.service;
 
 import com.bob.ecommerceangularapp.config.CacheConfig;
 import com.bob.ecommerceangularapp.config.TenantContext;
+import com.bob.ecommerceangularapp.dao.ProductCategoryRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
+import com.bob.ecommerceangularapp.dto.CategoryView;
 import com.bob.ecommerceangularapp.dto.ProductCardView;
 import com.bob.ecommerceangularapp.entity.Product;
 import org.springframework.cache.annotation.Cacheable;
@@ -20,9 +22,24 @@ import java.util.List;
 public class ProductQueryService {
 
     private final ProductRepository productRepository;
+    private final ProductCategoryRepository productCategoryRepository;
 
-    public ProductQueryService(ProductRepository productRepository) {
+    public ProductQueryService(ProductRepository productRepository,
+                               ProductCategoryRepository productCategoryRepository) {
         this.productRepository = productRepository;
+        this.productCategoryRepository = productCategoryRepository;
+    }
+
+    /**
+     * The storefront's tenant-scoped category list (sidebar + product-list filter dropdown). Backs
+     * {@code GET /api/catalog/categories}, which replaced the raw, unscoped Spring Data REST
+     * collection resource {@code GET /api/product-category} (see {@code MyDataRestConfig} and
+     * {@code docs/SECURITY.md} — a 2026-09-22 audit found it mixed every tenant's categories together).
+     */
+    public List<CategoryView> categories() {
+        return productCategoryRepository.findAllByTenantId(TenantContext.currentTenantId()).stream()
+                .map(CategoryView::of)
+                .toList();
     }
 
     /**

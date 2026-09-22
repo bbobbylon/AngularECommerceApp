@@ -43,6 +43,26 @@ public class MyDataRestConfig implements RepositoryRestConfigurer {
                 .forDomainType(Order.class)
                 .withCollectionExposure((metadata, httpMethods) -> httpMethods.disable(HttpMethod.GET));
 
+        // Same gap, found on a later audit (2026-09-22): Product's and ProductCategory's plain
+        // collection listings (GET /api/products, GET /api/product-category) are ALSO the default
+        // findAll-backed Spring Data REST resource, so they too mixed every tenant's catalog together
+        // with no tenant predicate — and unlike Order's, this one was live and reachable: the storefront
+        // category sidebar + product-list filter dropdown (ProductService.getProductCategories())
+        // called the raw /api/product-category collection directly. Fixed the same way as Order: the
+        // collection GET is disabled here and the storefront now calls the tenant-scoped
+        // GET /api/catalog/categories instead (ProductFilterController). Product's collection GET had
+        // no live caller (the storefront already used the tenant-scoped /api/catalog/search), so it's
+        // disabled with no replacement. Both item resources (GET /api/products/{id},
+        // GET /api/product-category/{id}) stay on, tenant-guarded by TenantResourceGuardFilter, as does
+        // the /api/products/{id}/category related-resource link (also added to that filter's guards —
+        // see its javadoc). See docs/SECURITY.md.
+        config.getExposureConfiguration()
+                .forDomainType(Product.class)
+                .withCollectionExposure((metadata, httpMethods) -> httpMethods.disable(HttpMethod.GET));
+        config.getExposureConfiguration()
+                .forDomainType(ProductCategory.class)
+                .withCollectionExposure((metadata, httpMethods) -> httpMethods.disable(HttpMethod.GET));
+
         // expose entity ids in the JSON responses (off by default in Spring Data REST)
         config.exposeIdsFor(Product.class, ProductCategory.class, Country.class, State.class, Order.class);
 

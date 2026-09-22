@@ -133,13 +133,15 @@ Quick reference:
 Still recommended before going live:
 - **Centralized logs** — turn on JSON logging (`logging.structured.format.console=ecs`) and ship to
   your platform's logging (ELK/Loki/Datadog). The `requestId` is included for correlation.
-- **Uptime + alerts** — alert on `/actuator/health/readiness` and a synthetic check on `/api/products`
-  to catch "storefront is down" fast.
+- **Uptime + alerts** — alert on `/actuator/health/readiness` and a synthetic check on
+  `/api/catalog/search` to catch "storefront is down" fast. (Not the raw `/api/products` collection —
+  that was disabled 2026-09-22, see [SECURITY.md](SECURITY.md); `/api/products/{id}` still works as a
+  single-item check but needs a known id, so the tenant-scoped search endpoint is the simpler probe.)
 
 ---
 
 ## ✅ Definition of "still healthy"
 1. `./run.sh` boots both servers with no errors in `backend.log`.
-2. `http://localhost:8585/api/products` returns 100 seeded products; `/sale` is populated.
+2. `http://localhost:8585/api/catalog/search?size=100` returns 100 seeded products; `/sale` is populated.
 3. Both build + test suites pass.
 4. A test order completes; (if email is configured) confirmation + welcome emails arrive.

@@ -16,6 +16,13 @@ Conventions: FE = Angular (`frontend/angular-ecommerce/src/app`), BE = Spring Bo
 
 ## 1. Catalog browse + pagination
 
+> Rewritten 2026-09-22 — the previous version of this diagram showed `getProductListPaginate()`
+> calling the raw Spring Data REST search resource `GET /api/products/search/findByCategoryId`
+> directly and unwrapping a HAL `_embedded.products` response. That resource was unexported during
+> roadmap #21's tenant-scoping audit (2026-09-18) — it had no tenant predicate, so it mixed every
+> tenant's catalog together — and the frontend moved to the faceted, tenant-scoped
+> `/api/catalog/search` endpoint at the same time. This diagram had never been updated to match.
+
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'fontFamily':'DM Sans, system-ui, sans-serif','actorBkg':'#ff5470','actorTextColor':'#fff','actorBorder':'#ec3a5c','signalColor':'#1e2435','noteBkgColor':'#fff4e0','noteBorderColor':'#f5b400'}}}%%
 sequenceDiagram
@@ -24,32 +31,36 @@ sequenceDiagram
   participant PL as ProductList (FE)
   participant PS as ProductService (FE)
   participant IX as authInterceptor (FE)
-  participant RST as Spring Data REST (BE)
-  participant REPO as ProductRepository (BE)
+  participant PFC as ProductFilterController (BE)
+  participant SVC as ProductQueryService (BE)
   participant DB as MySQL
 
   B->>PL: navigate /products
   Note over PL: ngOnInit subscribes to route.paramMap
   PL->>PL: listProducts() → isLoading=true
-  PL->>PS: getProductListPaginate(0, 12, catId=1)
-  PS->>IX: GET /api/products/search/findByCategoryId?id=1&page=0&size=12
-  Note over IX: URL not under /api/orders → no Authorization header added
-  IX->>RST: forward request (Origin: http://localhost:4250)
-  RST->>REPO: findByCategoryId(1, PageRequest.of(0,12))
-  REPO->>DB: SELECT * FROM product WHERE category_id=1 LIMIT 0,12
-  DB-->>REPO: 12 rows
-  REPO-->>RST: Page<Product>
-  RST-->>PS: 200 · HAL JSON (Access-Control-Allow-Origin: http://localhost:4250)
-  PS-->>PL: { _embedded.products[], page{number,size,totalElements,totalPages} }
+  PL->>PS: searchCatalog({categoryId:1, page:0, size:12})
+  PS->>IX: GET /api/catalog/search?categoryId=1&page=0&size=12
+  Note over IX: URL not under /api/orders|account|admin|platform → no Authorization header added
+  IX->>PFC: forward request (Origin: http://localhost:4250)
+  PFC->>SVC: search(categoryId=1, ..., pageable)
+  Note over SVC: adds an explicit tenant_id predicate from TenantContext (roadmap #21)
+  SVC->>DB: SELECT ... WHERE category_id=1 AND tenant_id=? AND active=1 LIMIT 0,12
+  DB-->>SVC: 12 rows
+  SVC-->>PFC: Page<ProductCardView>
+  PFC-->>PS: 200 · { content[], totalElements, totalPages, number, size }
+  PS-->>PL: CatalogPage
   PL->>PL: processResult() → products=[…], totalElements, isLoading=false
   PL-->>B: grid renders (staggered reveal) + ngb-pagination
 ```
 
-**Response shape** (what `processResult` unwraps):
+**Response shape** (what `processResult` unwraps) — the stable `PageResponse` envelope, not HAL:
 ```jsonc
-{ "_embedded": { "products": [ { "id":1, "name":"Java in Action", "unitPrice":14.99, ... } ] },
-  "page": { "size":12, "totalElements":25, "totalPages":3, "number":0 } }
+{ "content": [ { "id":1, "name":"Java in Action", "unitPrice":14.99, ... } ],
+  "totalElements":25, "totalPages":3, "number":0, "size":12 }
 ```
+
+The category sidebar/filter dropdown is a separate, simpler call: `GET /api/catalog/categories` →
+a plain `CategoryView[]` array (also tenant-scoped, also not HAL) — see `ProductService.getProductCategories()`.
 
 **Gotcha that bit us:** the grid contains `<ngb-pagination>`, which uses Angular's `$localize`.
 Without the `@angular/localize/init` polyfill (in `angular.json`), rendering the grid throws
@@ -176,20 +187,26 @@ sequenceDiagram
   alt not authenticated
     FE->>OK: redirect to login (loop above)
   else authenticated
-    FE->>IX: GET /api/orders/search/findByCustomerEmailOrderByDateCreatedDesc?email=<claim>
-    Note over IX: URL starts with apiUrl + "/orders" → attach Authorization: Bearer <access_token>
+    FE->>IX: GET /api/account/orders?email=<claim>
+    Note over IX: URL starts with apiUrl + "/account" → attach Authorization: Bearer <access_token>
     IX->>SEC: request with Bearer JWT
     SEC->>OK: fetch JWKS (issuer-uri/.well-known) — cached
     SEC->>SEC: validate signature · issuer · expiry · (audience)
     alt JWT valid
-      SEC->>API: authenticated → permit GET /api/orders/**
-      API-->>FE: 200 · _embedded.orders[]
+      SEC->>API: authenticated → permit GET /api/account/**
+      API-->>FE: 200 · { content: [order, ...], totalElements, ... } (tenant + email scoped)
       FE-->>U: order history table
     else invalid / missing
       SEC-->>FE: 401 Unauthorized
     end
   end
 ```
+
+> Updated 2026-09-22: this diagram used to show `GET /api/orders/search/findByCustomerEmailOrderByDateCreatedDesc`
+> — a raw Spring Data REST search resource with no tenant predicate at all, removed in the roadmap
+> #21 tenant-scoping audit (2026-09-18). `AccountController`'s `GET /api/account/orders?email=` is
+> its tenant-scoped replacement (see `docs/SECURITY.md`); the *item* resource `GET /api/orders/{id}`
+> is still Spring Data REST, tenant-guarded by `TenantResourceGuardFilter`.
 
 ### Front-end pieces
 | Concern | Code |
@@ -198,7 +215,7 @@ sequenceDiagram
 | Provider | `provideOktaAuth(withOktaConfig({ oktaAuth }))` in `app.config.ts` |
 | Callback route | `{ path: 'login/callback', component: OktaCallbackComponent }` |
 | Route guard | `devOrAuthGuard` (`auth/dev-auth.guard.ts`) — bypasses when Okta isn't configured, else delegates to `canActivateAuthGuard` |
-| Token attach | `authInterceptor` (`interceptors/auth.interceptor.ts`) — adds `Authorization: Bearer` **only** for `/api/orders*` |
+| Token attach | `authInterceptor` (`interceptors/auth.interceptor.ts`) — adds `Authorization: Bearer` for `/api/orders`, `/api/account`, `/api/admin`, `/api/platform` |
 | Login UI | `LoginStatus` — `signInWithRedirect()` / `signOut()`, reads `authState$` |
 
 ### Back-end pieces
@@ -206,7 +223,7 @@ sequenceDiagram
 |---|---|
 | Resource server | `SecurityConfig.securedFilterChain` — `@ConditionalOnProperty(...jwt.issuer-uri)`; `oauth2ResourceServer().jwt()` |
 | Open fallback | `SecurityConfig.openFilterChain` — `@ConditionalOnMissingBean(SecurityFilterChain.class)` (permit-all when no issuer) |
-| Protected rule | `requestMatchers(GET, "/api/orders/**").authenticated()`, everything else `permitAll()` |
+| Protected rule | `authenticated()` on `GET /api/orders/**`, `/api/account/**`, `POST /api/newsletter/send-now`; `hasAuthority(...)` RBAC tiers on `/api/admin/**`/`/api/platform/**` (roadmap #19/#21); everything else `permitAll()` — see `docs/SECURITY.md`'s endpoint-authorization table for the full, current, most-specific-first list |
 | Trust anchor | `spring.security.oauth2.resourceserver.jwt.issuer-uri` → Spring fetches the JWKS and validates tokens |
 
 **Why two chains?** So the catalog/cart/checkout API stays open for local dev with no IdP, but the

@@ -160,6 +160,54 @@ coverage. **Lesson for future work here: any repository that stays Spring Data R
 every derived-query method individually reviewed for exposure — a method being tenant-scoped in name
 is not the same as it being tenant-scoped when a client controls every one of its parameters.**
 
+### The two remaining SDR collection resources had the identical gap, one of them live (found 2026-09-22)
+
+The 2026-09-18 audit above fixed `Order`'s unscoped collection resource but left `Product`'s and
+`ProductCategory`'s alone — both are also still exported via Spring Data REST for read-only **item**
+access (`GET /api/products/{id}`, `GET /api/product-category/{id}`), and both, like `Order` before the
+fix, expose the framework's default `findAll`-backed **collection** resource
+(`GET /api/products`, `GET /api/product-category`), which takes no tenant predicate at all — Spring
+Data REST's default collection endpoint has no query-building step a service could hook to add one
+(the same limitation `TenantResourceGuardFilter`'s own javadoc explains for item resources). Unlike
+`Order`'s, one of these was **live and reachable by every storefront visitor, not just a theoretical
+gap**: `ProductService.getProductCategories()` on the frontend called the raw
+`GET /api/product-category` collection directly to populate the category sidebar and the product-list
+filter dropdown — so the moment a second tenant existed with its own categories, every visitor
+(regardless of which tenant's storefront they were on) would have seen every tenant's categories mixed
+together. `Product`'s collection resource had no live caller (the storefront had already moved to the
+tenant-scoped `/api/catalog/search`), but was an equally real, reachable, unscoped catalog dump.
+
+A closely related third gap: Spring Data REST also auto-generates a "related resource" link that
+follows a `@ManyToOne`/`@OneToMany` association — `GET /api/products/{id}/category` resolves a
+product's category the same way `findById` does, with the same no-query-building-step problem, so it
+was **not** covered by `TenantResourceGuardFilter`'s existing item-resource guard even though the
+product item resource itself was. A product id from another tenant would have returned that tenant's
+category object. This one had a live caller too:
+`ProductService.getRelatedProducts()` ("You might also like" on product-details) resolves a product's
+category via this exact link before searching that category.
+
+Fixed the same way as `Order`: `GET /api/products` and `GET /api/product-category` are disabled
+outright in `MyDataRestConfig` (both item resources stay on, unaffected). The category sidebar and
+filter dropdown now call a new tenant-scoped endpoint, `GET /api/catalog/categories`
+(`ProductFilterController`, backed by `ProductCategoryRepository.findAllByTenantId` — already existed,
+used by the admin categories endpoint, just never exposed to the storefront), returning a plain
+`CategoryView[]` array that deliberately omits `tenantId` (mirroring `ProductCardView`'s existing
+precedent of never putting the internal tenant id on a response an anonymous visitor can read).
+`Product`'s collection resource had no replacement built since nothing legitimate called it — the
+docs that used it as a curl/health-check example (`README.md`, `docs/MAINTENANCE.md`,
+`docs/OBSERVABILITY.md`, `docs/API.md`) were updated to use `/api/catalog/search` instead.
+`TenantResourceGuardFilter` gained a fourth guard pattern for
+`GET /api/products/{id}/category`, checked against the same `existsByIdAndTenantId` the product item
+resource already uses. See `ProductCategoryRepositoryTest` (JPA-level tenant isolation) and
+`CatalogTenantExposureIntegrationTest` (full-context, real-HTTP proof — including a before/after check
+confirming the old collection endpoints really did return `200` pre-fix, not just "should have")
+for the regression coverage. **Lesson for future work here: "the repository has tenant-scoped methods"
+and "the repository is safe" are different claims — the 2026-09-18 audit's own scope (unexporting
+`*TenantId` search methods, fixing `Order`'s collection resource) didn't automatically cover every SDR
+resource a tenant-scoped repository still exposes; a repository kept on Spring Data REST for one
+legitimate item lookup drags its default collection resource and every association's related-resource
+link along with it, and each needs its own check.**
+
 ### Platform-superadmin tier (roadmap #21, Milestone B)
 
 `/api/platform/**` (tenant create/list/edit/deactivate) is gated on a separate, higher authority —

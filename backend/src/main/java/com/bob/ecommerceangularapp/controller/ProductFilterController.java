@@ -1,5 +1,6 @@
 package com.bob.ecommerceangularapp.controller;
 
+import com.bob.ecommerceangularapp.dto.CategoryView;
 import com.bob.ecommerceangularapp.dto.PageResponse;
 import com.bob.ecommerceangularapp.dto.ProductCardView;
 import com.bob.ecommerceangularapp.dto.ProductVariantView;
@@ -37,6 +38,17 @@ public class ProductFilterController {
     @GetMapping("/products/{id}/variants")
     public List<ProductVariantView> variants(@PathVariable Long id) {
         return productVariantService.viewsForProduct(id);
+    }
+
+    /**
+     * The storefront's category list (sidebar + product-list filter dropdown), tenant-scoped.
+     * Replaced the raw Spring Data REST collection resource {@code GET /api/product-category}
+     * (now disabled in {@code MyDataRestConfig}), which had no tenant predicate at all — see
+     * {@code docs/SECURITY.md}.
+     */
+    @GetMapping("/categories")
+    public List<CategoryView> categories() {
+        return productQueryService.categories();
     }
 
     @GetMapping("/search")

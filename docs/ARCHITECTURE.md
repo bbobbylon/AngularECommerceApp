@@ -7,6 +7,15 @@ as optional, gracefully-degrading integrations.
 > Looking for what a *specific file* does? See **[`FILE_MAP.md`](FILE_MAP.md)** — this document
 > covers the component/pattern-level picture instead.
 
+> **Vintage note (added 2026-09-22):** this document's diagrams were drawn around Milestone 1–2 and
+> were never revisited as the 24-feature roadmap, multi-tenancy, RBAC, and the rest of `CLAUDE.md`'s
+> "Current state" landed — a documentation-audit pass found and fixed the two most concretely wrong
+> claims below (the REST-layer box and the "browse the catalog" sequence diagram both described the
+> `findByCategoryId`/`_embedded` flow, which the roadmap #21 tenant-scoping sweep removed), but the
+> rest of §2–§5 still describes the pre-multi-tenancy, pre-faceted-search, pre-admin-panel app and
+> should not be trusted as current without cross-checking `CLAUDE.md`'s "Current state" and
+> `FILE_MAP.md`, which are kept up to date with every feature.
+
 - [System context](#1-system-context)
 - [Backend architecture](#2-backend-architecture)
 - [Frontend architecture](#3-frontend-architecture)
@@ -61,14 +70,20 @@ flowchart LR
 
 ## 2. Backend architecture
 
-A classic layered Spring Boot app. Most read endpoints are **auto-generated** by Spring Data REST
-straight from the repositories; only checkout is a hand-written controller.
+A classic layered Spring Boot app. The catalog started on Spring Data REST's auto-generated
+endpoints; a 2026-09-22 audit found its *collection* resources (`GET /api/products`,
+`GET /api/product-category`) had no tenant predicate and disabled them (see [§6](#6-cross-cutting-concerns)),
+so today SDR only serves read-only, tenant-guarded **item** lookups by id, and hand-written
+controllers (`ProductFilterController`'s `/api/catalog/**`, plus checkout, admin, and every other
+`Admin*Controller`/`Platform*Controller` — far more than "just checkout" by this point) own every
+collection/search read.
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'fontFamily':'DM Sans, system-ui, sans-serif','lineColor':'#9aa3b8','clusterBkg':'#f5f7fd','clusterBorder':'#e7ecf7','clusterTextColor':'#1e2435'}}}%%
 flowchart TD
   subgraph web["🌐  Web / API layer"]
-    rest["Spring Data REST<br/>/api/products · /api/product-category<br/>/api/countries · /api/states · /api/orders"]:::be
+    rest["Spring Data REST (item + write-locked)<br/>/api/products/{id} · /api/product-category/{id}<br/>/api/countries · /api/states · /api/orders/{id}"]:::be
+    cat["ProductFilterController<br/>/api/catalog/search · /api/catalog/categories"]:::be
     cc["CheckoutController<br/>/api/checkout/purchase<br/>/api/checkout/payment-intent"]:::be
   end
   subgraph cfg["⚙️  Config (cross-cutting)"]
@@ -86,6 +101,7 @@ flowchart TD
   db[("MySQL")]:::db
 
   rest --> repos
+  cat --> repos
   cc --> chk --> repos
   repos --> ent --> db
   seed --> repos
@@ -222,6 +238,13 @@ The exact DDL Hibernate generates is in [`backend/schema.sql`](../backend/schema
 
 ### 5a. Browse the catalog
 
+> Updated 2026-09-22 — the previous version of this diagram showed `getProductListPaginate()` calling
+> the raw Spring Data REST search resource `GET /api/products/search/findByCategoryId` directly. That
+> resource was unexported (and the frontend's last caller moved off it) during roadmap #21's
+> tenant-scoping audit — it had no tenant predicate, so it mixed every tenant's catalog together. Both
+> product-list's category filter and the category sidebar now go through the tenant-scoped, faceted
+> `/api/catalog/search` / `/api/catalog/categories` endpoints instead (`ProductFilterController`).
+
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'fontFamily':'DM Sans, system-ui, sans-serif','actorBkg':'#ff5470','actorTextColor':'#fff','actorBorder':'#ec3a5c','signalColor':'#1e2435','labelBoxBkgColor':'#eef2fb','labelBoxBorderColor':'#e7ecf7','noteBkgColor':'#fff4e0','noteBorderColor':'#f5b400'}}}%%
 sequenceDiagram
@@ -229,15 +252,18 @@ sequenceDiagram
   participant U as Shopper
   participant PL as ProductList
   participant PS as ProductService
-  participant API as Spring Data REST
+  participant API as ProductFilterController
+  participant SVC as ProductQueryService
   participant DB as MySQL
 
   U->>PL: open /products
-  PL->>PS: getProductListPaginate(page,size,catId)
-  PS->>API: GET /api/products/search/findByCategoryId
-  API->>DB: SELECT ... LIMIT ?,?
-  DB-->>API: rows
-  API-->>PS: { _embedded.products, page }
+  PL->>PS: searchCatalog({categoryId, page, size, ...})
+  PS->>API: GET /api/catalog/search
+  API->>SVC: search(...) — tenant predicate from TenantContext
+  SVC->>DB: SELECT ... WHERE tenant_id = ? LIMIT ?,?
+  DB-->>SVC: rows
+  SVC-->>API: Page<ProductCardView>
+  API-->>PS: { content, totalElements, ... }
   PS-->>PL: products + pagination
   PL-->>U: grid + paginator (staggered reveal)
 ```

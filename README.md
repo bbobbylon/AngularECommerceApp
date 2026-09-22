@@ -73,7 +73,7 @@ Or run the pieces manually:
 
 ```bash
 # Backend — spring-boot-docker-compose auto-starts MySQL on :3308
-cd backend && ./mvnw spring-boot:run            # http://localhost:8586/api/products
+cd backend && ./mvnw spring-boot:run            # http://localhost:8586/api/catalog/search
 
 # Frontend
 cd frontend/angular-ecommerce

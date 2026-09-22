@@ -54,9 +54,11 @@ infrastructure that doesn't belong to any one feature.
   Okta tenant claim was ruled out as a mechanism (see `CLAUDE.md` Milestone B). Skips
   `/platform/**`/`/actuator`/`/swagger-ui` via its `SKIPPED_PREFIXES` list.
 - **`TenantResourceGuardFilter.java`** — closes the one isolation gap explicit query predicates can't
-  reach: Spring Data REST's single-item `GET/PUT/PATCH/DELETE /api/products/{id}` etc. go straight to
-  `findById` with no query-building step to intercept, so this filter does a cheap
-  `existsByIdAndTenantId` pre-check and 404s a cross-tenant id before the request reaches SDR.
+  reach: Spring Data REST's single-item `GET/PUT/PATCH/DELETE /api/products/{id}` etc. (plus, since a
+  2026-09-22 audit, the `/api/products/{id}/category` related-resource link, which hits the same
+  `findById`-with-no-query-hook problem) go straight to `findById` with no query-building step to
+  intercept, so this filter does a cheap `existsByIdAndTenantId` pre-check and 404s a cross-tenant id
+  before the request reaches SDR.
 - **`RateLimitFilter.java`** — Caffeine-backed per-IP-and-tenant rate limiting (30/min) + a 64 KB body
   cap on the public write endpoints (`/api/reviews|coupons|newsletter`), returning 429/413. `/api/privacy/**`
   (#24) is rate-limited the same way, for the same reason as the newsletter endpoints — it can send mail.
@@ -76,10 +78,13 @@ infrastructure that doesn't belong to any one feature.
   `apiKeyLookup` (#23 — hashed key→tenant+authorities, evicted immediately on revocation).
 - **`MyDataRestConfig.java`** — locks Spring Data REST's auto-exposed catalog resources
   (`Product`/`ProductCategory`/`Country`/`State`/`Order`) to read-only, exposes their ids in JSON
-  responses (off by default in SDR), and disables `Order`'s plain collection `GET` outright (roadmap
-  #21 gap — that listing had no tenant predicate; `Order`'s item resource, `GET /api/orders/{id}`,
-  stays on, tenant-guarded by `TenantResourceGuardFilter`). See `docs/SECURITY.md`'s "Spring Data REST
-  search resources must never take a caller-supplied `tenantId`".
+  responses (off by default in SDR), and disables the plain collection `GET` outright on `Order`
+  (roadmap #21 gap) **and, since a 2026-09-22 audit, on `Product`/`ProductCategory` too** — all three
+  listings had no tenant predicate; `ProductCategory`'s was live (the storefront's category sidebar and
+  product-list filter dropdown called it directly — see `ProductFilterController`'s
+  `GET /api/catalog/categories` replacement). Every item resource (`GET /api/products/{id}` etc.) stays
+  on, tenant-guarded by `TenantResourceGuardFilter`. See `docs/SECURITY.md`'s "Spring Data REST search
+  resources must never take a caller-supplied `tenantId`" and its 2026-09-22 follow-up.
 - **`OpenApiConfig.java`** — Swagger/OpenAPI metadata (title/description/contact) + registers the
   Bearer-JWT security scheme so Swagger UI's Authorize button works against the secured endpoints.
 

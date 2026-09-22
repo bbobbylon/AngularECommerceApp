@@ -1051,6 +1051,80 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   around locally with `nvm install 22.22.3` and a symlinked/relinked local Chromium cache; neither is
   a repo change.
 
+- ✅ **Maintenance sweep — a live, storefront-facing cross-tenant catalog leak the 2026-09-18 audit
+  missed (2026-09-22)** — a genuine audit-for-real-improvements pass (build+test everything first,
+  then look for real gaps in the same spirit as the 09-18/09-19 entries). Both builds and full test
+  suites were green before touching anything (276 backend tests + the 5 auto-skipped Testcontainers IT
+  cases, 17 frontend unit tests, `npm audit` 0 findings — this session's sandbox could start the Docker
+  daemon but egress policy blocks pulling `mysql:8.4` from Docker Hub's CDN, confirmed via a failed
+  `docker run hello-world`, so the IT was left to its documented auto-skip rather than half-run and
+  fail on an image pull unrelated to any code change). The 09-18 sweep's own SDR audit explicitly named
+  only three repositories as still Spring Data REST-exported (`Product`, `ProductCategory`, `Order`)
+  and fixed `Order`'s unscoped collection resource + every `*TenantId` derived-query method on all
+  three — but never checked whether `Product`'s and `ProductCategory`'s own default *collection*
+  resources (`GET /api/products`, `GET /api/product-category`) had the identical gap `Order`'s did:
+  Spring Data REST's framework-default `findAll`-backed collection endpoint takes no tenant predicate
+  at all, and neither `MyDataRestConfig` nor `TenantResourceGuardFilter` (which only ever guarded
+  *item* resources) touched them. **This one was live, not theoretical**: `ProductService.getProductCategories()`
+  on the frontend called `GET /api/product-category` directly to populate the category sidebar and the
+  product-list filter dropdown — every storefront visitor, on any tenant's site, would see every
+  tenant's categories mixed together the moment a second tenant existed with its own (this app already
+  has real multi-tenant proof points — the Milestone B "Verify Co" test tenant, the #22 billing work).
+  `Product`'s collection resource had no live caller (the storefront had already moved to
+  `/api/catalog/search`) but was an equally real, reachable, unscoped catalog dump — reachable by
+  anyone, no auth required. **A third, related gap in the same family**: Spring Data REST's
+  "related-resource" link that follows a `@ManyToOne` association (`GET /api/products/{id}/category`)
+  hits the same `findById`-with-no-query-hook problem as an item resource, but wasn't covered by
+  `TenantResourceGuardFilter`'s existing item-resource guard — and had a live caller too
+  (`ProductService.getRelatedProducts()`, "You might also like" on product-details), so a product id
+  from another tenant would have returned that tenant's category object. **Verified as a real bug, not
+  assumed**: wrote the regression test first, confirmed it failed red against the pre-fix code (`git
+  stash` on just `MyDataRestConfig.java` reproduced `200 OK` on both `GET /api/products` and
+  `GET /api/product-category`), then implemented the fix and confirmed green. Fixed the same way
+  `Order`'s was fixed: `MyDataRestConfig` now disables both collection `GET`s outright (item resources,
+  `GET /api/products/{id}` and `GET /api/product-category/{id}`, stay on — already tenant-guarded);
+  the category sidebar/dropdown now call a new tenant-scoped `GET /api/catalog/categories`
+  (`ProductFilterController` → new `ProductQueryService.categories()`, backed by the
+  `ProductCategoryRepository.findAllByTenantId` method that already existed for the admin categories
+  endpoint, just never exposed to the storefront) returning a new `CategoryView` DTO that deliberately
+  omits `tenantId` (mirroring `ProductCardView`'s existing never-leak-the-tenant-id-to-an-anonymous-
+  visitor precedent); `TenantResourceGuardFilter` gained a fourth guard pattern for
+  `/api/products/{id}/category`. Kept the fix in the codebase's own established shape: the new
+  categories logic lives in `ProductQueryService`, not the controller — `FILE_MAP.md`'s stated
+  invariant ("none of them touch a repository directly") would otherwise have been broken by this very
+  fix. New tests: `ProductCategoryRepositoryTest` (JPA-level tenant isolation on `findAllByTenantId`),
+  `CatalogTenantExposureIntegrationTest` (full-context, real-HTTP — mirrors `OrderTenantExposureIntegrationTest`'s
+  proof style: old collection paths now 4xx, new endpoint reachable, item resources and the
+  related-resource link still reachable/still tenant-guarded), plus two new `ProductQueryServiceTest`
+  cases for `categories()`. **A second, independent finding from the same pass: several docs had drifted
+  badly out of date** — `docs/ARCHITECTURE.md` and `docs/FLOWS.md`'s "if you read only one doc, read
+  this one" catalog-browse diagram still showed the exact `findByCategoryId`/HAL `_embedded` flow the
+  09-18 sweep had already removed (a stale-doc bug that predates this session), and `docs/API.md` still
+  listed `/products/search/findByCategoryId`, `/products/search/findByNameContaining`,
+  `/products/search/findByOriginalPriceNotNull`, and `/orders/search/findByCustomerEmailOrderByDateCreatedDesc`
+  as live public/secured endpoints — all four have 404'd since 09-18. Fixed the concretely-wrong parts
+  (the catalog flow diagrams, the API.md endpoint tables/curl examples, the auth sequence diagram's
+  order-search step and its `authInterceptor`/protected-rule summary rows) rather than attempting a
+  full rewrite of every diagram in both files; `ARCHITECTURE.md` gained a "vintage note" flagging that
+  its other, untouched diagrams (checkout, data model, admin) are still Milestone-1/2-vintage and
+  should be cross-checked against `CLAUDE.md`'s "Current state"/`FILE_MAP.md` rather than trusted
+  outright — a full modernization pass is real future work, not something to half-do inside a bug-fix
+  session. Also updated the `/api/products`-as-health-check examples in `README.md`,
+  `docs/MAINTENANCE.md`, and `docs/OBSERVABILITY.md` to point at `/api/catalog/search` instead, since
+  the raw collection endpoint they demonstrated no longer returns `200`. **Verified**: 286 backend
+  tests (276 + 10 new, across `ProductCategoryRepositoryTest`, `CatalogTenantExposureIntegrationTest`,
+  and two added `ProductQueryServiceTest` cases) + the 5 auto-skipped Testcontainers cases, `npx ng
+  build` production, 17/17
+  frontend unit tests, all 37 Playwright E2E tests including all 24 axe-core WCAG checks (the mock
+  backend's category stub moved from the old HAL shape to the new plain-array `/api/catalog/categories`
+  contract and the full storefront flow — including the category sidebar — still renders and passes),
+  `npm audit --omit=dev --audit-level=high` 0 findings. **Lesson for future tenant-scoping audits here:
+  "we already reviewed this repository's SDR exposure" is not the same claim as "we reviewed every
+  resource this repository's SDR annotation generates" — a repository kept on Spring Data REST for one
+  legitimate item lookup drags its default collection resource and every association's related-resource
+  link along for free, and each is a separate attack surface that needs its own check, even when the
+  repository's derived-query methods are all correctly unexported.**
+
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.

@@ -1,10 +1,13 @@
 package com.bob.ecommerceangularapp.service;
 
+import com.bob.ecommerceangularapp.config.TenantContext;
 import com.bob.ecommerceangularapp.dao.ProductCategoryRepository;
 import com.bob.ecommerceangularapp.dao.ProductRepository;
+import com.bob.ecommerceangularapp.dto.CategoryView;
 import com.bob.ecommerceangularapp.dto.ProductCardView;
 import com.bob.ecommerceangularapp.entity.Product;
 import com.bob.ecommerceangularapp.entity.ProductCategory;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,10 +25,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Slice test for the faceted catalog search: drives the real {@code JpaSpecificationExecutor} against
  * H2 to prove each facet (active-only, category, keyword, price, in-stock, on-sale, rating) narrows
  * the results. The {@code @Cacheable} on {@code search} is inert here (the service is instantiated
- * directly, so there's no caching proxy) — exactly what we want for testing the query logic.
+ * directly, so there's no caching proxy) — exactly what we want for testing the query logic. Also
+ * covers {@code categories()} (added 2026-09-22 — see {@code docs/SECURITY.md}), the tenant-scoped
+ * replacement for the raw Spring Data REST collection resource {@code GET /api/product-category}.
  */
 @DataJpaTest
 class ProductQueryServiceTest {
+
+    private static final Long TENANT_ID = 1L;
 
     @Autowired private ProductRepository productRepository;
     @Autowired private ProductCategoryRepository categoryRepository;
@@ -37,9 +44,14 @@ class ProductQueryServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ProductQueryService(productRepository);
+        service = new ProductQueryService(productRepository, categoryRepository);
         books = categoryRepository.save(new ProductCategory("Books"));
         mugs = categoryRepository.save(new ProductCategory("Mugs"));
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContext.clear();
     }
 
     @Test
@@ -99,6 +111,36 @@ class ProductQueryServiceTest {
         save("Unrated", books, p -> {}); // null rating -> excluded by the >= predicate
         Page<ProductCardView> result = service.search(null, null, null, null, null, null, 4, page);
         assertThat(result.getContent()).extracting(ProductCardView::name).containsExactly("Top Rated");
+    }
+
+    @Test
+    void categories_returnsOnlyTheCurrentTenants() {
+        ProductCategory tenantOneCategory = new ProductCategory("Luggage");
+        tenantOneCategory.setTenantId(TENANT_ID);
+        categoryRepository.save(tenantOneCategory);
+
+        ProductCategory otherTenantCategory = new ProductCategory("Electronics");
+        otherTenantCategory.setTenantId(99L);
+        categoryRepository.save(otherTenantCategory);
+
+        TenantContext.set(TENANT_ID);
+        assertThat(service.categories())
+                .extracting(CategoryView::categoryName)
+                .containsExactly("Luggage");
+    }
+
+    @Test
+    void categories_neverExposesTenantId() {
+        ProductCategory category = new ProductCategory("Books");
+        category.setTenantId(TENANT_ID);
+        categoryRepository.save(category);
+
+        TenantContext.set(TENANT_ID);
+        // CategoryView is a (id, categoryName) record — proven by compiling; this asserts the value
+        // shape too, guarding against someone widening the record to include tenantId later.
+        CategoryView view = service.categories().get(0);
+        assertThat(view.id()).isEqualTo(category.getId());
+        assertThat(view.categoryName()).isEqualTo("Books");
     }
 
     private void save(String name, ProductCategory category, Consumer<Product> customizer) {

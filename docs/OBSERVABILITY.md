@@ -85,9 +85,9 @@ not "broken". Visible at **Admin → Dashboard** (the "System health" card).
 - Echoes it back on the response `X-Request-Id` header.
 
 ```bash
-curl -D - -o /dev/null http://localhost:8585/api/products
+curl -D - -o /dev/null http://localhost:8585/api/catalog/search
 # < X-Request-Id: 731a88fc            (generated)
-curl -D - -o /dev/null -H "X-Request-Id: trace-abc123" http://localhost:8585/api/products
+curl -D - -o /dev/null -H "X-Request-Id: trace-abc123" http://localhost:8585/api/catalog/search
 # < X-Request-Id: trace-abc123        (passed through)
 ```
 

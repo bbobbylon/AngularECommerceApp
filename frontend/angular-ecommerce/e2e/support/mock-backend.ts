@@ -3,7 +3,8 @@ import { Page } from '@playwright/test';
 /**
  * Stubs the Luv2Shop backend at the network layer so the storefront E2E runs without MySQL or the
  * Spring Boot API. Responses match the real contracts: the faceted `/catalog/search` envelope, the
- * Spring Data REST HAL `_embedded` shapes for categories/countries/states, and the checkout response.
+ * plain-array `/catalog/categories` list, the Spring Data REST HAL `_embedded` shapes still used by
+ * `/countries`/`/states`, and the checkout response.
  */
 
 export const TRACKING_NUMBER = 'TEST-TRACK-1001';
@@ -47,16 +48,14 @@ const json = (body: unknown) => ({
 
 /** Register all the route handlers the storefront flow touches. Call at the start of each test. */
 export async function mockBackend(page: Page): Promise<void> {
-  // Category sidebar menu (HAL).
-  await page.route(/\/api\/product-category(\?.*)?$/, route =>
-    route.fulfill(json({
-      _embedded: {
-        productCategory: [
-          { id: 1, categoryName: 'Books' },
-          { id: 2, categoryName: 'Coffee Mugs' },
-        ],
-      },
-    })),
+  // Category sidebar menu + product-list filter dropdown — the tenant-scoped
+  // GET /api/catalog/categories (plain array; replaced the raw, unscoped Spring Data REST
+  // collection resource GET /api/product-category — see docs/SECURITY.md).
+  await page.route(/\/api\/catalog\/categories(\?.*)?$/, route =>
+    route.fulfill(json([
+      { id: 1, categoryName: 'Books' },
+      { id: 2, categoryName: 'Coffee Mugs' },
+    ])),
   );
 
   // Faceted catalog search — backs the product list / home grid and the header typeahead.
