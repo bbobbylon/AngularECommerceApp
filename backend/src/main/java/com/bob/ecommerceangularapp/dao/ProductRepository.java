@@ -44,10 +44,24 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     List<Product> findByActiveTrue();
 
     // ----- admin dashboard metrics -----
+    // All three predate tenant scoping (roadmap #21) and take no tenantId at all, so as public SDR
+    // search resources they mix every tenant's products into one platform-wide aggregate — confirmed
+    // live via a real-filter-chain probe, 2026-09-26: GET /api/products/search/countByActiveTrue, no
+    // tenant header, no auth, returned 200 with the total across every tenant's catalog (all three were
+    // listed as exposed search links under GET /api/products/search). countByActiveTrue and
+    // countByOriginalPriceNotNull have no remaining Java call site at all (superseded by
+    // countByTenantIdAndActiveTrue / countByTenantIdAndOriginalPriceNotNull below); countByUnitsInStockLessThan
+    // is still used by DataLoader's own seed-idempotency check, which intentionally looks across the
+    // whole table at boot, before any request-scoped TenantContext exists. Unexported rather than
+    // deleted outright, matching this file's existing precedent for superseded-but-not-yet-removed
+    // derived queries (see findByCategoryId et al. above).
+    @RestResource(exported = false)
     long countByActiveTrue();
 
+    @RestResource(exported = false)
     long countByUnitsInStockLessThan(int threshold);
 
+    @RestResource(exported = false)
     long countByOriginalPriceNotNull();
 
     /**

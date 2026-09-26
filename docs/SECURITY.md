@@ -208,6 +208,73 @@ resource a tenant-scoped repository still exposes; a repository kept on Spring D
 legitimate item lookup drags its default collection resource and every association's related-resource
 link along with it, and each needs its own check.**
 
+### A third SDR audit round: aggregate search resources + an association link (found 2026-09-26)
+
+A session was killed by a rate limit mid-audit before applying any fix, leaving only an untracked,
+assertion-free `@AutoConfigureMockMvc` probe test behind and an unverified "findings confirmed" claim.
+The follow-up session did not trust that claim — it re-ran the probe against real `HEAD`, read the
+actual console output, and then enumerated the full SDR-generated surface of all five still-exported
+repositories (`Product`, `ProductCategory`, `Country`, `State`, `Order`) fresh, rather than re-trusting
+what the 2026-09-18/09-22 sweeps above already claimed to have covered. Three more genuine, live gaps
+were found, all confirmed unscoped/reachable **before** the fix via a real request through the real
+filter chain (not inferred from reading the code):
+
+1. **`OrderRepository.sumTotalRevenue` — a caller-controlled `tenantId` on a `@Query` method.** The
+   2026-09-18 entry above explicitly flagged this method's SDR reachability as "not independently
+   confirmed." It now is: `@Query` methods are exported by Spring Data REST exactly like derived-query
+   methods, and this one's `:tenantId` parameter bound straight from the request's `?tenantId=` query
+   string — `GET /api/orders/search/sumTotalRevenue?tenantId=<any tenant's id>`, no tenant header, no
+   auth, returned `200` with that tenant's real total revenue. The query itself was already
+   tenant-scoped (`where o.tenantId = :tenantId`) — that scoping is worthless as a public search
+   resource, since the caller supplies the very value the query trusts.
+2. **`ProductRepository.countByActiveTrue`/`countByOriginalPriceNotNull`/`countByUnitsInStockLessThan`
+   — no `tenantId` parameter at all.** All three predate tenant scoping (roadmap #21) and were left
+   exported with no annotation. As public SDR search resources they mixed every tenant's catalog into
+   one platform-wide aggregate: `GET /api/products/search/countByActiveTrue`, no tenant header, no
+   auth, returned `200` with the active-product count across **every** tenant's catalog combined.
+3. **`ProductCategory.products` (the inverse side of `Product.category`) — a related-resource link
+   `TenantResourceGuardFilter` never covered.** `@JsonIgnore` on that field only suppresses it from the
+   *embedded* category representation; it does nothing to Spring Data REST's separate related-resource
+   endpoint, `GET /api/product-category/{id}/products`. `TenantResourceGuardFilter` correctly 404s
+   `GET /api/product-category/{id}` for a category id belonging to another tenant (its guard pattern
+   list already covers that path), but the sibling `.../products` path for that **exact same id** was
+   never added to the guard's pattern list, so it fell through unguarded. Proven live, not just
+   reachable: a real second tenant + category + product were created in-test, and
+   `GET /api/product-category/{that category's id}/products`, requested with **no tenant header at
+   all** (i.e. the default tenant), returned `200` with that other tenant's real product — name, SKU,
+   price and `tenantId` all visible.
+
+All three are fixed with `@RestResource(exported = false)` — on the two repository methods (matching
+every other unexported aggregate/derived query in these files) and, for the third, directly on the
+`ProductCategory.products` field itself (the entity-level form of the same annotation, since the gap
+here is an association link generated from JPA metadata, not a repository method). `Order`'s and
+`Product`'s `/search` resource collections are now completely gone (every remaining method on both was
+already unexported from prior sweeps); no frontend code called any of the three fixed paths — the
+storefront already reads `GET /api/catalog/categories` for category data and never called the raw
+`.../products` association link. See `SdrSearchAndAssociationExposureIntegrationTest` for the
+regression coverage (full-context, real-filter-chain, and — for the `ProductCategory.products` case —
+genuine cross-tenant proof using a second real tenant's real data, not just a nonexistent id).
+
+**A related, independently-verified methodology finding from the same session**: the existing
+`OrderTenantExposureIntegrationTest` and `CatalogTenantExposureIntegrationTest` both build MockMvc with
+`MockMvcBuilders.webAppContextSetup(context)` and no `.addFilters(...)` call. That setup does **not**
+wire the app's registered `Filter` beans into MockMvc dispatch — confirmed directly in this session
+(not assumed) by checking the `X-Request-Id` response header `RequestIdFilter` adds unconditionally to
+every real request: it was absent under that harness. That means neither of those two test classes ever
+actually exercises `TenantResolutionFilter` or `TenantResourceGuardFilter` during their assertions —
+`TenantContext.currentTenantId()` is `null` throughout every test in both files. Their tests still catch
+real regressions in Spring Data REST's own exposure configuration (`MyDataRestConfig`,
+`@RestResource(exported = false)`, which are enforced by the SDR framework itself, independent of any
+custom filter), which is most of what they assert — but any assertion phrased as "a nonexistent id
+404s" proves only that a nonexistent id 404s (which SDR does on its own, filter or no filter), not that
+the tenant guard filter would have caught a **real** cross-tenant id if the guard itself regressed. This
+is why `SdrSearchAndAssociationExposureIntegrationTest` (like `TmpSdrProbeTest`, the throwaway probe it
+replaces) deliberately uses `@AutoConfigureMockMvc` instead, and why its cross-tenant proof uses a real
+second tenant's real data rather than an id that simply doesn't exist. Upgrading the two older test
+classes to the same harness (so a future `TenantResourceGuardFilter` regression would actually be
+caught) is flagged as a follow-up, not done here — it's a broader change to files this pass didn't
+otherwise need to touch.
+
 ### Platform-superadmin tier (roadmap #21, Milestone B)
 
 `/api/platform/**` (tenant create/list/edit/deactivate) is gated on a separate, higher authority —

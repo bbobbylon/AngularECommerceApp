@@ -38,6 +38,16 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @RestResource(exported = false)
     Optional<Order> findByOrderTrackingNumber(String orderTrackingNumber);
 
+    // Called only from AdminService/AnalyticsService with TenantContext.currentTenantId() — never a
+    // caller-controlled value. The query itself is tenant-scoped (`where o.tenantId = :tenantId`), but
+    // that scoping is worthless as a public SDR search resource: @Query methods are exported by SDR
+    // like any derived-query method, binding :tenantId straight from the request's ?tenantId= query
+    // param, so an unauthenticated caller could pass ANY tenant's id and read its total revenue
+    // directly (confirmed live via a real-filter-chain probe, 2026-09-26 — GET
+    // /api/orders/search/sumTotalRevenue?tenantId=<any id>, no tenant header, no auth, returned 200
+    // with that tenant's real revenue figure). @RestResource(exported = false) closes it with zero
+    // change to the two Java call sites.
+    @RestResource(exported = false)
     @Query("select coalesce(sum(o.totalPrice), 0) from Order o where o.tenantId = :tenantId")
     BigDecimal sumTotalRevenue(@Param("tenantId") Long tenantId);
 

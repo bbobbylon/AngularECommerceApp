@@ -1125,6 +1125,80 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   link along for free, and each is a separate attack surface that needs its own check, even when the
   repository's derived-query methods are all correctly unexported.**
 
+- ✅ **Rate-limit-interrupted audit, resumed and completed — a third SDR round, plus a verified test-harness
+  gap (2026-09-26)** — this continues the tenant-scoping audit thread above. A prior session had been
+  running the same kind of "enumerate every SDR-exported repository's full surface fresh" pass this
+  entry's predecessors describe, was killed by a session-wide rate limit before applying any fix or
+  committing, and left behind only one untracked file:
+  `backend/src/test/java/com/bob/ecommerceangularapp/config/TmpSdrProbeTest.java` — a throwaway,
+  assertion-free `@AutoConfigureMockMvc` probe that prints (never asserts) response status/body for five
+  requests through the real filter chain. Its last self-reported status was "Findings confirmed... now
+  let's apply the fixes," but there was no captured output backing that claim. **This session did not
+  trust it.** It re-ran the probe exactly as left (`./mvnw test -Dtest=TmpSdrProbeTest`, compiled and ran
+  clean against `HEAD` with no changes needed), read the real console output, and treated that — not the
+  crashed agent's summary — as the starting evidence. The probe's own five checks showed a mix: the
+  `Order` item resource was correctly tenant-guarded (cross-tenant `X-Tenant-Id` → `404`, matching the
+  09-18/09-22 work above), but `GET /api/orders/search/sumTotalRevenue?tenantId=1` (no tenant header, no
+  auth) returned `200` with `99.99` — a real number, not an error — and
+  `GET /api/products/search/countByActiveTrue` (same, no header, no auth) returned `200` with `100`.
+  Rather than stopping there, the probe was extended (still real-filter-chain, still in-session, before
+  any fix) to enumerate the **complete** SDR surface of all five still-exported repositories
+  (`Order`, `Product`, `ProductCategory`, `Country`, `State`) fresh: every `/search` resource listing,
+  every entity association's related-resource link reachable from each. That surfaced a third gap the
+  original 5-request probe never would have found: `GET /api/product-category/1/products` returned a
+  full, real, unfiltered product list — Spring Data REST's related-resource link for `ProductCategory`'s
+  `@OneToMany` inverse of `Product.category`, which `@JsonIgnore` (already on that field) does nothing to
+  suppress and which `TenantResourceGuardFilter`'s guard-pattern list had never covered, unlike the
+  sibling `/api/products/{id}/category` link the 09-22 sweep did add a guard for. This one was proven
+  cross-tenant for real, not just "reachable": a genuine second tenant + category + product were created
+  in-test (with an `entityManager.clear()` to eliminate a first-level-cache false negative from reading
+  back an entity in the same transaction it was just written in — the naive version of this check
+  silently passed for the wrong reason at first, worth remembering for any future test that creates and
+  immediately re-reads an association in one `@Transactional` method), and
+  `GET /api/product-category/{that tenant's category id}/products`, requested with **no tenant header at
+  all**, returned `200` with that other tenant's real product (name/SKU/price/`tenantId` all visible) —
+  even though `TenantResourceGuardFilter` correctly `404`s the plain item resource
+  (`GET /api/product-category/{id}`) for that exact same id. All three confirmed gaps —
+  `OrderRepository.sumTotalRevenue`'s caller-controlled `tenantId` on an exported `@Query` method (the
+  one the 2026-09-18 entry above explicitly flagged as "not independently confirmed" — now confirmed and
+  closed), `ProductRepository.countByActiveTrue`/`countByOriginalPriceNotNull`/`countByUnitsInStockLessThan`
+  (exported with no `tenantId` parameter at all, mixing every tenant's catalog into one aggregate), and
+  `ProductCategory.products`'s related-resource link — are fixed with `@RestResource(exported = false)`,
+  on the repository methods for the first two and directly on the entity field for the third (the
+  correct form of the same annotation for an association-link gap rather than a repository-method gap).
+  No frontend code called any of the three; `Order`'s and `Product`'s `/search` resource collections are
+  now entirely gone (every method on both repos was already unexported from prior sweeps or this one).
+  **A second, independently-verified finding from the same pass, not fabricated to pad the audit**: the
+  existing `OrderTenantExposureIntegrationTest`/`CatalogTenantExposureIntegrationTest` both build MockMvc
+  via `MockMvcBuilders.webAppContextSetup(context)` with no `.addFilters(...)` — confirmed, by checking
+  for the `X-Request-Id` header `RequestIdFilter` unconditionally adds to every real response and finding
+  it absent under that harness, that this setup never wires the app's custom `Filter` beans
+  (`TenantResolutionFilter`, `TenantResourceGuardFilter` included) into MockMvc dispatch at all, so
+  `TenantContext.currentTenantId()` is `null` throughout both files' tests. Their assertions still catch
+  a real regression in Spring Data REST's own exposure config (`MyDataRestConfig`,
+  `@RestResource(exported = false)` — enforced by the SDR framework itself, filter-independent), but any
+  assertion of the shape "a nonexistent id 404s" proves only that — not that `TenantResourceGuardFilter`
+  would catch a **real** cross-tenant id if the guard itself broke, since the guard never runs in that
+  harness. This is exactly why the crashed agent's probe (and this session's replacement for it) used
+  `@AutoConfigureMockMvc` instead, and it's documented in both `docs/SECURITY.md` and on the new test
+  class itself so it isn't re-lost. Upgrading the two older test classes to the same harness is flagged
+  as a real follow-up (queued as a suggested task) rather than done here, since it touches files/scope
+  this pass didn't otherwise need. New regression test:
+  `SdrSearchAndAssociationExposureIntegrationTest` (7 tests, `@AutoConfigureMockMvc`, real filter chain,
+  genuine cross-tenant proof for the `ProductCategory.products` case) — replaces `TmpSdrProbeTest`, which
+  was deleted before committing per its own throwaway-diagnostic purpose. **Verified**: 293 backend tests
+  (286 + 7 new) + the 5 auto-skipped Testcontainers MySQL IT cases (Docker daemon startable in this
+  sandbox but egress to Docker Hub's CDN is policy-blocked, same as every prior session that logged this —
+  confirmed again rather than assumed), `npx ng build` production, 17/17 frontend unit tests, all 37
+  Playwright E2E tests including all 24 axe-core WCAG checks (Chromium was already cached at
+  `/opt/pw-browsers` this session, so the E2E suite that prior sessions sometimes couldn't reach ran
+  clean end to end), `npm audit --omit=dev --audit-level=high` 0 findings on both `npm ci` and the audit
+  itself. **Lesson for future work in this thread: a crashed agent's self-reported conclusion is not
+  evidence, even when it left behind a plausible-looking diagnostic tool — re-run the tool, read the real
+  output, and only then decide what (if anything) needs fixing; and a regression test that "proves" a
+  filter-enforced invariant is only as strong as the harness it runs under, so check what a test's MockMvc
+  setup actually wires before trusting what it appears to cover.**
+
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.
