@@ -1199,6 +1199,64 @@ plan, locked decisions (MySQL-only, repo layout), and verification steps.
   filter-enforced invariant is only as strong as the harness it runs under, so check what a test's MockMvc
   setup actually wires before trusting what it appears to cover.**
 
+- ✅ **Closed the test-harness gap the 2026-09-26 entry flagged — and proved the fix, not just applied it
+  (2026-09-28)** — `OrderTenantExposureIntegrationTest` and `CatalogTenantExposureIntegrationTest` both
+  built MockMvc via `MockMvcBuilders.webAppContextSetup(context)` with no `.addFilters(...)`, which never
+  wires the app's custom `Filter` beans (`TenantResolutionFilter`/`TenantResourceGuardFilter` included)
+  into dispatch — the 09-26 entry proved this by checking that `RequestIdFilter`'s unconditional
+  `X-Request-Id` response header was absent under that harness. Baseline confirmed green first (293
+  backend tests, the 5 Testcontainers IT cases auto-skipped — Docker unavailable this session; `npx ng
+  build`; 17/17 frontend unit tests). **What was actually wrong, precisely**: switching the harness alone
+  would not have been enough. Every existing assertion in both classes used a *nonexistent* order/product/
+  category id (e.g. `999999999`) — Spring Data REST's own `findById` 404s a genuinely nonexistent row on
+  its own, with zero help from `TenantResourceGuardFilter`, so even under the corrected
+  `@AutoConfigureMockMvc` harness none of the original test methods could tell a working guard from a
+  broken one. **Both classes were rewritten**, not mechanically find-replaced: switched to `@SpringBootTest
+  @AutoConfigureMockMvc @Transactional` (matching `SdrSearchAndAssociationExposureIntegrationTest`'s
+  pattern), every pre-existing test method re-read and confirmed still true/meaningful under the new
+  harness (the SDR-exposure-config assertions — collection/search resources being gone — are enforced by
+  the SDR framework itself and were never harness-dependent; the "item resource stays reachable" checks
+  are honestly re-scoped in their own comments to say they prove reachability, not tenant guarding), and
+  each class gained one new test built from a **genuinely cross-tenant fixture** — a real second tenant
+  with a real order (`crossTenantOrderIsBlockedByTheRealGuardFilter`), and a real second tenant with a
+  real category + product (`crossTenantProductAndCategoryAreBlockedByTheRealGuardFilter`) — read back
+  with **no tenant header at all** and asserted `404`, then re-read with that tenant's own header and
+  asserted `200` (so the guard isn't just blocking everything). **The fix was proven, not assumed**,
+  mirroring this repo's `git stash`-based audit precedent: `TenantResourceGuardFilter`'s Order guard
+  entry was commented out first — `crossTenantOrderIsBlockedByTheRealGuardFilter` alone went red
+  (`expected:<404> but was:<200>`), the other 5 tests in that class stayed green (`Tests run: 6, Failures:
+  1`) — then restored and reconfirmed green. Same for the Product/ProductCategory/`.../category` guard
+  entries: `crossTenantProductAndCategoryAreBlockedByTheRealGuardFilter` alone went red (caught the leak
+  on its very first assertion — tenant 2's real "Catalog Exposure Secret Product" came back in full,
+  `tenantId: 2`, to a request with no tenant header), the other 6 tests stayed green (`Tests run: 7,
+  Failures: 1`), then restored and reconfirmed green (`git diff` on the filter showed zero net change
+  after each restore). **Then went further, to strengthen the proof**: a throwaway, uncommitted scratch
+  test (`TmpOldHarnessBlindnessProbeTest`, deleted after use) replayed the exact same cross-tenant order
+  fixture under the *old* `webAppContextSetup(context).build()` harness. It returned `200` (never `404`)
+  **both with the guard broken and with the guard restored** — i.e. the old harness isn't merely weak,
+  it is categorically blind to `TenantResourceGuardFilter`'s behavior, because none of the app's custom
+  filters run under it regardless of whether the guard logic is correct. That is the strongest form of
+  the proof the 09-26 entry's finding predicted. **Other test classes checked for the same pattern**:
+  grepped the whole `backend/src/test` tree for `webAppContextSetup`/`MockMvcBuilders`/
+  `AutoConfigureMockMvc`. `SecurityFilterChainIntegrationTest` also uses
+  `webAppContextSetup(context).apply(springSecurity())` — left unchanged, correctly: `.apply(springSecurity())`
+  wires Spring Security's own filter chain (the actual thing that class tests — JWT authentication/RBAC
+  authorities, `SecurityConfig`'s rules — not `TenantResourceGuardFilter`, a different, non-security
+  servlet filter that `springSecurity()` doesn't touch either way), so it was already using the correct
+  technique for its own stated purpose. `CheckoutControllerWebMvcTest` uses `MockMvcBuilders
+  .standaloneSetup(...)` by design (its javadoc says so explicitly: a fast, dependency-free web-layer
+  test with the service mocked and no security/tenant claim to prove) — correctly out of scope.
+  `RateLimitFilterTest`/`TenantResolutionFilterTest`/`ApiKeyAuthenticationFilterTest` are pure unit tests
+  that construct the real filter and drive it directly with `MockFilterChain` (no MockMvc, no Spring
+  context at all) — the filter under test is genuinely exercised, just not through the full HTTP stack,
+  so these needed no change. `MySqlIntegrationTest` (the Testcontainers IT) already used
+  `@AutoConfigureMockMvc` correctly. Net: **only the two classes named in the 09-26 finding had the
+  gap**, and both are fixed. Updated `docs/SECURITY.md`'s "methodology finding" section with a
+  matching follow-up write-up. Verified after restoring everything: `./mvnw clean package` — 295 backend
+  tests (293 + 2 new), 0 failures/errors, 5 Testcontainers cases still auto-skipped (Docker unavailable);
+  `npx ng build` production clean; `CI=true npx ng test --watch=false` 17/17; `npm audit --omit=dev
+  --audit-level=high` 0 findings; `git status`/`git diff --stat` confirmed only the two intended test
+  files changed (the scratch probe class and the temporary filter edits were never left in the tree).
 
 Okta (M3), Stripe (M5) and Email (M6) require external accounts/credentials to run; the app still
 boots and the catalog/cart/checkout flow works with placeholder config, so they don't block local dev.

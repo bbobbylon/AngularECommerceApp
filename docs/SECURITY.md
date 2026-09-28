@@ -275,6 +275,33 @@ classes to the same harness (so a future `TenantResourceGuardFilter` regression 
 caught) is flagged as a follow-up, not done here — it's a broader change to files this pass didn't
 otherwise need to touch.
 
+**Follow-up done (2026-09-28): the two older classes now use the real filter chain, and the fix was
+proven, not assumed.** `OrderTenantExposureIntegrationTest` and `CatalogTenantExposureIntegrationTest`
+were rewritten from `MockMvcBuilders.webAppContextSetup(context)` to `@SpringBootTest
+@AutoConfigureMockMvc` (`SdrSearchAndAssociationExposureIntegrationTest`'s pattern). Switching the
+harness alone wasn't the whole gap, though: every existing assertion in both classes used a
+**nonexistent** id, which Spring Data REST 404s on its own regardless of whether
+`TenantResourceGuardFilter` runs — so even under the corrected harness, none of the original test
+methods could actually tell a working guard from a broken one. Each class gained one new test built
+from a **genuinely cross-tenant fixture** (a real second tenant with a real order / a real
+category+product) read back with no tenant header — `OrderTenantExposureIntegrationTest
+.crossTenantOrderIsBlockedByTheRealGuardFilter()` and `CatalogTenantExposureIntegrationTest
+.crossTenantProductAndCategoryAreBlockedByTheRealGuardFilter()` — the same style
+`SdrSearchAndAssociationExposureIntegrationTest` already used. The fix was verified by deliberately
+breaking it: the relevant `TenantResourceGuardFilter` guard entries (Order, then Product/
+ProductCategory/the `.../category` link) were each commented out in turn, and in both cases exactly the
+one new cross-tenant test went red (`expected:<404> but was:<200>`) while every other test in the class
+stayed green — proving the new test is the one actually exercising the guard, not incidentally passing.
+A throwaway probe class (same fixture, old `webAppContextSetup` harness, not committed) was then run
+against both the broken *and* the restored guard and returned `200` — never `404` — in both cases,
+confirming the old harness is blind to the guard's behavior categorically, not merely under-testing it.
+See the CLAUDE.md entry dated 2026-09-28 for the full write-up. `SecurityFilterChainIntegrationTest`
+was checked too and left alone: it already wires the real Spring Security filter chain via
+`.apply(springSecurity())` (the correct technique for what it tests — JWT/RBAC authorization rules, a
+different concern from `TenantResourceGuardFilter`), and every other `webAppContextSetup`/standalone
+MockMvc test in the suite (`CheckoutControllerWebMvcTest`) is a deliberately filter-free web-layer unit
+test with no tenant/security claim to prove.
+
 ### Platform-superadmin tier (roadmap #21, Milestone B)
 
 `/api/platform/**` (tenant create/list/edit/deactivate) is gated on a separate, higher authority —
